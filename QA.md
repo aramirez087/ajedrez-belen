@@ -1,3 +1,15 @@
+# Actualización v7 — tablero recortado, 9 octubre 2026 (Costa Rica)
+
+- Restaurado el tablero recortado y angulado preferido por el usuario; mismo caballo original. Solo cambian la decoración del hero y sus estilos.
+- Astro check: 6 archivos, 0 errores, 0 advertencias, 0 hints. Build estático correcto tras el último cambio.
+- Inspección de capturas reales en Codex In-app Browser: escritorio 1440×1000 y móvil 390×844. Anchos 320, 390, 740, 1024 y 1440 sin desbordamiento horizontal. Se corrigió el ancho del tablero en tablet.
+- Tablero SVG decorativo, oculto a tecnología asistiva; sin JavaScript ni animación nuevos. Los controles y enlaces de v6 permanecen sin cambios.
+- Library escritorio: `libfile_fe80160a585881918c70f3616730fb8a` — `ajedrez-belen-v7-cropped-desktop.jpg`.
+- Library móvil: `libfile_53a5a270df98819195648d1a9c055b77` — `ajedrez-belen-v7-cropped-mobile.jpg`.
+- Los límites de pruebas de dispositivos y navegadores detallados abajo siguen aplicando. La versión anterior con casilla roja es recuperable en `static-poster-v6` (20d4a2b).
+
+## Registro anterior
+
 # Validación local — v6, 9 octubre 2026 (Costa Rica)
 
 - Astro check: 6 archivos; 0 errores, 0 advertencias, 0 hints. Astro build generó el sitio estático en `dist/` después del último cambio de código.
