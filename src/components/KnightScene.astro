@@ -2,21 +2,25 @@
 interface Props { src: string }
 const { src } = Astro.props;
 ---
-<div class="knight-scene">
-  <svg class="chess-board" viewBox="0 0 540 240" aria-hidden="true" focusable="false">
-    <defs>
-      <pattern id="board-checks" width="420" height="420" patternUnits="userSpaceOnUse" patternTransform="matrix(1 .086 -.334 .352 215 132)">
-        <rect width="420" height="420" fill="#e8e4d8" />
-        <path d="M210 0h210v210H210ZM0 210h210v210H0Z" fill="#303530" />
-      </pattern>
-      <radialGradient id="board-fade" cx="55%" cy="64%" r="66%" gradientTransform="translate(0 -.21) scale(1 1.32)">
-        <stop offset=".46" stop-color="white" />
-        <stop offset="1" stop-color="black" />
-      </radialGradient>
-      <mask id="board-crop"><rect width="540" height="240" fill="url(#board-fade)" /></mask>
-    </defs>
-    <rect width="540" height="240" fill="url(#board-checks)" mask="url(#board-crop)" />
-  </svg>
-  <div class="knight-shadow" aria-hidden="true"></div>
-  <img src={src} class="knight-piece" alt="Caballo Staunton tallado en madera clara." width="750" height="1000" fetchpriority="high" decoding="async"/>
-</div>
+<figure class="knight-figure">
+  <div class="knight-scene">
+    <div class="scene-backdrop" aria-hidden="true"><span class="scene-coordinate coordinate-top">a b c d e f g h</span><span class="scene-coordinate coordinate-side">8<br />7<br />6<br />5</span></div>
+    <svg class="chess-board" viewBox="0 0 540 240" aria-hidden="true" focusable="false">
+      <defs>
+        <pattern id="board-checks" width="420" height="420" patternUnits="userSpaceOnUse" patternTransform="matrix(1 .086 -.334 .352 215 132)">
+          <rect width="420" height="420" fill="var(--board-light)" />
+          <path d="M210 0h210v210H210ZM0 210h210v210H0Z" fill="var(--board-dark)" />
+        </pattern>
+        <radialGradient id="board-fade" cx="55%" cy="64%" r="66%" gradientTransform="translate(0 -.21) scale(1 1.32)">
+          <stop offset=".46" stop-color="white" />
+          <stop offset="1" stop-color="black" />
+        </radialGradient>
+        <mask id="board-crop"><rect width="540" height="240" fill="url(#board-fade)" /></mask>
+      </defs>
+      <rect width="540" height="240" fill="url(#board-checks)" mask="url(#board-crop)" />
+    </svg>
+    <div class="knight-shadow" aria-hidden="true"></div>
+    <img src={src} class="knight-piece" alt="Caballo de ajedrez tallado en madera clara, sobre un tablero." width="750" height="1000" fetchpriority="high" decoding="async" />
+  </div>
+  <figcaption><span>64 casillas. Infinitas posibilidades.</span><span class="checker-mark" aria-hidden="true"></span></figcaption>
+</figure>

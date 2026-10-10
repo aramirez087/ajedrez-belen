@@ -1,3 +1,26 @@
+# Validación — diseño editorial, 9 octubre 2026 (Costa Rica)
+
+- Tipografía final: Manrope Variable en titulares y DM Sans en texto. Fuentes locales, con licencias OFL conservadas. Sin círculo ni sello junto al caballo.
+- Astro check: 6 archivos, 0 errores, 0 advertencias, 0 hints. Astro build estático correcto. `git diff --check` correcto.
+- DOM compilado: 0 etiquetas script. No se añadieron dependencias JavaScript. Los dos archivos Manrope suman 39.816 bytes; el caballo aprobado conserva sus 101.094 bytes y no cambió.
+- Inspección de navegador en Codex In-app Browser: páginas completas en escritorio (1440 px), tablet (820 px) y móvil (320 y 390 px). Comprobación de ancho en 320, 390, 640, 760, 820, 1024, 1440 y 1920 px: `scrollWidth === clientWidth`, sin desbordamiento horizontal. El titular se mantiene en tres líneas en esos anchos.
+- Se revisó la composición completa, incluidos niveles, precios, descuento, información de pago y contacto. Se aumentaron los tamaños de los textos prácticos y se separó el símbolo de moneda de los importes.
+- En móvil, «Las clases» permanece en la navegación y «Ver las clases» lleva a la sección correcta. Todos los enlaces internos tienen destino. Los cuatro enlaces WhatsApp apuntan a `https://wa.me/50687686102`; Facebook conserva su dirección confirmada. Ningún enlace envía un mensaje automáticamente.
+- Escudo y caballo cargan correctamente. Fuentes cargadas. Registro del navegador sin errores ni advertencias.
+- Teclado: Enter en «Saltar al contenido» enfoca `main#contenido`; Enter abre y cierra el detalle de pago. Foco sólido visible en el control.
+- Tabla nativa con caption, grupos, filas, cabeceras y celdas. Roles explícitos preservan la estructura al adaptar filas a grid; las celdas describen sus cabeceras con `headers`. «Lo que exploramos» permanece en la estructura accesible aunque se oculta visualmente en móvil.
+- Las transiciones se limitan a hover de controles; `prefers-reduced-motion` las elimina. Sin animación del caballo ni control de desplazamiento.
+
+Capturas locales (directorio ignorado por Git):
+
+- `output/ajedrez-belen-desktop.jpg`
+- `output/ajedrez-belen-desktop-full.jpg`
+- `output/ajedrez-belen-mobile-full.jpg`
+
+Límites: no se probó en teléfono físico, lector de pantalla, Safari o Firefox, ni con zoom de texto al 200%. No se verificó entrega de mensajes WhatsApp. Sede, horarios, edades y condiciones precisas del descuento siguen sin confirmar. No se publicó el sitio.
+
+---
+
 # Actualización v7 — tablero recortado, 9 octubre 2026 (Costa Rica)
 
 - Restaurado el tablero recortado y angulado preferido por el usuario; mismo caballo original. Solo cambian la decoración del hero y sus estilos.
