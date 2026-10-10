@@ -1,0 +1,69 @@
+---
+import '@fontsource-variable/dm-sans';
+import '../styles/global.css';
+import HeroBoard from '../components/HeroBoard.astro';
+import { association as a } from '../data/association';
+const consultation = 'Hola, me gustaría recibir información sobre las clases de Ajedrez Belén: niveles, horarios y lugar de las clases. ¡Gracias!';
+const contactUrl = a.whatsapp ? `https://wa.me/${a.whatsapp.replace(/\D/g,'')}?text=${encodeURIComponent(consultation)}` : '#consultas';
+---
+<!doctype html>
+<html lang="es-CR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Ajedrez Belén. Un espacio en Belén, Heredia, para aprender ajedrez, seguir mejorando y compartir cada partida. Conoce los niveles y las mensualidades." />
+    <meta name="theme-color" content="#f5f2e9" />
+    <title>Ajedrez Belén | Un tablero. Un mundo por descubrir.</title>
+    <link rel="icon" href="/media/favicon.png" type="image/png" />
+  </head>
+  <body>
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
+    <header class="site-header wrap">
+      <a href="#inicio" class="brand" aria-label="Ajedrez Belén, inicio">
+        {a.crest ? <img src={a.crest} alt="" width="46" height="46"/> : <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 40"><path d="M6 35h22M8 30h18L23 21c6-7 4-15-3-18l-4 2-3-2v6L5 18l3 4 6-1c4 2 0 6-3 9"/></svg></span>}
+        <span>Ajedrez<br />Belén<span class="brand-place">Heredia, Costa Rica</span></span>
+      </a>
+      <nav aria-label="Navegación principal"><a href="#niveles">Las clases</a><a href="#mensualidades">Mensualidades</a><a class="nav-contact" href="#consultas">Contacto <span aria-hidden="true">↗</span></a></nav>
+    </header>
+    <main id="contenido" tabindex="-1">
+      <section id="inicio" class="hero wrap" aria-labelledby="hero-heading">
+        <div class="hero-copy">
+          <p class="place"><span aria-hidden="true"></span> El ajedrez nos reúne en Belén.</p>
+          <h1 id="hero-heading">Un tablero.<br />Un mundo<br />por descubrir.</h1>
+          <p class="hero-description">Un espacio en Belén para aprender ajedrez, seguir mejorando y compartir cada partida.</p>
+          <a class="button" href={contactUrl} target={a.whatsapp ? '_blank' : undefined} rel={a.whatsapp ? 'noopener noreferrer' : undefined}>Consultar por las clases <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+        <div class="hero-visual"><span class="visual-note">Hay mucho más detrás de cada movimiento.</span>{a.heroPhoto ? <HeroBoard photo={a.heroPhoto} photoDescription={a.heroPhotoDescription}/> : <img class="board-art staunton-art" src={a.heroIllustration} alt="Ilustración de un tablero de ajedrez con piezas Staunton de madera clara y oscura: un caballo, un alfil, una torre y tres peones." width="1536" height="1024" fetchpriority="high" decoding="async"/>}<span class="board-caption"><span>64</span> casillas. Infinitas posibilidades.</span></div>
+        <a class="hero-bottom" href="#asociacion">El siguiente movimiento <span aria-hidden="true">↓</span></a>
+      </section>
+      <section id="asociacion" class="intro wrap section-space" aria-labelledby="intro-heading">
+        <div class="section-label">Ajedrez Belén</div>
+        <div><h2 id="intro-heading">Aprender.<br />Pensar.<br />Compartir.</h2><div class="intro-bottom"><p>El ajedrez empieza con una pregunta, una idea, una primera jugada. Y crece cuando tenemos con quién compartirlo.</p><p>En Ajedrez Belén, el tablero es un punto de encuentro para quienes empiezan y quienes quieren seguir mejorando. Un espacio para aprender y disfrutar de cada partida.</p></div></div>
+      </section>
+      <section id="niveles" class="levels section-space" aria-labelledby="levels-heading">
+        <div class="wrap"><div class="section-heading"><div><p class="section-label">Las clases</p><h2 id="levels-heading">Tu próxima jugada<br />empieza aquí.</h2></div><p>Desde conocer las piezas<br />hasta profundizar en tu juego.</p></div>
+          <div class="level-list"><article><svg viewBox="0 0 50 70" aria-hidden="true"><circle cx="25" cy="14" r="9"/><path d="M18 27h14l-4 7 7 21H15l7-21ZM12 59h26v6H12z"/></svg><div><h3>Iniciación</h3><p>Descubrir el tablero, conocer las piezas y empezar a jugar.</p></div><span class="level-detail">Los primeros pasos</span></article>
+          <article><svg viewBox="0 0 50 70" aria-hidden="true"><path d="M14 55h24L32 42c10-16 8-27 0-31l-6 2-6-5v12L9 33l5 7 8-2c9 4-3 12-8 17ZM11 60h30v6H11z"/></svg><div><h3>Cadetes e intermedios</h3><p>Practicar, reconocer ideas y tomar decisiones con más confianza.</p></div><span class="level-detail">Un juego en crecimiento</span></article>
+          <article><svg viewBox="0 0 50 70" aria-hidden="true"><path d="M23 3h4v5h5v4h-5v7h-4v-7h-5V8h5ZM14 24l5 11h12l5-11 5 4-6 13-3 14H18l-3-14-6-13ZM12 60h26v6H12z"/></svg><div><h3>Avanzados</h3><p>Profundizar en la estrategia y seguir afinando cada partida.</p></div><span class="level-detail">Siempre hay más por aprender</span></article></div>
+        </div>
+      </section>
+      <section id="mensualidades" class="fees wrap section-space" aria-labelledby="fees-heading">
+        <div class="fees-intro"><p class="section-label">Mensualidades</p><h2 id="fees-heading">Un lugar<br />en el tablero.</h2><p>Las tarifas vigentes para<br />acompañar tu aprendizaje.</p></div>
+        <div class="fee-content">{a.fees.map(f=><article class="fee-row"><div><h3>{f.level}</h3><p>{f.description}</p></div><p class="amount">{f.amount}<span>por mes</span></p></article>)}<div class="family-note"><span class="discount">25%</span><p><strong>Descuento entre hermanos.</strong><br />Consulta las condiciones de aplicación con la asociación.</p></div><details><summary>Información para el pago mensual <span aria-hidden="true">+</span></summary><p>El pago se realiza dentro de los primeros 8 días del mes. Al realizarlo, identifica al atleta con su nombre y apellido.</p></details></div>
+      </section>
+      <section id="ubicacion" class="location wrap section-space" aria-labelledby="location-heading"><div><p class="section-label">Nos encontramos en</p><h2 id="location-heading">Belén,<br />Heredia.</h2><p>Costa Rica</p></div><div class="location-details"><div><h3>Lugar de las clases</h3><p>{a.venue ?? 'La sede está pendiente de confirmación para esta página.'}</p></div><div><h3>Horarios</h3><p>{a.schedule ?? 'Publicaremos los horarios una vez confirmados por la asociación.'}</p></div></div><svg class="location-art" viewBox="0 0 250 250" aria-hidden="true"><path d="M125 25v200M25 125h200M54 54l142 142M54 196 196 54"/><circle cx="125" cy="125" r="68"/><circle cx="125" cy="125" r="16"/></svg></section>
+      <section id="consultas" class="contact section-space" aria-labelledby="contact-heading"><div class="wrap"><p class="section-label">Contacto</p><h2 id="contact-heading">Nos vemos<br />en el tablero.</h2><div class="contact-bottom"><p>Consulta por el nivel adecuado,<br />el lugar y los horarios de las clases.</p>{a.whatsapp ? <a class="button button-light" href={contactUrl} target="_blank" rel="noopener noreferrer">Consultar por las clases <span aria-hidden="true">↗</span></a> : <div class="contact-preview"><p>El contacto oficial está pendiente de confirmación.<br />Esta vista previa todavía no envía consultas.</p><details class="message-draft"><summary>Preparar mi consulta <span aria-hidden="true">+</span></summary><label for="consulta">Puedes guardar este mensaje para enviarlo al contacto oficial.</label><textarea id="consulta" rows="4" readonly>{consultation}</textarea><button type="button" id="copy-message">Copiar mensaje</button><span id="copy-status" role="status" aria-live="polite"></span></details></div>}</div></div></section>
+    </main>
+    <footer class="wrap"><a class="footer-brand" href="#inicio">Ajedrez Belén</a><p>Belén, Heredia, Costa Rica</p><a href="#inicio">Volver al inicio <span aria-hidden="true">↑</span></a></footer>
+    <script>
+      const button = document.querySelector<HTMLButtonElement>('#copy-message');
+      button?.addEventListener('click', async () => {
+        const field = document.querySelector<HTMLTextAreaElement>('#consulta');
+        const status = document.querySelector<HTMLElement>('#copy-status');
+        if (!field || !status) return;
+        try { await navigator.clipboard.writeText(field.value); status.textContent = 'Mensaje copiado.'; }
+        catch { field.focus(); field.select(); status.textContent = 'Selecciona y copia el mensaje.'; }
+      });
+    </script>
+  </body>
+</html>

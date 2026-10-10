@@ -1,0 +1,29 @@
+---
+interface Props { photo?: string | null; photoDescription?: string }
+const { photo, photoDescription = '' } = Astro.props;
+const point = (u: number, v: number) => {
+  const a = { x: 82, y: 304 }, b = { x: 518, y: 174 }, c = { x: 744, y: 429 }, d = { x: 276, y: 605 };
+  return { x: a.x*(1-u)*(1-v)+b.x*u*(1-v)+c.x*u*v+d.x*(1-u)*v, y: a.y*(1-u)*(1-v)+b.y*u*(1-v)+c.y*u*v+d.y*(1-u)*v };
+};
+const squares = Array.from({length:64}, (_,i)=>{
+  const row=Math.floor(i/8), col=i%8;
+  const points=[point(col/8,row/8),point((col+1)/8,row/8),point((col+1)/8,(row+1)/8),point(col/8,(row+1)/8)].map(p=>`${p.x},${p.y}`).join(' ');
+  return {points,light:(row+col)%2===0};
+});
+
+---
+<svg class="board-art" viewBox="0 0 800 720" role="img" aria-labelledby="board-title board-desc">
+  <title id="board-title">Una partida por descubrir</title>
+  <desc id="board-desc">Un tablero de ajedrez que revela una fotografía autorizada a través de sus casillas claras. {photo ? photoDescription : 'Casillas color marfil y carbón.'}</desc>
+  <defs>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#605c4e"/><stop offset="1" stop-color="#262d26"/></linearGradient>
+    <radialGradient id="floor-shadow"><stop stop-color="#252c22" stop-opacity=".23"/><stop offset="1" stop-color="#252c22" stop-opacity="0"/></radialGradient>
+    <clipPath id="photo-squares">{squares.filter(s=>s.light).map(s=><polygon points={s.points}/>)}</clipPath>
+  </defs>
+  <ellipse cx="440" cy="551" rx="357" ry="128" fill="url(#floor-shadow)" transform="rotate(-8 440 551)"/>
+  <path d="M82 304 L276 605 L744 429 L744 447 L276 625 L82 322Z" fill="url(#edge)"/>
+  <path d="M69 300 L519 160 L759 430 L275 619Z" fill="#30392e"/>
+  {squares.map(s=><polygon points={s.points} fill={s.light ? '#e8e0ce' : '#4b5545'} stroke={s.light ? '#e8e0ce' : '#4b5545'} stroke-width=".7"/>)}
+  {photo && <image href={photo} x="82" y="174" width="662" height="431" preserveAspectRatio="xMidYMid slice" clip-path="url(#photo-squares)" class="board-photo"/>}
+
+</svg>
