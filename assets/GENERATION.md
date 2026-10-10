@@ -1,3 +1,5 @@
+El caballo actual aprobado y su prompt están en [KNIGHT-GENERATION.md](KNIGHT-GENERATION.md). El siguiente tablero corresponde a una versión histórica conservada para rollback.
+
 # Hero Staunton v2
 
 Generado el 10 de octubre de 2026 mediante imagegen integrado; sin API de pago ni CLI alternativo. Original: `assets/originals/chess-staunton-v2.png`, RGBA 1536×1024. Derivado: `public/media/chess-staunton-v2.webp`, ancho 1200, calidad 87, transparencia conservada.

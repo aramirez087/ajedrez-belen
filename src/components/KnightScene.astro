@@ -1,0 +1,9 @@
+---
+interface Props { src: string }
+const { src } = Astro.props;
+---
+<div class="chess-scene" aria-label="Caballo de madera sobre una cuadrícula gráfica">
+  <div class="board-plane" aria-hidden="true"><span class="accent-square"></span></div>
+  <div class="knight-shadow" aria-hidden="true"></div>
+  <div class="knight-anchor"><img src={src} class="knight-piece" alt="Caballo Staunton tallado en madera clara, con su base circular completa." width="750" height="1000" fetchpriority="high" decoding="async"/></div>
+</div>
