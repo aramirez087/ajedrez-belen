@@ -1,4 +1,22 @@
-# Validación — diseño editorial, 9 octubre 2026 (Costa Rica)
+# Revisión adaptable — 9 octubre 2026 (Costa Rica)
+
+Estado actual: se corrigieron los botones del hero que partían sus etiquetas en teléfonos de 360–375 px, el solapamiento de nombres y precios al ampliar texto y los enlaces de marca con objetivos táctiles menores de 44 px. Cabecera, acciones, descuento y contacto pueden reorganizarse; el caballo tiene límites de tamaño. Se añadieron márgenes de área segura y una consulta de contenedor para adaptar la tabla al espacio y tamaño del texto.
+
+- Chrome y WebKit: 21 anchos principales, de 320 a 3440 px, más 15 comprobaciones junto a puntos de cambio (29 anchos distintos). Sin desbordamiento horizontal, nombres/precios superpuestos ni enlaces visibles de menos de 44 px de alto en los anchos principales.
+- Anchos principales: 320, 360, 375, 390, 430, 519, 520, 640, 759, 760, 768, 820, 1024, 1099, 1100, 1280, 1440, 1600, 1920, 2560 y 3440 px. Chrome se probó con barra vertical de 15 px; WebKit con barras superpuestas.
+- Texto al 200% simulado duplicando los tamaños computados de los elementos, a 320, 390, 760, 1024 y 1440 px en ambos motores: sin desbordamiento horizontal. Los nombres y precios pasan a filas separadas cuando hace falta. Esta prueba no equivale al zoom nativo del navegador; los titulares largos pueden dividir palabras al ampliar texto en columnas estrechas.
+- Emulación móvil con entrada táctil y escala 3×: 320×568, 390×844, 844×390 y 932×430 en ambos motores. Sin desbordamiento; toque abre y cierra el detalle de pago. Inspección visual de páginas completas en móvil, tablet, escritorio y orientación horizontal.
+- Teclado: enlace para saltar al contenido enfoca `main`; Enter abre y cierra el detalle; foco visible de 2 px. Chrome incluye enlaces con Tab; WebKit macOS usa Option+Tab con su configuración predeterminada. También se verificó la activación del enlace con foco explícito.
+- Enlaces internos con destino válido, cuatro enlaces WhatsApp conservados, imágenes y fuentes cargadas, asociaciones de cabeceras de tabla válidas. Sin errores de consola ni de página durante las pruebas de interacción. La preferencia de movimiento reducido desactiva las transiciones.
+- `npm run check`, `npm run build` y `git diff --check`: correctos. Compilación estática con cero etiquetas `script`, sin dependencias nuevas ni cambios a los activos aprobados.
+
+Evidencia local ignorada por Git, en `output/playwright/`: `after.txt`, `webkit.txt`, `text-after.txt`, `text-webkit.txt`, `final-chrome.txt`, `final-webkit.txt`. Capturas completas: `after-320.png`, `after-360.png`, `after-390.png`, `after-760.png`, `after-1440.png`, `webkit-390.png`, `webkit-760.png` y `webkit-1440.png`.
+
+Límites: navegadores automatizados y dispositivos emulados; no se probaron teléfonos físicos, Firefox, Safari instalado, lectores de pantalla ni recortes de pantalla físicos. Los insets de área segura se implementaron en CSS, pero no se simularon valores de notch. No se publicó el sitio ni se enviaron mensajes.
+
+---
+
+# Registro anterior — diseño editorial, 9 octubre 2026 (Costa Rica)
 
 - Tipografía final: Manrope Variable en titulares y DM Sans en texto. Fuentes locales, con licencias OFL conservadas. Sin círculo ni sello junto al caballo.
 - Astro check: 6 archivos, 0 errores, 0 advertencias, 0 hints. Astro build estático correcto. `git diff --check` correcto.

@@ -14,7 +14,9 @@ The design presents a welcoming local chess community through confident sans-ser
 
 The hero is followed by a compact introduction to the club, a combined class and monthly-fee table, a sibling-discount panel and a dark contact section. Three small chess-piece drawings distinguish the class levels. The table keeps names, learning descriptions and prices comparable; the final contact section provides a second clear WhatsApp invitation and practical location guidance.
 
-Below 760 px, hero copy and actions precede the knight. The header retains “Las clases” and “Hablemos”; the hero also includes “Ver las clases.” Class rows place each name beside its price, with the description underneath. The introduction uses two columns between 520 and 759 px and a single column on smaller phones. Below 360 px, narrower gutters and adjusted type and piece sizes preserve the composition.
+Below 760 px, hero copy and actions precede the knight. The header retains “Las clases” and “Hablemos”; the hero also includes “Ver las clases.” Compact button spacing keeps both hero links on one line on 360–399 px phones. Controls can wrap as text grows. The introduction uses two columns between 520 and 759 px and a single column on smaller phones. Below 360 px, narrower gutters and adjusted type and piece sizes preserve the composition.
+
+The class table responds to its own container: at 44em or less, each name sits beside its price with the description underneath. Wrapping flex rows allow the price to move below an enlarged name without a collision. The font-relative query also reflows the table when text is enlarged. Desktop retains the three-column table. Header, contact, family discount and footer content can wrap, while safe-area insets protect the page margins, skip link and footer. The knight remains bounded when adjacent text becomes taller.
 
 The cropped board is an inline SVG pattern with one affine transform and a soft perimeter mask. Broad squares retain the approved relationship between the board and the wooden piece. The coordinate grid, board and checker decorations are hidden from assistive technology; the knight has descriptive alternative text and a visible caption.
 
@@ -22,7 +24,7 @@ The cropped board is an inline SVG pattern with one affine transform and a soft 
 
 The page is static Astro output with no client JavaScript or new dependencies. Subtle CSS hover transitions provide feedback on links, buttons and class rows. There is no automatic motion or scroll control, and `prefers-reduced-motion` disables transitions and animation.
 
-A skip link, visible keyboard focus and native `details` payment disclosure support keyboard use. The class list is a native HTML table with a caption, scoped headers, explicit table roles and cell-to-header associations. The description header remains available to assistive technology when visually hidden on mobile. Contact and mobile footer links retain 44 px minimum touch targets.
+A skip link, visible keyboard focus and native `details` payment disclosure support keyboard use. The class list is a native HTML table with a caption, scoped headers, explicit table roles and cell-to-header associations. The description header remains available to assistive technology when visually hidden in compact layouts. All visible links, including the header and footer brands, retain a minimum touch-target height of 44 px.
 
 ## Assets and content
 
