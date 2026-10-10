@@ -5,46 +5,57 @@ import KnightScene from '../components/KnightScene.astro';
 import HeroBoard from '../components/HeroBoard.astro';
 import { association as a } from '../data/association';
 const contactUrl = `https://wa.me/${a.whatsapp?.replace(/\D/g,'')}`;
+const classes = [
+  { name: 'Iniciación', description: 'Conocer las piezas, descubrir el tablero y disfrutar de las primeras partidas.', fee: a.fees[0].amount },
+  { name: 'Cadetes e intermedios', description: 'Reconocer ideas, practicar y tomar decisiones con más confianza.', fee: a.fees[1].amount },
+  { name: 'Avanzados', description: 'Profundizar en la estrategia y seguir afinando cada partida.', fee: a.fees[1].amount },
+];
 ---
 <!doctype html>
 <html lang="es-CR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Ajedrez Belén. Un espacio en Belén, Heredia, para aprender ajedrez, seguir mejorando y compartir cada partida. Conoce los niveles y las mensualidades." />
-    <meta name="theme-color" content="#f5f2e9" />
+    <meta name="description" content="Ajedrez Belén. Un espacio en Belén, Heredia, para aprender ajedrez, seguir mejorando y compartir cada partida. Conoce las clases y mensualidades." />
+    <meta name="theme-color" content="#f3f0e7" />
     <title>Ajedrez Belén | Un tablero. Un mundo por descubrir.</title>
     <link rel="icon" href="/media/favicon.png" type="image/png" />
   </head>
   <body>
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <header class="site-header frame">
-      <a href="#inicio" class="brand" aria-label="Ajedrez Belén, inicio"><img src={a.crest ?? '/media/crest-provisional.webp'} alt="" width="44" height="44"/><span>Ajedrez<br/>Belén</span></a>
-      <nav aria-label="Navegación principal"><a href="#niveles">Las clases</a><a href="#mensualidades">Mensualidades</a><a href={contactUrl} target="_blank" rel="noopener noreferrer" class="nav-contact">Contacto <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12"/></svg></a></nav>
+      <a href="#inicio" class="brand" aria-label="Ajedrez Belén, inicio"><img src={a.crest ?? '/media/crest-provisional.webp'} alt="" width="46" height="50"/><span>Ajedrez<br/>Belén</span></a>
+      <nav aria-label="Navegación principal"><a href="#niveles">Las clases</a><a href="#mensualidades">Mensualidades</a><a href={contactUrl} target="_blank" rel="noopener noreferrer" class="nav-contact">Hablemos <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12"/></svg></a></nav>
     </header>
     <main id="contenido" tabindex="-1">
-      <section id="inicio" class="opening" aria-labelledby="hero-heading">
-        <div class="opening-stage"><div class="hero-composition frame">
-          <div class="hero-copy"><p class="hero-place">Belén, Heredia, Costa Rica</p><h1 id="hero-heading"><span class="headline-first">Un tablero.</span><span class="headline-world">Un mundo por descubrir.</span></h1><p class="hero-description">Un espacio en Belén para aprender ajedrez, seguir mejorando y compartir cada partida.</p><a class="button" href={contactUrl} target="_blank" rel="noopener noreferrer">Consultar por las clases <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h14M11 4l6 6-6 6"/></svg></a></div>
-          <KnightScene src={a.heroKnight}/>
-        </div></div>
+      <section id="inicio" class="hero frame" aria-labelledby="hero-heading">
+        <div class="hero-copy">
+          <p class="hero-place"><span aria-hidden="true"></span>Belén, Heredia, Costa Rica</p>
+          <h1 id="hero-heading">Un tablero.<br/>Un mundo<br/>por descubrir.</h1>
+          <div class="hero-invitation"><p>Un espacio en Belén para aprender ajedrez, seguir mejorando y compartir cada partida.</p><a class="button" href={contactUrl} target="_blank" rel="noopener noreferrer">Consultar por las clases <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h14M11 4l6 6-6 6"/></svg></a></div>
+        </div>
+        <KnightScene src={a.heroKnight}/>
       </section>
-      <section id="asociacion" class="introduction frame section-space" aria-labelledby="intro-heading">
-        <h2 id="intro-heading">Aprender.<br/>Jugar.<br/>Compartir.</h2>
-        <div class="intro-copy"><p class="section-label">Ajedrez Belén</p><p>Una primera jugada abre muchas posibilidades. El ajedrez crece cuando tenemos con quién compartirlo.</p><p>Un punto de encuentro en Belén para quienes empiezan y quienes quieren seguir mejorando. Para aprender, disfrutar del juego y compartir cada partida.</p></div>
+      <section id="asociacion" class="introduction frame" aria-labelledby="intro-heading">
+        <div class="intro-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+        <h2 id="intro-heading">Aprender a jugar.<br/>Encontrar con quién.</h2>
+        <p>Un punto de encuentro en Belén para quienes empiezan y quienes quieren seguir mejorando. Para aprender, disfrutar del juego y compartir cada partida.</p>
         {a.heroPhoto && <figure class="association-photo"><HeroBoard photo={a.heroPhoto} photoDescription={a.heroPhotoDescription}/></figure>}
       </section>
-      <section id="niveles" class="levels section-space" aria-labelledby="levels-heading"><div class="frame">
-        <div class="section-heading"><div><p class="section-label">Las clases</p><h2 id="levels-heading">Cada nivel,<br/>un nuevo desafío.</h2></div><p>Desde conocer las piezas<br/>hasta profundizar en tu juego.</p></div>
-        <div class="level-list"><article><h3>Iniciación</h3><p>Descubrir el tablero, conocer las piezas y empezar a jugar.</p></article><article><h3>Cadetes e intermedios</h3><p>Practicar, reconocer ideas y tomar decisiones con más confianza.</p></article><article><h3>Avanzados</h3><p>Profundizar en la estrategia y seguir afinando cada partida.</p></article></div>
+      <section id="niveles" class="programme" aria-labelledby="levels-heading"><div class="frame">
+        <div class="programme-heading"><h2 id="levels-heading">Hay una próxima jugada.<br/>También para ti.</h2><p>Conoce las clases<br/>y encuentra por dónde empezar.</p></div>
+        <div id="mensualidades" class="programme-table" role="table" aria-label="Clases y mensualidades">
+          <div class="programme-labels" role="row"><span role="columnheader">Las clases</span><span role="columnheader">Lo que exploramos</span><span role="columnheader">Mensualidad</span></div>
+          {classes.map(c=><div class="class-row" role="row"><h3 role="rowheader">{c.name}</h3><p class="class-description" role="cell">{c.description}</p><p class="class-price" role="cell">{c.fee}<span>por mes</span></p></div>)}
+        </div>
+        <div class="programme-notes"><div class="family-note"><span class="discount">25%</span><p><strong>El juego se comparte en familia.</strong><br/>Descuento entre hermanos. Consulta las condiciones con la asociación.</p></div><details><summary>Sobre el pago mensual <span aria-hidden="true">+</span></summary><p>El pago se realiza dentro de los primeros 8 días del mes. Al realizarlo, identifica al atleta con su nombre y apellido.</p></details></div>
       </div></section>
-      <section id="mensualidades" class="fees frame section-space" aria-labelledby="fees-heading">
-        <div><p class="section-label">Mensualidades</p><h2 id="fees-heading">Un lugar<br/>en el tablero.</h2></div>
-        <div class="fee-content">{a.fees.map(f=><article class="fee-row"><h3>{f.level}</h3><p class="amount">{f.amount}<span>por mes</span></p></article>)}<div class="family-note"><span class="discount">25%</span><p><strong>Descuento entre hermanos.</strong><br/>Consulta las condiciones de aplicación con la asociación.</p></div><details><summary>Información para el pago mensual <span aria-hidden="true">+</span></summary><p>El pago se realiza dentro de los primeros 8 días del mes. Al realizarlo, identifica al atleta con su nombre y apellido.</p></details></div>
-      </section>
-      <section id="ubicacion" class="location frame section-space" aria-labelledby="location-heading"><div><p class="section-label">Nos encontramos en</p><h2 id="location-heading">Belén,<br/>Heredia.</h2><p class="country">Costa Rica</p></div><div class="location-details"><div><h3>Lugar de las clases</h3><p>{a.venue ?? 'La sede está pendiente de confirmación para esta página.'}</p></div><div><h3>Horarios</h3><p>{a.schedule ?? 'Publicaremos los horarios una vez confirmados por la asociación.'}</p></div></div></section>
-      <section id="consultas" class="contact section-space" aria-labelledby="contact-heading"><div class="frame"><p class="section-label">Contacto</p><h2 id="contact-heading">Tu próxima jugada<br/>empieza aquí.</h2><div class="contact-bottom"><p>Consulta por el nivel adecuado,<br/>el lugar y los horarios de las clases.</p><a class="button" href={contactUrl} target="_blank" rel="noopener noreferrer">Consultar por WhatsApp <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12"/></svg></a></div></div></section>
+      <section id="consultas" class="contact" aria-labelledby="contact-heading"><div class="frame">
+        <div class="contact-heading"><p>Nos vemos en el tablero.</p><h2 id="contact-heading">Tu próxima jugada<br/>empieza aquí.</h2></div>
+        <div class="contact-action"><p>Hablemos del nivel adecuado<br/>y de cómo empezar.</p><a class="button button-light" href={contactUrl} target="_blank" rel="noopener noreferrer">Consultar por WhatsApp <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12"/></svg></a></div>
+        <div id="ubicacion" class="practical-info"><p>Belén, Heredia.<span>Costa Rica</span></p><p>Consulta la sede y los horarios de las clases al escribirnos.</p></div>
+      </div></section>
     </main>
-    <footer class="frame"><a class="footer-brand" href="#inicio">Ajedrez Belén</a><p>Belén, Heredia, Costa Rica</p><div class="footer-links"><a href="https://www.facebook.com/ajedrezbelen" target="_blank" rel="noopener noreferrer">Facebook</a><a href="#inicio">Volver al inicio <span aria-hidden="true">↑</span></a></div></footer>
+    <footer class="frame"><a class="footer-brand" href="#inicio">Ajedrez Belén</a><div class="footer-links"><a href="https://www.facebook.com/ajedrezbelen" target="_blank" rel="noopener noreferrer">Facebook <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12"/></svg></a><a href="#inicio">Volver arriba <span aria-hidden="true">↑</span></a></div></footer>
   </body>
 </html>

@@ -17,7 +17,7 @@ Los hechos y los activos reemplazables están en `src/data/association.ts`. What
 
 Sede, horarios y edades permanecen sin confirmar. Tarifas suministradas: iniciación ₡12.000/mes; cadetes, intermedios y avanzados ₡15.000/mes. 25% entre hermanos, sin calcular facturas porque faltan condiciones. Pago en los primeros 8 días del mes identificando nombre y apellido del atleta.
 
-La composición actual es completamente estática: caballo original, tipografía editorial y cuadrícula gráfica. Cero JavaScript entregado. Procedencia del render: `assets/GENERATION.md`. No representa alumnos ni una foto real de la asociación. DM Sans se sirve localmente; conservar la licencia OFL.
+La composición actual es completamente estática: caballo original de mayor escala, tipografía editorial y una casilla roja. Las clases y mensualidades se presentan juntas en una tabla adaptable. Cero JavaScript entregado. Procedencia del render: `assets/KNIGHT-GENERATION.md`. No representa alumnos ni una foto real de la asociación. DM Sans se sirve localmente; conservar la licencia OFL.
 
-Diseño y sustitución futura de fotos: `DESIGN.md`. Pruebas y límites: `QA.md`. La versión anterior del tablero queda recuperable en la etiqueta Git local `draft-before-whatsapp` (7fa6933), y los originales se conservan en `assets/originals/`.
+Diseño y sustitución futura de fotos: `DESIGN.md`. Pruebas y límites: `QA.md`. La composición previa queda recuperable en `static-knight-v5` (68e7227). La versión anterior del tablero queda recuperable en la etiqueta Git local `draft-before-whatsapp` (7fa6933), y los originales se conservan en `assets/originals/`.
 

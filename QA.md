@@ -1,29 +1,24 @@
-# Validación local — 10 octubre 2026
+# Validación local — v6, 9 octubre 2026 (Costa Rica)
 
-- Astro check: 6 archivos, 0 errores, 0 advertencias, 0 hints.
-- Astro build: sitio estático generado en `dist/`.
-- Navegador usado: Codex In-app Browser, macOS. Capturas e inspección visual reales de 390×844, 768×1024, 1440×1000, 1920×1080, 1933×1264 (dimensiones de la captura suministrada) y 3440×1440, más página completa de escritorio y móvil.
-- Comprobaciones visuales y de ancho a 320×780, 900×900 y 1024×900. En los nueve anchos, `scrollWidth === clientWidth`: ningún desbordamiento horizontal. La diferencia de 15 px con `innerWidth` corresponde a la barra vertical del navegador.
-- Todos los enlaces internos tienen un ID de destino. Los tres enlaces WhatsApp coinciden con `https://wa.me/50687686102` sin texto prellenado; Facebook coincide con la URL autorizada. No se inició una conversación ni se envió contenido.
-- Escudo y caballo cargan y tienen dimensiones naturales. Fuentes locales. Registro del navegador: sin errores ni advertencias.
-- Teclado: Enter en Saltar al contenido enfoca `main#contenido`; Enter abre y cierra el detalle de pago. Tab desde el detalle llega a WhatsApp. Foco de borde sólido visible en el detalle y el enlace.
-- Sitio compilado: 0 etiquetas script, 0 JavaScript cliente. Escenario con posición `static`; caballo con `animation-name: none` y duración de transición 0 s. Se eliminó el código de movimiento, rAF y sticky. La preferencia de movimiento reducido no requiere una rama animada. Regla CSS de reducción conservada, pero no se emuló el ajuste del sistema (el navegador no ofrece esa capacidad).
-- HTML compilado: 5822 bytes. Caballo WebP con transparencia: 101094 bytes, 750×1000. Original conservado: PNG 1086×1448, 1335200 bytes. No servicios, APIs o recursos remotos para renderizar la página.
+- Astro check: 6 archivos; 0 errores, 0 advertencias, 0 hints. Astro build generó el sitio estático en `dist/` después del último cambio de código.
+- Navegador: Codex In-app Browser, macOS. Capturas reales e inspección visual del hero a 320×780, 390×844, 640×1000, 740×1024, 768×1024, 1440×1000 y 1933×1264. También se revisaron capturas completas de escritorio y móvil. Se corrigió una separación vertical incorrecta en tablet detectada durante la revisión.
+- En esos siete anchos y también a 1024×900 y 3440×1440, `scrollWidth === clientWidth`: sin desbordamiento horizontal. La barra vertical ocupa 15 px.
+- Todos los enlaces internos tienen destino existente. Los tres enlaces WhatsApp son `https://wa.me/50687686102`, sin texto prellenado. Facebook apunta a `https://www.facebook.com/ajedrezbelen`. No se envió ningún mensaje.
+- Escudo y caballo cargan con dimensiones naturales. Fuentes locales. Registro del navegador: sin errores ni advertencias.
+- Teclado: Enter en «Saltar al contenido» enfoca `main#contenido`. Enter abre y cierra el detalle de pago. Tab desde el detalle llega a WhatsApp. Foco sólido visible en ambos controles.
+- DOM compilado: 0 etiquetas script. Caballo con `animation-name: none` y transición de 0 s. El sitio no tiene animaciones ni control de scroll. Existe una regla CSS para movimiento reducido; no se emuló la preferencia del sistema porque el navegador no expone esa capacidad.
+- El caballo WebP conserva los mismos bytes del activo aprobado: 101094 bytes, 750×1000, con transparencia. No se añadieron dependencias, APIs ni recursos remotos para renderizar el sitio.
 
-Límites: no se probó en un teléfono físico, lector de pantalla, Safari o Firefox. No se verificó la entrega de una conversación WhatsApp ni disponibilidad remota de Facebook. La futura rama de fotografía no está activada ni probada con imágenes autorizadas. Faltan fotos, escudo original, sede, horarios, edades y condiciones precisas del descuento.
+## Límites
 
-Capturas finales estáticas guardadas en Library:
+No se probó en teléfono físico, lector de pantalla, Safari o Firefox. Los anchos de pantalla son emulados por el navegador y no constituyen una prueba de entrada táctil física. No se verificó entrega de mensajes WhatsApp ni disponibilidad remota de Facebook. La futura rama de fotografía sigue inactiva. Faltan fotos autorizadas, escudo original, sede, horarios, edades y condiciones precisas del descuento.
 
-- `ajedrez-belen-static-390.jpg` — `libfile_7dac44a66a0c81918c2bb41e2858cfbc`
-- `ajedrez-belen-static-768.jpg` — `libfile_8e9660b3875c8191829e2d9b979fca40`
-- `ajedrez-belen-static-1440.jpg` — `libfile_1c6449fc9c4c819188ff735fcc8dd0fc`
-- `ajedrez-belen-static-1920.jpg` — `libfile_9d1aaf3d95d48191916f1c6006b0deae`
-- `ajedrez-belen-static-1933.jpg` — `libfile_47fab53010808191b3d30884bdd56446`
-- `ajedrez-belen-static-3440.jpg` — `libfile_a1a0ff0ece34819188504d8dd4678c0b`
-- `ajedrez-belen-static-desktop-full.jpg` — `libfile_dee1deb208b08191a17a564879637841`
-- `ajedrez-belen-static-mobile-full.jpg` — `libfile_28691ee050648191982f5e62325e9159`
+## Capturas finales en Library
 
-Caballo original: `libfile_96f157f76e288191ab06b10b856f13c6`.
+- Móvil, 390×844: `libfile_4b409489f3448191818621e2c5e59114` — `ajedrez-belen-v6-mobile.jpg`
+- Página móvil completa: `libfile_7d927718d8bc81919bd09c00635a22a2` — `ajedrez-belen-v6-mobile-full.jpg`
+- Escritorio, 1440×1000: `libfile_f062bc02a014819188c5ff33f86c58a1` — `ajedrez-belen-v6-desktop.jpg`
+- Página de escritorio completa: `libfile_481ffb9dd94c8191aa5695418a4e331d` — `ajedrez-belen-v6-desktop-full.jpg`
+- Pantalla amplia, 1933×1264: `libfile_144e5e35e3508191b051cfa94cea5448` — `ajedrez-belen-v6-wide.jpg`
 
-Rollback previo: etiqueta local `draft-before-whatsapp`, commit `7fa6933` (versión anterior de tablero, antes del contacto oficial). El proyecto no tiene remoto, publicación ni conexión con MindMaster o GrandMasterStudio.
-
+Caballo original: `libfile_96f157f76e288191ab06b10b856f13c6`. La versión anterior se conserva en `static-knight-v5` (68e7227). No existe despliegue ni repositorio remoto.

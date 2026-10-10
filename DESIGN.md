@@ -1,12 +1,22 @@
-# Ajedrez Belén — composición estática
+# Ajedrez Belén — static poster, v6
 
-La dirección final conserva el caballo aprobado por el usuario y elimina la coreografía de scroll. El hero funciona como una portada editorial: “Un tablero.” a gran escala, caballo de madera como ancla asimétrica sobre una cuadrícula en perspectiva, “Un mundo por descubrir.” recorriendo la página y una franja inferior para explicación y WhatsApp. La cuadrícula es un recurso gráfico, no una posición de partida. No hay trazas de movimiento, entrada animada, tramo sticky, revelaciones forzadas ni código de scroll.
+The approved wooden knight is the central visual asset. A single muted red chess square anchors it; a three-line headline, supporting copy and WhatsApp invitation form one clear reading path. The compact community introduction leads into one combined class and fee table, followed by a dark contact section. No decorative numbering, card grid, statistics, or invented achievements.
 
-Marfil #f5f2e9, tinta #20231f, rojo #a32930, texto secundario #686b61 y salvia #e9ece3. Tipografía DM Sans variable local. Marco máximo de 1480 px; los márgenes exteriores crecen en pantallas grandes, en lugar de separar el texto y el caballo. Caballo de 350 px en escritorio, 335 px entre 900 y 1199 px y 270 px en móvil. Por debajo de 900 px el texto, explicación y CTA aparecen antes del caballo. El botón sigue visible en la primera pantalla móvil probada.
+## Tokens and composition
 
-Las secciones conservan una composición editorial tranquila, niveles en filas, mensualidades alineadas y cierre “Tu próxima jugada empieza aquí.”. Solo se usan los hechos suministrados. No hay inscripción, cobro, historial inventado, testimonios o fotos de estudiantes generadas.
+- Paper #f3f0e7; ink #1c211d; crest red #a32930; square red #b8756f; secondary text #555e55; sage #e4e8df.
+- Locally hosted DM Sans Variable. Display weight 500, body 400. Desktop headline scales up to 118 px.
+- Maximum frame 1376 px. Desktop knight height 610 px with a 344 px square; both remain within a centered composition on wide screens.
+- Below 740 px, copy and CTA precede the knight. Between 740 and 899 px, a compact two-column hero uses explicit grid rows. Small phones retain the complete silhouette when scrolling.
+- Classes and monthly fees share rows. The sibling discount states the confirmed 25% without calculating eligibility. Payment instructions use a native details element.
+- Fully static, with no client JavaScript, animation, sticky scenes or scroll control. No new dependencies.
 
-El render `knight-staunton-v4.webp` es el derivado optimizado del mismo caballo que aprobó el usuario. Original y prompt en `assets/originals/knight-staunton-v4.png` y `assets/GENERATION.md`. El escudo es provisional y reemplazable en datos.
+## Assets and content
 
-`HeroBoard.astro` permite incorporar más adelante una fotografía autorizada a través de casillas claras. La rama permanece desactivada (`heroPhoto: null`); exige materializar y revisar los píxeles reales antes de activarse. No añade animación. No confundir un montaje por casillas con una foto actual de la asociación.
+`public/media/knight-staunton-v4.webp` is the optimized derivative of the same approved knight; the original is retained at `assets/originals/knight-staunton-v4.png`. Generation provenance is in `assets/KNIGHT-GENERATION.md`. The render represents a chess piece, not a real association photograph. The crest remains provisional and replaceable through `src/data/association.ts`.
 
+The confirmed contact URLs and fees live in `src/data/association.ts`. Venue, schedules and ages remain unconfirmed; the visible page invites visitors to ask for venue and schedule when contacting the association. There is no payment portal or enrollment submission.
+
+`HeroBoard.astro` retains an inactive path for an authorized photograph revealed through light board squares (`heroPhoto: null`). Materialize and inspect the actual photograph before enabling it. This component remains static.
+
+Rollback points are local Git tags: `static-knight-v5` for the previous design and `draft-before-whatsapp` for the earlier board version.
