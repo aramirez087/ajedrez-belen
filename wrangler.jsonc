@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ajedrez-belen-prototype",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "compatibility_date": "2026-10-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "PROTOTYPE_ENABLED": "false",
+    "PROTOTYPE_LOCAL": "false",
+    "PORTAL_ENABLED": "false",
+    "PORTAL_DEMO": "false",
+    "OCR_MODE": "off",
+    "PAYMENT_BANK_NAME": "BAC / SINPE Móvil",
+    "PAYMENT_ACCOUNT_ID": "sinpe-87686102",
+    "PAYMENT_DESTINATION": "SINPE Móvil · 8768 6102",
+    "ASSOCIATION_RECEIPT_NAME": "Asociación Deportiva Belemita de Ajedrez",
+    "EMAIL_MODE": "dry_run"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "ajedrez-belen-prototype",
+    // Local-only placeholder. Replace only when deliberately provisioning staging.
+    "database_id": "00000000-0000-0000-0000-000000000000",
+    "migrations_dir": "migrations"
+  }],
+  "r2_buckets": [{
+    "binding": "SLIPS",
+    "bucket_name": "ajedrez-belen-prototype-slips"
+  }]
+}

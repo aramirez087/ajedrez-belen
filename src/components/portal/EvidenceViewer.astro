@@ -1,0 +1,65 @@
+---
+import type { PaymentFile } from '../../lib/portal/types';
+import { dateLabel } from './format';
+interface Props { file: PaymentFile; title?: string; previewUrl?: string; }
+const { file, title = 'Archivo de la transferencia', previewUrl } = Astro.props;
+const originalUrl = `/api/portal/files/${encodeURIComponent(file.id)}`;
+const imageUrl = previewUrl ?? (['image/jpeg', 'image/png'].includes(file.type) ? `${originalUrl}?view=inline` : null);
+const dialogId = `evidence-${file.id}`;
+---
+<article class="portal-evidence" data-evidence-viewer data-evidence-original={originalUrl}>
+  <header class="portal-evidence-header"><div><h3>{title}</h3><p>{dateLabel(file.createdAt)} · {Math.ceil(file.size / 1024)} KB · {file.type === 'application/pdf' ? 'PDF' : file.type === 'image/png' ? 'PNG' : 'JPG'}</p></div><span class="portal-private-label"><svg width="12" height="14" viewBox="0 0 12 14" fill="none" aria-hidden="true"><path d="M3 6V4a3 3 0 0 1 6 0v2M1 6h10v7H1z" stroke="currentColor"/></svg>Privado</span></header>
+  <a class="portal-evidence-image" href={imageUrl ?? originalUrl} target="_blank" rel="noopener" data-evidence-open aria-controls={dialogId} hidden={!imageUrl}><img src={imageUrl ?? undefined} alt={`Respaldo de la transferencia: ${title.toLowerCase()}`} loading="lazy" data-evidence-image /><span class="portal-evidence-zoom"><svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor"/><path d="m12 12 4 4M7.5 4.5v6m-3-3h6" stroke="currentColor"/></svg>Ampliar imagen</span></a>
+  {!imageUrl && <div class="portal-evidence-document" data-evidence-document><svg width="34" height="42" viewBox="0 0 34 42" fill="none" aria-hidden="true"><path d="M1 1h22l10 10v30H1zM23 1v10h10M9 22h16M9 29h16" stroke="currentColor"/></svg><div><strong>Documento PDF</strong><p>Descarga el original para revisar todas sus páginas.</p></div></div>}
+  <div class="portal-evidence-actions"><a class="portal-link" href={originalUrl}>Descargar original <span aria-hidden="true">↓</span></a>{!imageUrl && file.type === 'application/pdf' && <button class="portal-link portal-text-button" type="button" data-evidence-pdf hidden>Ver página 1 <span aria-hidden="true">↗</span></button>}</div>
+  <p class="portal-help" role="status" data-evidence-status hidden></p>
+  {previewUrl && file.type === 'application/pdf' && <p class="portal-help">La vista de imagen corresponde a una página del PDF. Conserva el documento original como respaldo.</p>}
+  <dialog id={dialogId} class="portal-image-dialog" aria-label={title} data-evidence-dialog><div class="portal-image-dialog-toolbar"><span>{title} <small data-evidence-dialog-note>Archivo original privado</small></span><button type="button" class="portal-image-dialog-close" data-evidence-close aria-label="Cerrar imagen"><span aria-hidden="true">×</span> Cerrar</button></div><div class="portal-image-dialog-body"><img src={imageUrl ?? undefined} alt={`Respaldo ampliado: ${title.toLowerCase()}`} data-evidence-dialog-image /></div></dialog>
+</article>
+<script>
+  import { renderFirstPdfPage } from '../../lib/portal/pdf-preview';
+  document.querySelectorAll<HTMLElement>('[data-evidence-viewer]').forEach(viewer => {
+    const opener = viewer.querySelector<HTMLAnchorElement>('[data-evidence-open]');
+    const dialog = viewer.querySelector<HTMLDialogElement>('[data-evidence-dialog]');
+    const close = viewer.querySelector<HTMLButtonElement>('[data-evidence-close]');
+    if (!opener || !dialog || !close || typeof dialog.showModal !== 'function') return;
+    let previousOverflow = '';
+    opener.addEventListener('click', event => {
+      event.preventDefault(); previousOverflow = document.documentElement.style.overflow;
+      document.documentElement.style.overflow = 'hidden'; dialog.showModal(); close.focus();
+    });
+    close.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+    dialog.addEventListener('close', () => { document.documentElement.style.overflow = previousOverflow; opener.focus(); });
+    const pdfButton = viewer.querySelector<HTMLButtonElement>('[data-evidence-pdf]');
+    const status = viewer.querySelector<HTMLElement>('[data-evidence-status]');
+    let previewObjectUrl: string | null = null;
+    let controller: AbortController | null = null;
+    if (pdfButton && status) {
+      pdfButton.hidden = false;
+      pdfButton.addEventListener('click', async () => {
+        controller?.abort(); controller = new AbortController(); const signal = controller.signal;
+        const timer = window.setTimeout(() => controller?.abort(), 15_000);
+        pdfButton.disabled = true; status.hidden = false; status.textContent = 'Preparando la primera página del PDF…';
+        try {
+          const response = await fetch(viewer.dataset.evidenceOriginal!, { credentials: 'same-origin', signal });
+          if (!response.ok || response.headers.get('content-type')?.split(';')[0] !== 'application/pdf') throw new Error('preview_unavailable');
+          if (Number(response.headers.get('content-length')) > 3 * 1024 * 1024) throw new Error('invalid_file');
+          const original = new File([await response.blob()], 'original.pdf', { type: 'application/pdf' });
+          const result = await renderFirstPdfPage(original, signal);
+          if (signal.aborted) return;
+          previewObjectUrl = URL.createObjectURL(result.file);
+          viewer.querySelector<HTMLImageElement>('[data-evidence-image]')!.src = previewObjectUrl;
+          viewer.querySelector<HTMLImageElement>('[data-evidence-dialog-image]')!.src = previewObjectUrl;
+          opener.href = previewObjectUrl; opener.hidden = false;
+          viewer.querySelector<HTMLElement>('[data-evidence-document]')!.hidden = true;
+          viewer.querySelector<HTMLElement>('[data-evidence-dialog-note]')!.textContent = `Página 1 de ${result.pageCount} · Vista convertida del PDF`;
+          status.textContent = `Vista de la página 1 de ${result.pageCount}. Descarga el PDF original para revisar todas las páginas.`;
+          pdfButton.hidden = true;
+        } catch { status.textContent = 'No pudimos mostrar el PDF. Puedes descargar el original para revisarlo.'; }
+        finally { window.clearTimeout(timer); pdfButton.disabled = false; }
+      });
+    }
+    window.addEventListener('pagehide', () => { controller?.abort(); if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl); }, { once: true });
+  });
+</script>

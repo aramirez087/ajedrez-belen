@@ -1,0 +1,39 @@
+# Copy to .dev.vars for local development. Never commit credentials.
+PROTOTYPE_ENABLED=true
+PROTOTYPE_LOCAL=true
+EMAIL_MODE=dry_run
+PORTAL_ENABLED=true
+PORTAL_DEMO=true
+OCR_MODE=demo
+
+# Local OCR demonstration never calls a provider. For real accounts use groq.
+# GROQ_API_KEY=
+# GROQ_VISION_MODEL=qwen/qwen3.8-27b
+# GROQ_TIMEOUT_MS=12000
+
+# WorkOS: follow docs/WORKOS-SETUP.md; leave absent until configured.
+# WORKOS_API_KEY=
+# WORKOS_CLIENT_ID=
+# WORKOS_COOKIE_PASSWORD=
+# WORKOS_REDIRECT_URI=http://127.0.0.1:4322/auth/callback
+# WORKOS_ORGANIZATION_ID=
+# ADMIN_USER_IDS=
+
+# Brevo portal: docs/PORTAL-EMAIL.md and the handoff in docs/BREVO-SETUP.md.
+# Keep EMAIL_MODE=dry_run above until an exact live send is authorized.
+# Values below are SERVER ONLY. Never put keys in PUBLIC_* variables or chat.
+# Approved setup: ajedrezbelen.com is authenticated; the no-reply sender is verified.
+# API-key creation and private installation remain owner steps.
+# Transactional Free/300 remaining observed; activation and delivery unverified.
+# BREVO_API_KEY=
+# EMAIL_FROM=no-reply@ajedrezbelen.com
+# Verified sender identity. Replies are unattended; use WhatsApp.
+# No receiving mailbox or Cloudflare forwarding is required by this design.
+# EMAIL_FROM_NAME="Ajedrez Belén"
+# EMAIL_TIMEOUT_MS=10000
+
+# Earlier /prototype laboratory ONLY: exact test-recipient allowlist.
+# IMPORTANT: EMAIL_TEST_RECIPIENT DOES NOT LIMIT PORTAL RECIPIENTS.
+# Portal approval/annulment in live mode attempts its stored authorized recipients.
+# Use an isolated staging database with approved controlled mailboxes for testing.
+# EMAIL_TEST_RECIPIENT=

@@ -3,7 +3,38 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": {"dev": "astro dev", "build": "astro build", "preview": "astro preview", "check": "astro check"},
-  "dependencies": {"astro": "7.3.8", "@fontsource-variable/dm-sans": "^5.2.8"},
-  "devDependencies": {"@astrojs/check": "^0.9.8", "typescript": "^5.9.3"}
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "node scripts/sync-pdf-assets.mjs && astro dev",
+    "build": "node scripts/sync-pdf-assets.mjs && astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "dev:prototype": "node scripts/sync-pdf-assets.mjs && astro dev --host 127.0.0.1 --port 4322",
+    "dev:portal": "node scripts/sync-pdf-assets.mjs && astro dev --host 127.0.0.1 --port 4322",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "test:prototype": "node scripts/test-prototype.mjs",
+    "test:portal": "node scripts/test-portal.mjs",
+    "test:portal:ocr": "node scripts/test-portal-ocr.mjs",
+    "test:portal:pdf": "node scripts/test-pdf-preview.mjs",
+    "test:portal:locked": "node scripts/test-portal-locked.mjs"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^14.3.4",
+    "@fontsource-variable/dm-sans": "^5.2.8",
+    "@workos-inc/node": "^10.14.0",
+    "@workos/authkit-session": "0.5.4",
+    "astro": "7.3.8",
+    "pdfjs-dist": "6.4.299"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.8",
+    "@cloudflare/workers-types": "^5.20261009.1",
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.149.0"
+  }
 }

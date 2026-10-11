@@ -1,0 +1,15 @@
+---
+import { env } from 'cloudflare:workers';
+import PortalLayout from '../../layouts/PortalLayout.astro';
+import PageHeader from '../../components/portal/PageHeader.astro';
+import { authorizePortal } from '../../lib/portal/access';
+export const prerender = false;
+const access = await authorizePortal(Astro, env);
+if (!access.ok) return access.response;
+const { actor } = access;
+const token = Astro.cookies.get('pending-invitation')?.value;
+---
+<PortalLayout title="Aceptar invitación" actor={actor} hideNav>
+  <PageHeader title="Bienvenido a tu cuenta familiar." eyebrow="Invitación" description="La invitación vincula tu correo con los atletas indicados por la Asociación. Cada encargado mantiene su propia sesión." />
+  <div class="portal-two-columns"><section class="portal-panel"><div class="portal-guidance"><h3>{token ? 'Tu invitación está lista.' : 'Necesitas un enlace de invitación.'}</h3><p>Sesión iniciada con <strong>{actor.email}</strong>.</p>{token ? <form action="/api/portal/invitations/redeem" method="post"><input type="hidden" name="token" value={token} /><button class="portal-button" type="submit" style="margin-top:20px">Aceptar invitación <span aria-hidden="true">→</span></button></form> : <p>Abre el enlace que recibiste de la Asociación. Si venció, solicita uno nuevo.</p>}</div></section><aside class="portal-panel"><h2>Tu acceso es personal</h2><p class="portal-section-caption">Para asociar a otro encargado, la Asociación debe crear una invitación para su correo. No hace falta compartir tu contraseña.</p><a class="portal-link" href="/portal">Ir a mi cuenta <span aria-hidden="true">↗</span></a></aside></div>
+</PortalLayout>

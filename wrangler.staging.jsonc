@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ajedrez-belen-portal-staging",
+  "account_id": "7d3e79129c4f0b3619a419cabbfa021e",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "compatibility_date": "2026-10-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "PROTOTYPE_ENABLED": "false",
+    "PROTOTYPE_LOCAL": "false",
+    "PORTAL_ENABLED": "false",
+    "PORTAL_DEMO": "false",
+    "OCR_MODE": "off",
+    "EMAIL_MODE": "dry_run",
+    "PAYMENT_BANK_NAME": "PRUEBA — no transferir",
+    "PAYMENT_ACCOUNT_ID": "staging-synthetic-only",
+    "PAYMENT_DESTINATION": "ENTORNO DE PRUEBA — no realizar transferencias",
+    "ASSOCIATION_RECEIPT_NAME": "PRUEBAS — Ajedrez Belén (datos ficticios)"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "ajedrez-belen-portal-staging",
+    "database_id": "5b80cc9e-48e1-43c5-8cdd-a3e785604e73",
+    "migrations_dir": "migrations"
+  }],
+  "r2_buckets": [{
+    "binding": "SLIPS",
+    "bucket_name": "ajedrez-belen-portal-staging-slips"
+  }]
+}

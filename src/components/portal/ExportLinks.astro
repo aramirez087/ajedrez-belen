@@ -1,0 +1,5 @@
+---
+interface Props { kind: 'payments'|'charges'|'receipts'|'audit'|'email'; label: string; }
+const { kind, label } = Astro.props;
+---
+<div class="portal-export-links" aria-label={`Exportar ${label}`}><a class="portal-link" href={`/api/admin/export?kind=${kind}`} aria-label={`Exportar ${label} en CSV`}>CSV <span aria-hidden="true">↓</span></a><a class="portal-link" href={`/api/admin/export?kind=${kind}&format=json`} aria-label={`Exportar ${label} en JSON`}>JSON <span aria-hidden="true">↓</span></a></div>

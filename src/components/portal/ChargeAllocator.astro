@@ -1,0 +1,70 @@
+---
+import type { Charge } from '../../lib/portal/types';
+import { money, inputMoney, monthLabel } from './format';
+interface Props { charges: Charge[]; values?: Record<string, number>; legend?: string; prefix?: string; }
+const { charges, values = {}, legend = 'Distribuir entre mensualidades', prefix = 'allocation' } = Astro.props;
+---
+<fieldset class="portal-fieldset" data-allocator>
+  <legend>{legend}</legend>
+  <p class="portal-help" style="margin:0 0 13px">Indica cuánto de esta transferencia corresponde a cada mensualidad. Deja en cero las que no vas a pagar.</p>
+  {charges.map(charge => <div class="portal-allocation-row" data-allocation-athlete-id={charge.athleteId} role="group" tabindex="-1" aria-label={`Mensualidad de ${charge.athleteName}, ${monthLabel(charge.period)}`}>
+    <label for={`${prefix}-${charge.id}`}>{charge.athleteName}<small id={`${prefix}-${charge.id}-balance`}>{monthLabel(charge.period)} · saldo {money(charge.balanceMinor)}</small></label>
+    <input type="hidden" name="allocationChargeId[]" value={charge.id} />
+    <input id={`${prefix}-${charge.id}`} name="allocationAmount[]" type="number" min="0" max={inputMoney(Math.max(charge.balanceMinor, values[charge.id] ?? 0))} step="0.01" inputmode="decimal" value={inputMoney(values[charge.id] ?? 0)} aria-label={`Monto en colones para ${charge.athleteName}, ${monthLabel(charge.period)}`} aria-describedby={`${prefix}-${charge.id}-balance`} data-allocation />
+  </div>)}
+  {charges.length === 0 && <p class="portal-help">No hay mensualidades pendientes para esta cuenta.</p>}
+  <div class="portal-total"><span>Total distribuido</span><output data-allocation-total aria-live="polite">{money(Object.values(values).reduce((total, value) => total + value, 0))}</output></div>
+  <p id={`${prefix}-amount-check`} class="portal-help" data-allocation-status role="status" aria-live="polite" hidden></p>
+</fieldset>
+<script>
+  const formatter = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' });
+  // The same decimal grammar and digit conversion used by the server's money parser.
+  function minorAmount(value: string, allowZero = false): number | null {
+    if (!/^\d{1,8}(?:\.\d{1,2})?$/.test(value)) return null;
+    const [whole, fraction = ''] = value.split('.');
+    const amount = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+    return Number.isSafeInteger(amount) && amount >= (allowZero ? 0 : 1) && amount <= 1_000_000_000 ? amount : null;
+  }
+  document.querySelectorAll<HTMLElement>('[data-allocator]').forEach(group => {
+    const form = group.closest<HTMLFormElement>('form');
+    const output = group.querySelector<HTMLOutputElement>('[data-allocation-total]');
+    const status = group.querySelector<HTMLElement>('[data-allocation-status]');
+    const transfer = form?.querySelector<HTMLInputElement>('input[name="amount"], input[name="verifiedAmount"]');
+    if (transfer && status) {
+      status.hidden = false;
+      const descriptions = new Set((transfer.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean));
+      descriptions.add(status.id); transfer.setAttribute('aria-describedby', Array.from(descriptions).join(' '));
+    }
+    const update = () => {
+      let total = 0;
+      let valid = true;
+      transfer?.setCustomValidity('');
+      if (status) status.style.color = '';
+      group.querySelectorAll<HTMLInputElement>('[data-allocation]').forEach(input => {
+        input.setCustomValidity('');
+        const value = input.value === '' ? 0 : minorAmount(input.value, true);
+        if (value === null) input.setCustomValidity('Escribe el monto en colones con un máximo de dos decimales, sin letras ni separadores de miles.');
+        if (!input.validity.valid) input.setAttribute('aria-invalid', 'true');
+        else input.removeAttribute('aria-invalid');
+        if (value === null || !input.validity.valid) valid = false;
+        else { total += value; if (!Number.isSafeInteger(total)) valid = false; }
+      });
+      if (output) output.value = valid ? formatter.format(total / 100) : 'Revisa los montos';
+      if (!status || !transfer) return;
+      if (!valid) { status.textContent = 'Revisa los montos de las mensualidades. Usa un máximo de dos decimales y respeta cada saldo.'; return; }
+      const amount = minorAmount(transfer.value);
+      if (transfer.value !== '' && amount === null) transfer.setCustomValidity('Escribe el monto en colones con un máximo de dos decimales, sin letras ni separadores de miles.');
+      if (amount === null || !transfer.validity.valid) { status.textContent = 'Completa un monto válido en colones para compararlo con el total distribuido. Usa un máximo de dos decimales, sin letras ni separadores de miles.'; return; }
+      if (total > amount) {
+        const message = `El total distribuido supera la transferencia por ${formatter.format((total - amount) / 100)}. Reduce la distribución o corrige el monto transferido.`;
+        status.textContent = message; status.style.color = 'var(--red)'; transfer.setCustomValidity(message);
+      } else if (total === amount) status.textContent = 'El total distribuido coincide con la transferencia. El pago se aplica después de la verificación bancaria.';
+      else status.textContent = `${formatter.format((amount - total) / 100)} quedarán como saldo a favor después de la verificación bancaria.`;
+    };
+    (form ?? group).addEventListener('input', update);
+    (form ?? group).addEventListener('change', update);
+    form?.addEventListener('reset', () => queueMicrotask(update));
+    window.addEventListener('pageshow', update);
+    update();
+  });
+</script>

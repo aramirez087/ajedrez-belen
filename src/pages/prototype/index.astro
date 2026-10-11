@@ -1,0 +1,233 @@
+---
+import { env } from 'cloudflare:workers';
+import '@fontsource-variable/dm-sans';
+import '../../styles/global.css';
+import '../../styles/prototype.css';
+import { authorizePrototype, getPrototypeStatus, listPrototypeRuns } from '../../lib/prototype';
+
+export const prerender = false;
+
+const access = await authorizePrototype(Astro, env);
+if (!access.ok) return access.response;
+
+const statuses = await getPrototypeStatus(env);
+let runs: Awaited<ReturnType<typeof listPrototypeRuns>> = [];
+let historyUnavailable = false;
+try {
+  runs = await listPrototypeRuns(env, access.actor);
+} catch {
+  historyUnavailable = true;
+}
+
+const notices: Record<string, string> = {
+  created: 'Prueba guardada. El archivo y el recibo numerado están disponibles en el historial.',
+  dry_run: 'Correo simulado. Puedes revisar el contenido sin enviar ningún mensaje.',
+  accepted: 'Brevo aceptó el correo de prueba. Esto todavía no confirma su entrega.',
+  blocked: 'El envío está bloqueado. Revisa la configuración del correo de prueba.',
+  rejected: 'La solicitud no pudo completarse. Revisa los datos y la configuración antes de volver a intentarlo.',
+  unknown: 'No se pudo confirmar si Brevo aceptó el correo. Revisa el proveedor antes de intentar otro envío.',
+  error: 'No se pudo completar la prueba. Revisa el estado de los servicios y vuelve a intentarlo.',
+};
+const noticeKey = Astro.url.searchParams.get('notice') ?? '';
+const notice = Object.hasOwn(notices, noticeKey) ? notices[noticeKey] : undefined;
+const warningNotice = ['blocked', 'rejected', 'unknown', 'error'].includes(noticeKey);
+const statusLabels = { ready: 'Disponible', pending: 'Pendiente', error: 'Revisar' };
+const emailLabels: Record<string, string> = {
+  not_requested: 'Sin probar',
+  pending: 'Sin probar',
+  not_sent: 'Sin enviar',
+  queued: 'En espera',
+  sending: 'Enviando',
+  dry_run: 'Simulado',
+  accepted: 'Aceptado por Brevo',
+  blocked: 'Bloqueado',
+  rejected: 'Rechazado',
+  unknown: 'Resultado por confirmar',
+  error: 'Error de envío',
+  failed: 'Error de envío',
+};
+const currency = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' });
+const dateFormat = new Intl.DateTimeFormat('es-CR', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'America/Costa_Rica',
+});
+const formatDate = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? 'Fecha no disponible' : dateFormat.format(date);
+};
+const liveEmail = env.EMAIL_MODE === 'live';
+const liveEmailAllowed = access.actor.mode === 'workos';
+---
+<!doctype html>
+<html lang="es-CR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#f7f4ec" />
+    <title>Laboratorio de pagos | Ajedrez Belén</title>
+    <link rel="icon" href="/media/favicon.png" type="image/png" />
+    <link rel="preload" href="/fonts/manrope-latin-variable.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+  <body class="prototype-page">
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
+    <div class="prototype-banner">
+      <span class="checker-mark" aria-hidden="true"></span>
+      <span>Prototipo · datos ficticios · sin pagos reales</span>
+    </div>
+    <header class="prototype-header prototype-frame">
+      <a class="prototype-brand" href="/" aria-label="Ajedrez Belén, inicio">
+        <img src="/media/crest-provisional.webp" alt="" width="38" height="44" />
+        <span>Ajedrez<br />Belén</span>
+      </a>
+      <div class="prototype-session">
+        <span class="prototype-session-label">{access.actor.mode === 'local' ? 'Acceso local de prueba' : 'Sesión WorkOS'}</span>
+        {access.actor.mode === 'local' ? (
+          <a class="prototype-link" href="/auth/login">Validar acceso con WorkOS <span aria-hidden="true">↗</span></a>
+        ) : (
+          <form action="/auth/logout" method="post">
+            <button class="prototype-link prototype-text-button" type="submit">Cerrar sesión <span aria-hidden="true">↗</span></button>
+          </form>
+        )}
+      </div>
+    </header>
+
+    <main id="contenido" class="prototype-frame" tabindex="-1">
+      <section class="prototype-intro" aria-labelledby="prototype-title">
+        <div>
+          <p class="prototype-eyebrow"><span class="checker-mark" aria-hidden="true"></span>Laboratorio de pagos / 01</p>
+          <h1 id="prototype-title">Un primer paso.<br /><em>Todo por comprobar.</em></h1>
+        </div>
+        <div class="prototype-intro-copy">
+          <p>Probemos el recorrido del archivo al recibo, antes de abrir el sistema a las familias.</p>
+          <p>La verificación bancaria se simula aquí. Usa únicamente el archivo de ejemplo o documentos ficticios.</p>
+        </div>
+      </section>
+
+      <ol class="prototype-journey" aria-label="Recorrido de esta prueba">
+        <li><span aria-hidden="true">01</span>Guardar archivo</li>
+        <li><span aria-hidden="true">02</span>Crear recibo de prueba</li>
+        <li><span aria-hidden="true">03</span>Comprobar el correo</li>
+      </ol>
+
+      {notice && (
+        <p class:list={['prototype-notice', { 'prototype-notice-warning': warningNotice }]} role="status">
+          <strong>{warningNotice ? 'Revisa la prueba.' : 'Prueba actualizada.'}</strong> {notice}
+        </p>
+      )}
+
+      <div class="prototype-workspace">
+        <section class="prototype-test" aria-labelledby="test-heading">
+          <div class="prototype-section-heading">
+            <span class="prototype-section-number" aria-hidden="true">01</span>
+            <div><p class="prototype-eyebrow">Archivo + recibo</p><h2 id="test-heading">Hacer una prueba</h2></div>
+          </div>
+          <dl class="prototype-athlete">
+            <div><dt>Atleta</dt><dd>Atleta de prueba</dd></div>
+            <div><dt>Mensualidad de ejemplo</dt><dd>{currency.format(12000)}</dd></div>
+          </dl>
+          <form action="/api/prototype/run" method="post" enctype="multipart/form-data" class="prototype-form">
+            <div class="prototype-field">
+              <label for="discount">Descuento manual <span>(colones)</span></label>
+              <input type="number" id="discount" name="discount" min="0" max="11999.99" step="0.01" value="0" required inputmode="decimal" aria-describedby="discount-help" />
+              <p id="discount-help" class="prototype-help">Escribe el monto del descuento, si aplica. El descuento entre hermanos queda pendiente de definir.</p>
+            </div>
+            <div class="prototype-total">
+              <span>Total del recibo de prueba</span>
+              <output id="test-total" for="discount" aria-live="polite">{currency.format(12000)}</output>
+            </div>
+            <div class="prototype-field prototype-upload">
+              <label for="slip">Archivo de prueba</label>
+              <p id="slip-help" class="prototype-help">JPG, PNG o PDF · máximo 3 MB. El archivo se guarda de forma privada.</p>
+              <input type="file" id="slip" name="slip" accept="image/jpeg,image/png,application/pdf" required aria-describedby="slip-help" />
+              <a class="prototype-link" href="/api/prototype/sample" download>Descargar imagen de ejemplo <span aria-hidden="true">↓</span></a>
+            </div>
+            <button type="submit" class="prototype-button">Guardar prueba y crear recibo <span aria-hidden="true">→</span></button>
+            <p class="prototype-help">Este paso no envía correos. Podrás probar el envío desde el historial.</p>
+          </form>
+        </section>
+
+        <section class="prototype-services" aria-labelledby="services-heading">
+          <div class="prototype-section-heading">
+            <span class="prototype-section-number" aria-hidden="true">02</span>
+            <div><p class="prototype-eyebrow">Compatibilidad</p><h2 id="services-heading">Estado de los servicios</h2></div>
+          </div>
+          <p class="prototype-service-intro">La configuración local y la conexión con cada proveedor se comprueban por separado.</p>
+          <table class="prototype-status-table">
+            <caption class="visually-hidden">Disponibilidad y configuración de los servicios del prototipo</caption>
+            <thead><tr><th scope="col">Servicio</th><th scope="col">Estado</th></tr></thead>
+            <tbody>
+              {statuses.map(status => (
+                <tr>
+                  <th scope="row"><span class="prototype-service-name">{status.name}</span><span class="prototype-service-detail">{status.detail}</span></th>
+                  <td><span class:list={['prototype-status', `prototype-status-${status.state}`]}>{statusLabels[status.state]}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div class="prototype-email-note">
+            <span class="checker-mark" aria-hidden="true"></span>
+            <div><h3>{liveEmail ? 'Correo de prueba habilitado' : 'Correo en modo simulado'}</h3>
+              <p>{liveEmail ? 'El envío usa únicamente el destinatario de prueba configurado. “Aceptado” indica que Brevo recibió la solicitud; no confirma la entrega.' : 'Puedes revisar el mensaje mientras se crean las cuentas de Brevo y WorkOS. La entrega real sigue pendiente de validar.'}</p>
+              {liveEmail && !liveEmailAllowed && <p>Inicia sesión como administrador con WorkOS para enviar el correo de prueba.</p>}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="prototype-history" aria-labelledby="history-heading">
+        <div class="prototype-history-heading">
+          <div class="prototype-section-heading">
+            <span class="prototype-section-number" aria-hidden="true">03</span>
+            <div><p class="prototype-eyebrow">Resultados</p><h2 id="history-heading">Historial de pruebas</h2></div>
+          </div>
+          <p>Recibos ficticios.<br />Horas de Costa Rica.</p>
+        </div>
+        {historyUnavailable ? (
+          <div class="prototype-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3>El historial está pendiente de configuración.</h3><p>Completa la configuración de la base de datos y sus migraciones para guardar la primera prueba.</p></div></div>
+        ) : runs.length === 0 ? (
+          <div class="prototype-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3>La primera prueba empieza arriba.</h3><p>Descarga la imagen de ejemplo, adjúntala y crea un recibo. Aquí podrás abrirlo y comprobar el correo.</p></div></div>
+        ) : (
+          <div class="prototype-table-scroll" role="region" aria-label="Historial de pruebas; desplázate horizontalmente para ver todas las columnas" tabindex="0">
+            <table class="prototype-history-table">
+              <caption class="visually-hidden">Recibos de prueba, archivos privados y estado del correo</caption>
+              <thead><tr><th scope="col">Recibo / fecha</th><th scope="col">Total</th><th scope="col">Correo</th><th scope="col">Revisar</th></tr></thead>
+              <tbody>
+                {runs.map(run => (
+                  <tr>
+                    <th scope="row"><a class="prototype-receipt-link" href={`/api/prototype/receipts/${run.id}`}>{run.receipt_number}</a><span class="prototype-table-subtext">{formatDate(run.created_at)}</span></th>
+                    <td class="prototype-money">{currency.format(run.amount_minor / 100)}<span class="prototype-table-subtext">Descuento: {currency.format(run.discount_minor / 100)}</span></td>
+                    <td><span class="prototype-email-state">{emailLabels[run.email_status] ?? 'Pendiente'}</span>
+                      <form action="/api/prototype/email" method="post">
+                        <input type="hidden" name="runId" value={run.id} />
+                        <button class="prototype-link prototype-text-button" type="submit" disabled={!['not_requested', 'dry_run', 'blocked'].includes(run.email_status) || (liveEmail && !liveEmailAllowed)} aria-label={`${liveEmail ? 'Enviar al correo de prueba' : 'Probar correo'}: ${run.receipt_number}`}>{liveEmail ? 'Enviar al correo de prueba' : 'Probar correo'} <span aria-hidden="true">↗</span></button>
+                      </form>
+                    </td>
+                    <td><a class="prototype-link" href={`/api/prototype/files/${run.id}`} aria-label={`Ver archivo de ${run.receipt_number}`}>Ver archivo <span aria-hidden="true">↗</span></a></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </main>
+    <footer class="prototype-footer prototype-frame">
+      <span>Ajedrez Belén · Laboratorio de pagos</span>
+      <a class="prototype-link" href="/">Volver al sitio <span aria-hidden="true">↗</span></a>
+    </footer>
+    <script>
+      const discountInput = document.querySelector<HTMLInputElement>('#discount');
+      const totalOutput = document.querySelector<HTMLOutputElement>('#test-total');
+      const amountFormat = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' });
+      discountInput?.addEventListener('input', () => {
+        if (!totalOutput) return;
+        const discount = discountInput.valueAsNumber;
+        totalOutput.value = discountInput.validity.valid && Number.isFinite(discount)
+          ? amountFormat.format((1200000 - Math.round(discount * 100)) / 100)
+          : 'Revisa el descuento';
+      });
+    </script>
+  </body>
+</html>

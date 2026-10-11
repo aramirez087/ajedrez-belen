@@ -1,0 +1,1417 @@
+import { validEmail } from "./receipt";
+import {
+  PortalError,
+  type Actor,
+  type Athlete,
+  type AthleteInput,
+  type Charge,
+  type Family,
+  type MonthlyPreview,
+  type ParentDashboard,
+  type AdminDashboard,
+  type Payment,
+  type PaymentDetail,
+  type PaymentFile,
+  type Receipt,
+  type ReceiptSnapshot,
+  type RequestedAllocation,
+  type ReviewPaymentInput,
+  type PaymentReviewSnapshot,
+  type ChargeAdjustmentInput,
+  type ApplyPaymentCreditInput,
+  type SubmitPaymentInput,
+} from "./types";
+
+const iso = () => new Date().toISOString();
+const id = () => crypto.randomUUID();
+// UUIDv4 values for set-based inserts; provider idempotency keys stay stable.
+const sqlUuid =
+  "lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-a'||substr(lower(hex(randomblob(2))),2)||'-'||lower(hex(randomblob(6)))";
+function fail(message: string, status = 400, code = "invalid_request"): never {
+  throw new PortalError(status, message, code);
+}
+const admin = (actor: Actor) => {
+  if (!actor.isAdmin)
+    fail("Se requiere una cuenta administrativa.", 403, "forbidden");
+};
+function text(value: unknown, max = 160): string {
+  if (
+    typeof value !== "string" ||
+    !value.trim() ||
+    value.length > max ||
+    /[\u0000-\u001f\u007f]/.test(value)
+  )
+    fail("Texto inválido.");
+  return (value as string).trim();
+}
+function amount(value: unknown, allowZero = false): number {
+  if (
+    !Number.isSafeInteger(value) ||
+    (value as number) < (allowZero ? 0 : 1) ||
+    (value as number) > 1000000000
+  )
+    fail("Monto inválido.");
+  return value as number;
+}
+export function validatePeriod(value: string): string {
+  if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(value)) fail("Mes inválido.");
+  return value;
+}
+export function billingPeriod(instant: string): string {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "America/Costa_Rica",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(new Date(instant));
+  return `${parts.find((p) => p.type === "year")!.value}-${parts.find((p) => p.type === "month")!.value}`;
+}
+export function billingYear(instant: string): number {
+  return Number(billingPeriod(instant).slice(0, 4));
+}
+function date(value: string): string {
+  const parsed = new Date(`${value}T12:00:00Z`);
+  if (
+    !/^20\d{2}-\d{2}-\d{2}$/.test(value) ||
+    !Number.isFinite(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== value
+  )
+    fail("Fecha inválida.");
+  return value;
+}
+function bindings(db: D1Database, sql: string, args: unknown[] = []) {
+  return db.prepare(sql).bind(...args);
+}
+async function rows<T>(
+  db: D1Database,
+  sql: string,
+  args: unknown[] = [],
+): Promise<T[]> {
+  return (await bindings(db, sql, args).all<T>()).results;
+}
+async function one<T>(
+  db: D1Database,
+  sql: string,
+  args: unknown[] = [],
+): Promise<T | null> {
+  return bindings(db, sql, args).first<T>();
+}
+function audit(
+  db: D1Database,
+  actor: Actor,
+  entity: string,
+  entityId: string,
+  action: string,
+  detail: unknown,
+  now: string,
+) {
+  return bindings(
+    db,
+    "INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) VALUES(?,?,?,?,?,?,?)",
+    [id(), actor.id, entity, entityId, action, JSON.stringify(detail), now],
+  );
+}
+function paymentAudit(
+  db: D1Database,
+  actor: Actor,
+  paymentId: string,
+  action: string,
+  detail: unknown,
+  now: string,
+  token: string,
+) {
+  return bindings(
+    db,
+    "INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) SELECT ?,?,'payment',id,?,?,? FROM payments WHERE id=? AND approval_token=?",
+    [id(), actor.id, action, JSON.stringify(detail), now, paymentId, token],
+  );
+}
+async function batch(db: D1Database, statements: D1PreparedStatement[]) {
+  try {
+    return await db.batch(statements);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (
+      /UNIQUE|allocation_exceeds|allocation_guardian_revoked|adjustment_below_paid|payment_not_verified|constraint|pending_payment_limit|daily_payment_limit|storage_limit|athlete_limit/i.test(
+        message,
+      )
+    )
+      fail(
+        "El registro cambió o entra en conflicto con otro pago. Actualice y vuelva a revisar.",
+        409,
+        "conflict",
+      );
+    throw error;
+  }
+}
+
+export async function ensureUser(
+  db: D1Database,
+  actor: Actor,
+): Promise<{ id: string; active: boolean }> {
+  const now = iso();
+  await bindings(
+    db,
+    "INSERT INTO users(id,email,name,created_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email,name=excluded.name,updated_at=excluded.updated_at",
+    [
+      actor.id,
+      text(actor.email, 254).toLowerCase(),
+      text(actor.name),
+      now,
+      now,
+    ],
+  ).run();
+  const user = await one<{ id: string; active: number }>(
+    db,
+    "SELECT id,active FROM users WHERE id=?",
+    [actor.id],
+  );
+  return { id: actor.id, active: user?.active === 1 };
+}
+async function activeUser(db: D1Database, userId: string) {
+  const user = await one<{ id: string; name: string; email: string }>(
+    db,
+    "SELECT id,name,email FROM users WHERE id=? AND active=1",
+    [userId],
+  );
+  if (!user) fail("La cuenta no está activa.", 403, "forbidden");
+  return user!;
+}
+async function requireActor(db: D1Database, actor: Actor) {
+  await activeUser(db, actor.id);
+}
+
+const athleteSql =
+  "SELECT id,name,category,fee_minor AS feeMinor,discount_minor AS discountMinor,discount_reason AS discountReason,active,start_period AS startPeriod FROM athletes";
+const chargeSql = `SELECT c.id,c.athlete_id AS athleteId,s.name AS athleteName,c.period,c.due_date AS dueDate,c.base_minor AS baseMinor,c.discount_minor AS discountMinor,c.discount_reason AS discountReason,c.base_minor-c.discount_minor+COALESCE((SELECT sum(amount_minor) FROM charge_adjustments WHERE charge_id=c.id),0) AS totalMinor,COALESCE((SELECT sum(a.amount_minor) FROM payment_allocations a JOIN payments p ON p.id=a.payment_id WHERE a.charge_id=c.id AND p.status='verified'),0) AS paidMinor FROM charges c JOIN athletes s ON s.id=c.athlete_id`;
+const paymentSql = `SELECT p.id,p.designated_user_id AS designatedAdultId,p.submitted_by AS submitterId,p.payer_name AS payerName,p.amount_minor AS amountMinor,p.transfer_date AS transferDate,p.bank_reference AS bankReference,p.status,p.review_note AS reviewNote,p.submitted_at AS submittedAt,p.revision,p.verified_amount_minor AS verifiedAmountMinor,CASE WHEN p.status='verified' THEN p.verified_amount_minor-COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0) ELSE 0 END AS unallocatedMinor,r.id AS receiptId,r.number AS receiptNumber FROM payments p LEFT JOIN receipts r ON r.payment_id=p.id`;
+function chargeMap(charges: Omit<Charge, "balanceMinor">[]): Charge[] {
+  return charges.map((c) => ({
+    ...c,
+    balanceMinor: c.totalMinor - c.paidMinor,
+  }));
+}
+function athleteMap(
+  athletes: Array<Athlete & { active: boolean | number }>,
+): Athlete[] {
+  return athletes.map((a) => ({ ...a, active: !!a.active }));
+}
+export async function listParentCharges(
+  db: D1Database,
+  actor: Actor,
+): Promise<Charge[]> {
+  await requireActor(db, actor);
+  return chargeMap(
+    await rows(
+      db,
+      `${chargeSql} WHERE EXISTS(SELECT 1 FROM guardian_links l WHERE l.user_id=? AND l.athlete_id=c.athlete_id AND l.active=1) ORDER BY c.period,c.created_at`,
+      [actor.id],
+    ),
+  );
+}
+export async function getChargesForAdult(
+  db: D1Database,
+  actor: Actor,
+  adultId: string,
+): Promise<Charge[]> {
+  admin(actor);
+  await requireActor(db, actor);
+  await activeUser(db, adultId);
+  return chargeMap(
+    await rows(
+      db,
+      `${chargeSql} WHERE EXISTS(SELECT 1 FROM guardian_links l WHERE l.user_id=? AND l.athlete_id=c.athlete_id AND l.active=1) ORDER BY c.period,c.created_at`,
+      [adultId],
+    ),
+  );
+}
+export async function getParentDashboard(
+  db: D1Database,
+  actor: Actor,
+): Promise<ParentDashboard> {
+  await requireActor(db, actor);
+  const [athletes, charges, payments, receipts, totals] = await Promise.all([
+    rows<Athlete>(
+      db,
+      `${athleteSql} WHERE id IN(SELECT athlete_id FROM guardian_links WHERE user_id=? AND active=1) ORDER BY name`,
+      [actor.id],
+    ),
+    listParentCharges(db, actor),
+    rows<Payment>(
+      db,
+      `${paymentSql} WHERE p.designated_user_id=? OR p.submitted_by=? ORDER BY CASE WHEN p.status IN ('pending','needs_info') THEN 0 WHEN p.status='verified' AND p.verified_amount_minor>COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0) THEN 1 ELSE 2 END,p.submitted_at DESC LIMIT 200`,
+      [actor.id, actor.id],
+    ),
+    listReceipts(db, actor),
+    one<{ pendingMinor: number; creditMinor: number }>(
+      db,
+      "SELECT COALESCE(sum(CASE WHEN p.status IN ('pending','needs_info') THEN p.amount_minor ELSE 0 END),0) AS pendingMinor,COALESCE(sum(CASE WHEN p.status='verified' THEN p.verified_amount_minor-COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0) ELSE 0 END),0) AS creditMinor FROM payments p WHERE p.designated_user_id=? OR p.submitted_by=?",
+      [actor.id, actor.id],
+    ),
+  ]);
+  return {
+    athletes: athleteMap(athletes),
+    charges,
+    payments,
+    receipts,
+    balanceMinor: charges.reduce((s, c) => s + c.balanceMinor, 0),
+    pendingMinor: totals?.pendingMinor || 0,
+    creditMinor: totals?.creditMinor || 0,
+  };
+}
+export async function getAdminDashboard(
+  db: D1Database,
+): Promise<AdminDashboard> {
+  const [
+    payments,
+    charges,
+    athletes,
+    receipts,
+    email,
+    paymentTotals,
+    chargeTotals,
+  ] = await Promise.all([
+    rows<Payment>(
+      db,
+      `${paymentSql} ORDER BY CASE WHEN p.status IN ('pending','needs_info') THEN 0 ELSE 1 END,CASE WHEN p.status IN ('pending','needs_info') THEN p.submitted_at END ASC,p.submitted_at DESC LIMIT 500`,
+    ),
+    rows<Omit<Charge, "balanceMinor">>(
+      db,
+      `${chargeSql} ORDER BY c.period DESC,s.name LIMIT 2000`,
+    ),
+    rows<Athlete>(db, `${athleteSql} ORDER BY name`),
+    receiptRows(db),
+    one<{ n: number }>(
+      db,
+      "SELECT count(*) n FROM email_outbox WHERE status IN ('queued','sending','blocked','rejected','unknown')",
+    ),
+    one<{ pendingCount: number; verifiedMinor: number; creditMinor: number }>(
+      db,
+      "SELECT COALESCE(sum(CASE WHEN p.status IN ('pending','needs_info') THEN 1 ELSE 0 END),0) AS pendingCount,COALESCE(sum(CASE WHEN p.status='verified' THEN p.verified_amount_minor ELSE 0 END),0) AS verifiedMinor,COALESCE(sum(CASE WHEN p.status='verified' THEN p.verified_amount_minor-COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0) ELSE 0 END),0) AS creditMinor FROM payments p",
+    ),
+    one<{ balanceMinor: number }>(
+      db,
+      `SELECT COALESCE(sum(totalMinor-paidMinor),0) AS balanceMinor FROM (${chargeSql})`,
+    ),
+  ]);
+  const mapped = chargeMap(charges);
+  return {
+    payments,
+    charges: mapped,
+    athletes: athleteMap(athletes),
+    receipts,
+    pendingCount: paymentTotals?.pendingCount || 0,
+    balanceMinor: chargeTotals?.balanceMinor || 0,
+    verifiedMinor: paymentTotals?.verifiedMinor || 0,
+    creditMinor: paymentTotals?.creditMinor || 0,
+    emailPendingCount: email?.n || 0,
+  };
+}
+export async function listFamilies(db: D1Database): Promise<Family[]> {
+  const adults = await rows<{
+    id: string;
+    name: string;
+    email: string;
+    active: number;
+  }>(db, "SELECT id,name,email,active FROM users ORDER BY name");
+  const links = await rows<Athlete & { userId: string; receiptOptIn: number }>(
+    db,
+    "SELECT s.id,s.name,s.category,s.fee_minor AS feeMinor,s.discount_minor AS discountMinor,s.discount_reason AS discountReason,s.active,s.start_period AS startPeriod,l.user_id AS userId,l.receipt_opt_in AS receiptOptIn FROM guardian_links l JOIN athletes s ON s.id=l.athlete_id WHERE l.active=1 ORDER BY s.name",
+  );
+  return adults.map((u) => ({
+    adultId: u.id,
+    adultName: u.name,
+    email: u.email,
+    active: !!u.active,
+    athletes: links
+      .filter((l) => l.userId === u.id)
+      .map((l) => ({
+        ...l,
+        active: !!l.active,
+        receiptOptIn: !!l.receiptOptIn,
+      })),
+  }));
+}
+export async function getMonthlyPreview(
+  db: D1Database,
+  period: string,
+): Promise<MonthlyPreview> {
+  validatePeriod(period);
+  const athletes = athleteMap(
+    await rows<Athlete & { alreadyPublished: number }>(
+      db,
+      `${athleteSql.replace(" FROM athletes", ",EXISTS(SELECT 1 FROM charges c WHERE c.athlete_id=athletes.id AND c.period=?) AS alreadyPublished FROM athletes")} WHERE active=1 AND start_period<=? ORDER BY name`,
+      [period, period],
+    ),
+  ).map((a) => ({
+    ...a,
+    alreadyPublished: !!(a as Athlete & { alreadyPublished: number })
+      .alreadyPublished,
+    totalMinor: a.feeMinor - a.discountMinor,
+  }));
+  return {
+    period,
+    dueDate: `${period}-08`,
+    athletes,
+    newCount: athletes.filter((a) => !a.alreadyPublished).length,
+    totalMinor: athletes
+      .filter((a) => !a.alreadyPublished)
+      .reduce((s, a) => s + a.totalMinor, 0),
+  };
+}
+
+const receiptAccess = `EXISTS(SELECT 1 FROM users u WHERE u.id=? AND u.active=1) AND (p.designated_user_id=? OR EXISTS(SELECT 1 FROM email_outbox e WHERE e.receipt_id=r.id AND e.recipient_id=?)) AND NOT EXISTS(SELECT 1 FROM json_each(r.snapshot_json,'$.lines') line WHERE NOT EXISTS(SELECT 1 FROM guardian_links l WHERE l.user_id=? AND l.athlete_id=json_extract(line.value,'$.athleteId') AND l.active=1 AND (p.designated_user_id=? OR l.receipt_opt_in=1)))`;
+async function receiptRows(
+  db: D1Database,
+  where = "",
+  args: unknown[] = [],
+): Promise<Receipt[]> {
+  const found = await rows<{
+    id: string;
+    paymentId: string;
+    number: string;
+    status: "issued" | "void";
+    snapshotJson: string;
+    voidReason: string | null;
+    voidedAt: string | null;
+    emailStatus: string | null;
+    canPrepareEmail: number;
+  }>(
+    db,
+    `SELECT r.id,r.payment_id AS paymentId,r.number,r.status,r.snapshot_json AS snapshotJson,r.void_reason AS voidReason,r.voided_at AS voidedAt,COALESCE((SELECT e.status FROM email_outbox e WHERE e.receipt_id=r.id AND e.recipient_id=p.designated_user_id AND e.kind=CASE WHEN r.status='void' THEN 'receipt_void' ELSE 'receipt' END ORDER BY e.updated_at DESC LIMIT 1),'recipient_pending') AS emailStatus,(r.status='issued' AND p.status='verified' AND NOT EXISTS(SELECT 1 FROM email_outbox e WHERE e.receipt_id=r.id AND e.kind='receipt')) AS canPrepareEmail FROM receipts r JOIN payments p ON p.id=r.payment_id ${where} ORDER BY r.created_at DESC LIMIT 500`,
+    args,
+  );
+  return found.map(({ snapshotJson, canPrepareEmail, ...r }) => ({
+    ...r,
+    canPrepareEmail: canPrepareEmail === 1,
+    snapshot: JSON.parse(snapshotJson) as ReceiptSnapshot,
+  }));
+}
+export async function listReceipts(
+  db: D1Database,
+  actor: Actor,
+): Promise<Receipt[]> {
+  await requireActor(db, actor);
+  return actor.isAdmin
+    ? receiptRows(db)
+    : receiptRows(db, `WHERE ${receiptAccess}`, Array(5).fill(actor.id));
+}
+export async function getReceipt(
+  db: D1Database,
+  actor: Actor,
+  receiptId: string,
+): Promise<Receipt> {
+  await requireActor(db, actor);
+  const found = await receiptRows(
+    db,
+    `WHERE r.id=? ${actor.isAdmin ? "" : `AND ${receiptAccess}`}`,
+    [receiptId, ...(actor.isAdmin ? [] : Array(5).fill(actor.id))],
+  );
+  if (!found[0]) fail("Comprobante no disponible.", 404, "not_found");
+  return found[0]!;
+}
+async function authorizedPayment(
+  db: D1Database,
+  actor: Actor,
+  paymentId: string,
+): Promise<Payment> {
+  await requireActor(db, actor);
+  const payment = await one<Payment>(
+    db,
+    `${paymentSql} WHERE p.id=? AND (?=1 OR ((p.designated_user_id=? OR p.submitted_by=?) AND NOT EXISTS(SELECT 1 FROM payment_requested_allocations a JOIN charges c ON c.id=a.charge_id WHERE a.payment_id=p.id AND NOT EXISTS(SELECT 1 FROM guardian_links l WHERE l.user_id=? AND l.athlete_id=c.athlete_id AND l.active=1))))`,
+    [paymentId, actor.isAdmin ? 1 : 0, actor.id, actor.id, actor.id],
+  );
+  if (!payment) fail("Pago no disponible.", 404, "not_found");
+  return payment!;
+}
+export async function getPaymentFile(
+  db: D1Database,
+  actor: Actor,
+  fileId: string,
+): Promise<PaymentFile> {
+  await requireActor(db, actor);
+  const file = await one<PaymentFile>(
+    db,
+    "SELECT f.id,f.payment_id AS paymentId,f.file_key AS key,f.file_type AS type,f.file_size AS size,f.file_sha256 AS sha256,f.revision,f.created_at AS createdAt FROM payment_files f JOIN payments p ON p.id=f.payment_id WHERE f.id=? AND (?=1 OR p.submitted_by=? OR (p.designated_user_id=? AND p.share_evidence=1))",
+    [fileId, actor.isAdmin ? 1 : 0, actor.id, actor.id],
+  );
+  if (!file) fail("Archivo no disponible.", 404, "not_found");
+  return file!;
+}
+export async function getPaymentDetail(
+  db: D1Database,
+  actor: Actor,
+  paymentId: string,
+): Promise<PaymentDetail> {
+  const payment = await authorizedPayment(db, actor, paymentId);
+  const [files, requestedAllocations, revisions, events] = await Promise.all([
+    rows<PaymentFile>(
+      db,
+      "SELECT f.id,f.payment_id AS paymentId,f.file_key AS key,f.file_type AS type,f.file_size AS size,f.file_sha256 AS sha256,f.revision,f.created_at AS createdAt FROM payment_files f JOIN payments p ON p.id=f.payment_id WHERE f.payment_id=? AND (?=1 OR p.submitted_by=? OR (p.designated_user_id=? AND p.share_evidence=1)) ORDER BY f.revision DESC",
+      [paymentId, actor.isAdmin ? 1 : 0, actor.id, actor.id],
+    ),
+    rows<
+      RequestedAllocation & {
+        athleteId: string;
+        athleteName: string;
+        period: string;
+        balanceMinor: number;
+      }
+    >(
+      db,
+      `SELECT a.charge_id AS chargeId,a.amount_minor AS amountMinor,c.athlete_id AS athleteId,s.name AS athleteName,c.period,c.base_minor-c.discount_minor+COALESCE((SELECT sum(amount_minor) FROM charge_adjustments WHERE charge_id=c.id),0)-COALESCE((SELECT sum(pa.amount_minor) FROM payment_allocations pa JOIN payments pp ON pp.id=pa.payment_id WHERE pa.charge_id=c.id AND pp.status='verified'),0) AS balanceMinor FROM payment_requested_allocations a JOIN charges c ON c.id=a.charge_id JOIN athletes s ON s.id=c.athlete_id WHERE a.payment_id=?`,
+      [paymentId],
+    ),
+    rows<PaymentDetail["revisions"][number]>(
+      db,
+      "SELECT id,payer_name AS payerName,amount_minor AS amountMinor,transfer_date AS transferDate,bank_reference AS bankReference,note,created_at AS createdAt FROM payment_revisions WHERE payment_id=? ORDER BY revision DESC",
+      [paymentId],
+    ),
+    actor.isAdmin
+      ? rows<{ action: string; detail: string; createdAt: string }>(
+          db,
+          "SELECT action,detail_json AS detail,created_at AS createdAt FROM audit_events WHERE entity_type='payment' AND entity_id=? ORDER BY created_at",
+          [paymentId],
+        )
+      : Promise.resolve([]),
+  ]);
+  let receipt: Receipt | null = null;
+  if (payment.receiptId)
+    try {
+      receipt = await getReceipt(db, actor, payment.receiptId);
+    } catch (error) {
+      if (!(error instanceof PortalError && error.status === 404)) throw error;
+    }
+  return {
+    payment,
+    files,
+    requestedAllocations,
+    revisions,
+    audit: events,
+    receipt,
+  };
+}
+
+function athleteInput(input: AthleteInput) {
+  text(input.name);
+  text(input.category, 80);
+  validatePeriod(input.startPeriod);
+  if (![1200000, 1500000].includes(input.feeMinor))
+    fail("La tarifa debe ser ₡12.000 o ₡15.000.");
+  amount(input.discountMinor, true);
+  if (input.discountMinor > input.feeMinor)
+    fail("El descuento supera la tarifa.");
+  if (input.discountMinor > 0) text(input.discountReason, 500);
+}
+export async function enrollAthlete(
+  db: D1Database,
+  actor: Actor,
+  input: AthleteInput,
+): Promise<string> {
+  admin(actor);
+  await requireActor(db, actor);
+  athleteInput(input);
+  const count = await one<{ n: number }>(db, "SELECT count(*) n FROM athletes");
+  if ((count?.n || 0) >= 300)
+    fail("Se alcanzó el límite de atletas.", 409, "limit");
+  const athleteId = id(),
+    now = iso();
+  await batch(db, [
+    bindings(
+      db,
+      "INSERT INTO athletes(id,name,category,fee_minor,discount_minor,discount_reason,active,start_period,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+      [
+        athleteId,
+        input.name.trim(),
+        input.category.trim(),
+        input.feeMinor,
+        input.discountMinor,
+        input.discountReason?.trim() || null,
+        input.active === false ? 0 : 1,
+        input.startPeriod,
+        now,
+        now,
+      ],
+    ),
+    audit(db, actor, "athlete", athleteId, "enroll", input, now),
+  ]);
+  return athleteId;
+}
+export async function setAthleteFee(
+  db: D1Database,
+  actor: Actor,
+  athleteId: string,
+  input: AthleteInput,
+): Promise<void> {
+  admin(actor);
+  await requireActor(db, actor);
+  athleteInput(input);
+  if (!(await one(db, "SELECT id FROM athletes WHERE id=?", [athleteId])))
+    fail("Atleta no disponible.", 404, "not_found");
+  const now = iso();
+  await batch(db, [
+    bindings(
+      db,
+      "UPDATE athletes SET name=?,category=?,fee_minor=?,discount_minor=?,discount_reason=?,active=?,start_period=?,updated_at=? WHERE id=?",
+      [
+        input.name.trim(),
+        input.category.trim(),
+        input.feeMinor,
+        input.discountMinor,
+        input.discountReason?.trim() || null,
+        input.active === false ? 0 : 1,
+        input.startPeriod,
+        now,
+        athleteId,
+      ],
+    ),
+    audit(db, actor, "athlete", athleteId, "update", input, now),
+  ]);
+}
+export async function linkGuardian(
+  db: D1Database,
+  actor: Actor,
+  input: { userId: string; athleteId: string; receiptOptIn?: boolean },
+): Promise<void> {
+  admin(actor);
+  await requireActor(db, actor);
+  await activeUser(db, input.userId);
+  if (!(await one(db, "SELECT id FROM athletes WHERE id=?", [input.athleteId])))
+    fail("Atleta no disponible.", 404, "not_found");
+  const now = iso();
+  await batch(db, [
+    bindings(
+      db,
+      "INSERT INTO guardian_links(user_id,athlete_id,active,receipt_opt_in,linked_by,created_at,updated_at) VALUES(?,?,1,?,?,?,?) ON CONFLICT(user_id,athlete_id) DO UPDATE SET active=1,receipt_opt_in=excluded.receipt_opt_in,linked_by=excluded.linked_by,updated_at=excluded.updated_at",
+      [
+        input.userId,
+        input.athleteId,
+        input.receiptOptIn ? 1 : 0,
+        actor.id,
+        now,
+        now,
+      ],
+    ),
+    audit(
+      db,
+      actor,
+      "athlete",
+      input.athleteId,
+      "link_guardian",
+      { userId: input.userId, receiptOptIn: !!input.receiptOptIn },
+      now,
+    ),
+  ]);
+}
+export async function revokeGuardian(
+  db: D1Database,
+  actor: Actor,
+  input: { userId: string; athleteId: string },
+): Promise<void> {
+  admin(actor);
+  await requireActor(db, actor);
+  const now = iso();
+  await batch(db, [
+    bindings(
+      db,
+      "UPDATE guardian_links SET active=0,receipt_opt_in=0,updated_at=? WHERE user_id=? AND athlete_id=?",
+      [now, input.userId, input.athleteId],
+    ),
+    audit(db, actor, "athlete", input.athleteId, "revoke_guardian", input, now),
+  ]);
+}
+export async function setReceiptConsent(
+  db: D1Database,
+  actor: Actor,
+  input: { userId: string; athleteId: string; receiptOptIn: boolean },
+): Promise<void> {
+  if (input.userId !== actor.id && !actor.isAdmin)
+    fail("Acceso denegado.", 403, "forbidden");
+  await requireActor(db, actor);
+  const now = iso(),
+    optIn = input.receiptOptIn ? 1 : 0;
+  const result = await batch(db, [
+    bindings(
+      db,
+      "UPDATE guardian_links SET receipt_opt_in=?,updated_at=? WHERE user_id=? AND athlete_id=? AND active=1",
+      [optIn, now, input.userId, input.athleteId],
+    ),
+    bindings(
+      db,
+      "INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) SELECT ?,?,'athlete',athlete_id,'receipt_consent',?,? FROM guardian_links WHERE user_id=? AND athlete_id=? AND active=1 AND updated_at=? AND receipt_opt_in=?",
+      [
+        id(),
+        actor.id,
+        JSON.stringify(input),
+        now,
+        input.userId,
+        input.athleteId,
+        now,
+        optIn,
+      ],
+    ),
+  ]);
+  if (!result[0].meta.changes) fail("Vínculo no disponible.", 404, "not_found");
+}
+export async function createInvitation(
+  db: D1Database,
+  actor: Actor,
+  input: {
+    email: string;
+    athleteIds: string[];
+    tokenHash: string;
+    expiresAt?: string;
+  },
+): Promise<string> {
+  admin(actor);
+  await requireActor(db, actor);
+  const email = text(input.email, 254).toLowerCase();
+  if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    !input.athleteIds.length ||
+    input.athleteIds.length > 10 ||
+    new Set(input.athleteIds).size !== input.athleteIds.length ||
+    !/^[a-f0-9]{64}$/.test(input.tokenHash)
+  )
+    fail("Invitación inválida.");
+  for (const athleteId of input.athleteIds)
+    if (!(await one(db, "SELECT id FROM athletes WHERE id=?", [athleteId])))
+      fail("Atleta no disponible.", 404, "not_found");
+  const invitationId = id(),
+    now = iso(),
+    expiresAt =
+      input.expiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
+  if (!Number.isFinite(Date.parse(expiresAt)) || expiresAt <= now)
+    fail("Vencimiento inválido.");
+  await batch(db, [
+    bindings(
+      db,
+      "INSERT INTO invitations(id,token_hash,email,athlete_ids_json,invited_by,expires_at,created_at) VALUES(?,?,?,?,?,?,?)",
+      [
+        invitationId,
+        input.tokenHash,
+        email,
+        JSON.stringify(input.athleteIds),
+        actor.id,
+        expiresAt,
+        now,
+      ],
+    ),
+    audit(
+      db,
+      actor,
+      "invitation",
+      invitationId,
+      "create",
+      { email, athleteIds: input.athleteIds },
+      now,
+    ),
+  ]);
+  return invitationId;
+}
+export async function redeemInvitation(
+  db: D1Database,
+  actor: Actor,
+  tokenHash: string,
+): Promise<void> {
+  await requireActor(db, actor);
+  const now = iso(),
+    invite = await one<{
+      id: string;
+      email: string;
+      athleteIds: string;
+      invitedBy: string;
+    }>(
+      db,
+      "SELECT id,email,athlete_ids_json AS athleteIds,invited_by AS invitedBy FROM invitations WHERE token_hash=? AND redeemed_at IS NULL AND expires_at>?",
+      [tokenHash, now],
+    );
+  if (!invite || invite.email.toLowerCase() !== actor.email.toLowerCase())
+    fail("Invitación inválida o vencida.", 403, "invitation_invalid");
+  const athleteIds = JSON.parse(invite.athleteIds) as string[],
+    token = id();
+  const statements = [
+    bindings(
+      db,
+      "UPDATE invitations SET redeemed_by=?,redeemed_at=?,redemption_token=? WHERE id=? AND redeemed_at IS NULL AND expires_at>?",
+      [actor.id, now, token, invite.id, now],
+    ),
+  ];
+  for (const athleteId of athleteIds)
+    statements.push(
+      bindings(
+        db,
+        "INSERT INTO guardian_links(user_id,athlete_id,active,receipt_opt_in,linked_by,created_at,updated_at) SELECT ?,?,1,0,?,?,? WHERE EXISTS(SELECT 1 FROM invitations WHERE id=? AND redeemed_by=? AND redemption_token=?) ON CONFLICT(user_id,athlete_id) DO UPDATE SET active=1,receipt_opt_in=0,linked_by=excluded.linked_by,updated_at=excluded.updated_at",
+        [
+          actor.id,
+          athleteId,
+          invite.invitedBy,
+          now,
+          now,
+          invite.id,
+          actor.id,
+          token,
+        ],
+      ),
+    );
+  const result = await batch(db, statements);
+  if (!result[0].meta.changes)
+    fail("Invitación ya utilizada.", 409, "invitation_invalid");
+}
+export async function publishMonth(
+  db: D1Database,
+  actor: Actor,
+  period: string,
+): Promise<number> {
+  admin(actor);
+  await requireActor(db, actor);
+  validatePeriod(period);
+  const now = iso();
+  const result = await batch(db, [
+    bindings(
+      db,
+      "INSERT OR IGNORE INTO charges(id,athlete_id,period,due_date,base_minor,discount_minor,discount_reason,published_by,created_at) SELECT lower(hex(randomblob(16))),id,?,?,fee_minor,discount_minor,discount_reason,?,? FROM athletes WHERE active=1 AND start_period<=?",
+      [period, `${period}-08`, actor.id, now, period],
+    ),
+    audit(db, actor, "month", period, "publish", {}, now),
+  ]);
+  return result[0].meta.changes || 0;
+}
+type FinancialOperation = {
+  actorId: string;
+  action: "adjust_charge" | "apply_credit";
+  targetId: string;
+  operationId: string;
+  payload: string;
+  claimToken: string;
+};
+function financialOperation(actor: Actor, action: FinancialOperation["action"], targetId: string, operationId: string, payload: unknown): FinancialOperation {
+  if (typeof operationId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operationId)) {
+    fail("Identificador de operación inválido.", 400, "invalid_fields");
+  }
+  return { actorId: actor.id, action, targetId: text(targetId, 80), operationId: operationId.toLowerCase(), payload: JSON.stringify(payload), claimToken: id() };
+}
+async function completedFinancialOperation(db: D1Database, operation: FinancialOperation): Promise<boolean> {
+  const completed = await one<{ payload: string }>(db,
+    "SELECT payload_json AS payload FROM financial_operations WHERE actor_id=? AND action=? AND target_id=? AND operation_id=?",
+    [operation.actorId, operation.action, operation.targetId, operation.operationId]);
+  if (!completed) return false;
+  if (completed.payload !== operation.payload) {
+    fail("Esta operación ya se usó con datos diferentes. Actualiza la página antes de registrar otro cambio.", 409, "conflict");
+  }
+  return true;
+}
+function claimFinancialOperation(db: D1Database, operation: FinancialOperation, now: string) {
+  return bindings(db,
+    "INSERT INTO financial_operations(actor_id,action,target_id,operation_id,payload_json,claim_token,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(actor_id,action,target_id,operation_id) DO NOTHING",
+    [operation.actorId, operation.action, operation.targetId, operation.operationId, operation.payload, operation.claimToken, now]);
+}
+function financialOperationAudit(db: D1Database, actor: Actor, operation: FinancialOperation, entity: string, action: string, detail: unknown, now: string) {
+  return bindings(db,
+    "INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM financial_operations WHERE claim_token=?)",
+    [id(), actor.id, entity, operation.targetId, action, JSON.stringify(detail), now, operation.claimToken]);
+}
+
+export async function adjustCharge(
+  db: D1Database,
+  actor: Actor,
+  input: ChargeAdjustmentInput,
+): Promise<void> {
+  admin(actor);
+  await requireActor(db, actor);
+  if (!Number.isSafeInteger(input.amountMinor) || !input.amountMinor || Math.abs(input.amountMinor) > 100000000)
+    fail("Ajuste inválido.");
+  const reason = text(input.reason, 500);
+  const operation = financialOperation(actor, "adjust_charge", input.chargeId, input.operationId,
+    { amountMinor: input.amountMinor, reason });
+  if (await completedFinancialOperation(db, operation)) return;
+  const now = iso();
+  const result = await batch(db, [
+    claimFinancialOperation(db, operation, now),
+    bindings(db,
+      "INSERT INTO charge_adjustments(id,charge_id,amount_minor,reason,recorded_by,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM financial_operations WHERE claim_token=?)",
+      [id(), input.chargeId, input.amountMinor, reason, actor.id, now, operation.claimToken]),
+    financialOperationAudit(db, actor, operation, "charge", "adjust", { ...input, reason }, now),
+  ]);
+  if (!result[0].meta.changes) await completedFinancialOperation(db, operation);
+}
+
+async function validateAllocations(
+  db: D1Database,
+  userId: string,
+  allocations: RequestedAllocation[],
+  paid: number,
+  checkBalance: boolean,
+): Promise<
+  Array<{
+    chargeId: string;
+    amountMinor: number;
+    athleteId: string;
+    athleteName: string;
+    period: string;
+  }>
+> {
+  if (
+    !Array.isArray(allocations) ||
+    !allocations.length ||
+    allocations.length > 36 ||
+    new Set(allocations.map((a) => a.chargeId)).size !== allocations.length
+  )
+    fail("Seleccione las mensualidades.", 400);
+  if (allocations.reduce((sum, a) => sum + amount(a.amountMinor), 0) > paid)
+    fail("La distribución supera el monto del pago.");
+  const found = [];
+  for (const allocation of allocations) {
+    const charge = await one<Charge>(
+      db,
+      `${chargeSql} WHERE c.id=? AND EXISTS(SELECT 1 FROM guardian_links l WHERE l.user_id=? AND l.athlete_id=c.athlete_id AND l.active=1)`,
+      [allocation.chargeId, userId],
+    );
+    if (!charge)
+      fail("Mensualidad no disponible para esta familia.", 403, "forbidden");
+    if (
+      checkBalance &&
+      allocation.amountMinor > charge.totalMinor - charge.paidMinor
+    )
+      fail(
+        "La distribución supera el saldo de la mensualidad.",
+        409,
+        "conflict",
+      );
+    found.push({
+      chargeId: charge.id,
+      amountMinor: allocation.amountMinor,
+      athleteId: charge.athleteId,
+      athleteName: charge.athleteName,
+      period: charge.period,
+    });
+  }
+  return found;
+}
+function validateSlip(file: SubmitPaymentInput["file"]) {
+  text(file.key, 200);
+  if (
+    !["image/jpeg", "image/png", "application/pdf"].includes(file.type) ||
+    !Number.isSafeInteger(file.size) ||
+    file.size <= 0 ||
+    file.size > 3145728 ||
+    !/^[a-f0-9]{64}$/.test(file.sha256)
+  )
+    fail("Archivo inválido.");
+}
+function submitFields(input: SubmitPaymentInput) {
+  text(input.payerName);
+  amount(input.amountMinor);
+  date(input.transferDate);
+  text(input.bankReference, 128);
+  validateSlip(input.file);
+  if (input.note) text(input.note, 500);
+}
+export async function submitPayment(
+  db: D1Database,
+  actor: Actor,
+  input: SubmitPaymentInput,
+): Promise<string> {
+  await requireActor(db, actor);
+  submitFields(input);
+  const designated = input.designatedAdultId || actor.id;
+  if (!actor.isAdmin && designated !== actor.id)
+    fail("Acceso denegado.", 403, "forbidden");
+  if (actor.isAdmin) {
+    if (!input.designatedAdultId) fail("Seleccione al adulto responsable.");
+    text(input.auditReason, 500);
+  }
+  await activeUser(db, designated);
+  await validateAllocations(
+    db,
+    designated,
+    input.allocations,
+    input.amountMinor,
+    false,
+  );
+  const paymentId = id(),
+    now = iso();
+  const statements = [
+    bindings(
+      db,
+      "INSERT INTO payments(id,designated_user_id,submitted_by,share_evidence,payer_name,amount_minor,transfer_date,bank_reference,submitted_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+      [
+        paymentId,
+        designated,
+        actor.id,
+        actor.isAdmin ? (input.shareEvidence ? 1 : 0) : 1,
+        input.payerName.trim(),
+        input.amountMinor,
+        input.transferDate,
+        input.bankReference.trim(),
+        now,
+        now,
+      ],
+    ),
+    bindings(
+      db,
+      "INSERT INTO payment_revisions(id,payment_id,revision,payer_name,amount_minor,transfer_date,bank_reference,requested_allocations_json,note,recorded_by,created_at) VALUES(?,?,1,?,?,?,?,?,?,?,?)",
+      [
+        id(),
+        paymentId,
+        input.payerName.trim(),
+        input.amountMinor,
+        input.transferDate,
+        input.bankReference.trim(),
+        JSON.stringify(input.allocations),
+        input.note || null,
+        actor.id,
+        now,
+      ],
+    ),
+    bindings(
+      db,
+      "INSERT INTO payment_files(id,payment_id,revision,file_key,file_type,file_size,file_sha256,created_at) VALUES(?,?,1,?,?,?,?,?)",
+      [
+        id(),
+        paymentId,
+        input.file.key,
+        input.file.type,
+        input.file.size,
+        input.file.sha256,
+        now,
+      ],
+    ),
+  ];
+  for (const a of input.allocations)
+    statements.push(
+      bindings(
+        db,
+        "INSERT INTO payment_requested_allocations(payment_id,charge_id,amount_minor) VALUES(?,?,?)",
+        [paymentId, a.chargeId, a.amountMinor],
+      ),
+    );
+  statements.push(
+    audit(
+      db,
+      actor,
+      "payment",
+      paymentId,
+      "submit",
+      { designatedAdultId: designated, auditReason: input.auditReason || null },
+      now,
+    ),
+  );
+  await batch(db, statements);
+  return paymentId;
+}
+
+export async function revisePayment(
+  db: D1Database,
+  actor: Actor,
+  paymentId: string,
+  input: Omit<SubmitPaymentInput, "file"> & PaymentReviewSnapshot & {
+    file?: SubmitPaymentInput["file"];
+  },
+): Promise<void> {
+  const payment = await authorizedPayment(db, actor, paymentId);
+  if (payment.submitterId !== actor.id && !actor.isAdmin)
+    fail("Solo quien registró el pago puede corregirlo.", 403, "forbidden");
+  requirePaymentSnapshot(payment, input);
+  if (payment.status !== "needs_info")
+    fail("El pago no admite correcciones.", 409, "conflict");
+  text(input.note, 500);
+  text(input.payerName);
+  amount(input.amountMinor);
+  date(input.transferDate);
+  text(input.bankReference, 128);
+  if (input.file) validateSlip(input.file);
+  await validateAllocations(
+    db,
+    payment.designatedAdultId,
+    input.allocations,
+    input.amountMinor,
+    false,
+  );
+  const revision = input.expectedRevision + 1,
+    now = iso();
+  const token = id();
+  const statements = [
+    bindings(
+      db,
+      "UPDATE payments SET status='pending',review_note=NULL,payer_name=?,amount_minor=?,transfer_date=?,bank_reference=?,revision=?,updated_at=?,approval_token=? WHERE id=? AND status='needs_info' AND revision=? AND review_note IS ?",
+      [
+        input.payerName.trim(),
+        input.amountMinor,
+        input.transferDate,
+        input.bankReference.trim(),
+        revision,
+        now,
+        token,
+        paymentId,
+        revision - 1,
+        input.expectedReviewNote,
+      ],
+    ),
+    bindings(
+      db,
+      "INSERT INTO payment_revisions(id,payment_id,revision,payer_name,amount_minor,transfer_date,bank_reference,requested_allocations_json,note,recorded_by,created_at) SELECT ?,id,revision,payer_name,amount_minor,transfer_date,bank_reference,?,?,?,? FROM payments WHERE id=? AND approval_token=?",
+      [
+        id(),
+        JSON.stringify(input.allocations),
+        input.note,
+        actor.id,
+        now,
+        paymentId,
+        token,
+      ],
+    ),
+    bindings(
+      db,
+      "DELETE FROM payment_requested_allocations WHERE payment_id=? AND EXISTS(SELECT 1 FROM payments WHERE id=? AND approval_token=?)",
+      [paymentId, paymentId, token],
+    ),
+  ];
+  for (const a of input.allocations)
+    statements.push(
+      bindings(
+        db,
+        "INSERT INTO payment_requested_allocations(payment_id,charge_id,amount_minor) SELECT id,?,? FROM payments WHERE id=? AND approval_token=?",
+        [a.chargeId, a.amountMinor, paymentId, token],
+      ),
+    );
+  if (input.file)
+    statements.push(
+      bindings(
+        db,
+        "INSERT INTO payment_files(id,payment_id,revision,file_key,file_type,file_size,file_sha256,created_at) SELECT ?,id,revision,?,?,?,?,? FROM payments WHERE id=? AND approval_token=?",
+        [
+          id(),
+          input.file.key,
+          input.file.type,
+          input.file.size,
+          input.file.sha256,
+          now,
+          paymentId,
+          token,
+        ],
+      ),
+    );
+  statements.push(
+    paymentAudit(db, actor, paymentId, "revise", { revision }, now, token),
+  );
+  const result = await batch(db, statements);
+  if (!result[0].meta.changes)
+    fail("El pago cambió. Actualice la página.", 409, "conflict");
+}
+
+function bankMatch(bank: string, account: string, reference: string) {
+  return JSON.stringify([
+    bank.normalize("NFKC").trim().toUpperCase(),
+    account.normalize("NFKC").replace(/[\s-]/g, "").toUpperCase(),
+    reference.normalize("NFKC").replace(/\s/g, "").toUpperCase(),
+  ]);
+}
+function requirePaymentSnapshot(payment: Payment, expected: PaymentReviewSnapshot) {
+  if (!Number.isSafeInteger(expected.expectedRevision) || expected.expectedRevision < 1 ||
+      expected.expectedRevision !== payment.revision || expected.expectedStatus !== payment.status ||
+      expected.expectedReviewNote !== payment.reviewNote) {
+    fail("El pago cambió desde que abriste la página. Actualiza y vuelve a revisar el respaldo.", 409, "conflict");
+  }
+}
+export async function reviewPayment(
+  db: D1Database,
+  actor: Actor,
+  paymentId: string,
+  input: ReviewPaymentInput,
+): Promise<string | null> {
+  admin(actor);
+  const payment = await authorizedPayment(db, actor, paymentId),
+    now = iso();
+  requirePaymentSnapshot(payment, input);
+  if (input.action === "void") {
+    if (payment.status !== "verified")
+      fail("Solo un pago verificado puede anularse.", 409, "conflict");
+    const reason = text(input.reason, 500),
+      token = id();
+    // A void notice reuses the original immutable destination; it never adopts a new address.
+    const originalRecipient = await one<{ recipientEmail: string }>(db,
+      "SELECT recipient_email AS recipientEmail FROM email_outbox WHERE receipt_id=? AND recipient_id=? AND kind='receipt'",
+      [payment.receiptId, payment.designatedAdultId]);
+    const results = await batch(db, [
+      bindings(
+        db,
+        "UPDATE payments SET status='void',review_note=?,voided_by=?,voided_at=?,updated_at=?,approval_token=? WHERE id=? AND status=? AND revision=? AND review_note IS ?",
+        [reason, actor.id, now, now, token, paymentId, input.expectedStatus, input.expectedRevision, input.expectedReviewNote],
+      ),
+      bindings(
+        db,
+        "UPDATE receipts SET status='void',void_reason=?,voided_at=? WHERE payment_id=? AND status='issued' AND EXISTS(SELECT 1 FROM payments WHERE id=? AND status='void' AND approval_token=?)",
+        [reason, now, paymentId, paymentId, token],
+      ),
+      bindings(
+        db,
+        "UPDATE email_outbox SET status='cancelled',updated_at=? WHERE receipt_id IN(SELECT r.id FROM receipts r JOIN payments p ON p.id=r.payment_id WHERE p.id=? AND p.approval_token=?) AND status IN ('queued','blocked','rejected','dry_run')",
+        [now, paymentId, token],
+      ),
+      bindings(
+        db,
+        `INSERT OR IGNORE INTO email_outbox(id,receipt_id,recipient_id,recipient_email,recipient_name,kind,status,next_attempt_at,created_at,updated_at) SELECT ${sqlUuid},e.receipt_id,e.recipient_id,e.recipient_email,e.recipient_name,'receipt_void','queued',?,?,? FROM email_outbox e JOIN receipts r ON r.id=e.receipt_id JOIN payments p ON p.id=r.payment_id WHERE r.payment_id=? AND p.approval_token=? AND e.kind='receipt' AND r.status='void' AND p.status='void' AND e.recipient_id=p.designated_user_id AND json_extract(r.snapshot_json,'$.designatedAdult.id')=p.designated_user_id AND ?=1 AND e.recipient_email=? AND EXISTS(SELECT 1 FROM users u WHERE u.id=e.recipient_id AND u.active=1 AND lower(u.email)=lower(e.recipient_email)) AND NOT EXISTS(SELECT 1 FROM json_each(r.snapshot_json,'$.lines') line WHERE NOT EXISTS(SELECT 1 FROM guardian_links l WHERE l.user_id=e.recipient_id AND l.athlete_id=json_extract(line.value,'$.athleteId') AND l.active=1))`,
+        [now, now, now, paymentId, token, validEmail(originalRecipient?.recipientEmail) ? 1 : 0, originalRecipient?.recipientEmail ?? ""],
+      ),
+      paymentAudit(db, actor, paymentId, "void", { reason }, now, token),
+    ]);
+    if (!results[0].meta.changes) fail("El pago cambió.", 409, "conflict");
+    return payment.receiptId;
+  }
+  if (!["pending", "needs_info"].includes(payment.status))
+    fail("El pago ya fue revisado.", 409, "conflict");
+  if (input.action === "reject" || input.action === "needs_info") {
+    const reason = text(input.reason, 500),
+      token = id();
+    const result = await batch(db, [
+      bindings(
+        db,
+        "UPDATE payments SET status=?,review_note=?,updated_at=?,approval_token=? WHERE id=? AND status=? AND revision=? AND review_note IS ?",
+        [
+          input.action === "reject" ? "rejected" : "needs_info",
+          reason,
+          now,
+          token,
+          paymentId,
+          input.expectedStatus,
+          input.expectedRevision,
+          input.expectedReviewNote,
+        ],
+      ),
+      paymentAudit(db, actor, paymentId, input.action, { reason }, now, token),
+    ]);
+    if (!result[0].meta.changes) fail("El pago cambió.", 409, "conflict");
+    return null;
+  }
+  if (input.action !== "verify") fail("Acción inválida.");
+  if (!input.bankChecked)
+    fail("Confirme la transferencia en la cuenta bancaria.");
+  if (input.currency !== "CRC") fail("Solo se admite CRC.");
+  amount(input.amountMinor);
+  date(input.paymentDate);
+  text(input.bankReference, 128);
+  text(input.bankName, 80);
+  text(input.receivingAccount, 100);
+  if (input.note) text(input.note, 500);
+  if (
+    input.amountMinor !== payment.amountMinor ||
+    input.paymentDate !== payment.transferDate ||
+    input.bankReference.trim() !== payment.bankReference.trim()
+  )
+    text(input.note, 500);
+  // An existing inactive account or invalid contact address holds email, not a bank-confirmed receipt.
+  // A missing account is a broken ownership invariant and must not produce fabricated identity data.
+  const owner = await one<{ id: string; name: string; email: string }>(db,
+    "SELECT id,name,email FROM users WHERE id=?", [payment.designatedAdultId]);
+  if (!owner) fail("No se encontró la cuenta responsable asociada al pago.", 409, "recipient_missing");
+  const lines = await validateAllocations(
+    db,
+    owner.id,
+    input.allocations,
+    input.amountMinor,
+    true,
+  );
+  const year = billingYear(now),
+    receiptId = id(),
+    token = id();
+  const snapshot: ReceiptSnapshot = {
+    version: 1,
+    receiptNumber: "PENDING",
+    associationName: input.associationName
+      ? text(input.associationName, 200)
+      : "Asociación Deportiva Belemita de Ajedrez",
+    payerName: payment.payerName,
+    paymentDate: input.paymentDate,
+    issuedAt: now,
+    currency: "CRC",
+    amountMinor: input.amountMinor,
+    bankReference: input.bankReference.trim(),
+    bankName: input.bankName.trim(),
+    receivingAccount: input.receivingAccount.trim(),
+    lines,
+    unallocatedMinor:
+      input.amountMinor - lines.reduce((s, l) => s + l.amountMinor, 0),
+    designatedAdult: owner,
+    demo: actor.mode === "demo",
+  };
+  const statements = [
+    bindings(
+      db,
+      "UPDATE payments SET status='verified',verified_amount_minor=?,verified_date=?,verified_reference=?,verified_bank_name=?,verified_receiving_account=?,bank_match_key=?,verified_by=?,verified_at=?,approval_token=?,review_note=?,updated_at=? WHERE id=? AND status=? AND revision=? AND review_note IS ?",
+      [
+        input.amountMinor,
+        input.paymentDate,
+        input.bankReference.trim(),
+        input.bankName.trim(),
+        input.receivingAccount.trim(),
+        bankMatch(input.bankName, input.receivingAccount, input.bankReference),
+        actor.id,
+        now,
+        token,
+        input.note || null,
+        now,
+        paymentId,
+        input.expectedStatus,
+        input.expectedRevision,
+        input.expectedReviewNote,
+      ],
+    ),
+  ];
+  for (const line of lines)
+    statements.push(
+      bindings(
+        db,
+        "INSERT INTO payment_allocations(id,payment_id,charge_id,amount_minor,created_at) SELECT ?,id,?,?,? FROM payments WHERE id=? AND approval_token=?",
+        [id(), line.chargeId, line.amountMinor, now, paymentId, token],
+      ),
+    );
+  statements.push(
+    bindings(
+      db,
+      "INSERT INTO receipt_counters(year,sequence) SELECT ?,1 WHERE EXISTS(SELECT 1 FROM payments WHERE id=? AND approval_token=?) ON CONFLICT(year) DO UPDATE SET sequence=sequence+1",
+      [year, paymentId, token],
+    ),
+  );
+  statements.push(
+    bindings(
+      db,
+      "INSERT INTO receipts(id,payment_id,number,year,sequence,snapshot_json,created_at) SELECT ?,p.id,'AB-'||c.year||'-'||printf('%06d',c.sequence),c.year,c.sequence,json_set(?,'$.receiptNumber','AB-'||c.year||'-'||printf('%06d',c.sequence)),? FROM payments p JOIN receipt_counters c ON c.year=? WHERE p.id=? AND p.approval_token=?",
+      [receiptId, JSON.stringify(snapshot), now, year, paymentId, token],
+    ),
+  );
+  statements.push(
+    bindings(
+      db,
+      `INSERT INTO email_outbox(id,receipt_id,recipient_id,recipient_email,recipient_name,kind,status,next_attempt_at,created_at,updated_at) SELECT ${sqlUuid},r.id,u.id,u.email,u.name,'receipt','queued',?,?,? FROM receipts r JOIN payments p ON p.id=r.payment_id JOIN users u ON u.id=p.designated_user_id AND u.active=1 WHERE r.id=? AND p.approval_token=? AND p.status='verified' AND r.status='issued' AND json_extract(r.snapshot_json,'$.designatedAdult.id')=u.id AND ?=1 AND u.email=? AND NOT EXISTS(SELECT 1 FROM json_each(r.snapshot_json,'$.lines') line WHERE NOT EXISTS(SELECT 1 FROM guardian_links l WHERE l.user_id=u.id AND l.athlete_id=json_extract(line.value,'$.athleteId') AND l.active=1))`,
+      [now, now, now, receiptId, token, validEmail(owner.email) ? 1 : 0, owner.email],
+    ),
+  );
+  statements.push(
+    bindings(
+      db,
+      "INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) SELECT ?,?,'payment',p.id,'verify',json_set(?,'$.emailRecipientPending',json(CASE WHEN EXISTS(SELECT 1 FROM email_outbox e WHERE e.receipt_id=? AND e.kind='receipt') THEN 'false' ELSE 'true' END),'$.emailRecipientUserId',(SELECT e.recipient_id FROM email_outbox e WHERE e.receipt_id=? AND e.kind='receipt')),? FROM payments p WHERE p.id=? AND p.approval_token=?",
+      [
+        id(),
+        actor.id,
+        JSON.stringify({
+          receiptId,
+          bankMatchConfirmed: true,
+          emailRecipientPolicy: payment.submitterId === payment.designatedAdultId ? "uploader_only" : "designated_adult",
+          amountMinor: input.amountMinor,
+          allocations: input.allocations,
+        }),
+        receiptId,
+        receiptId,
+        now,
+        paymentId,
+        token,
+      ],
+    ),
+  );
+  const result = await batch(db, statements);
+  if (!result[0].meta.changes)
+    fail("El pago ya fue revisado.", 409, "conflict");
+  return receiptId;
+}
+
+export async function applyPaymentCredit(
+  db: D1Database,
+  actor: Actor,
+  input: ApplyPaymentCreditInput,
+): Promise<void> {
+  admin(actor);
+  await requireActor(db, actor);
+  const reason = text(input.reason, 500);
+  if (!Array.isArray(input.allocations) || !input.allocations.length || input.allocations.length > 36)
+    fail("Seleccione las mensualidades.");
+  const allocations = input.allocations.map(a => ({ chargeId: text(a.chargeId, 80), amountMinor: amount(a.amountMinor) }))
+    .sort((a,b) => a.chargeId.localeCompare(b.chargeId));
+  const operation = financialOperation(actor, "apply_credit", input.paymentId, input.operationId, { allocations, reason });
+  if (await completedFinancialOperation(db, operation)) return;
+  try {
+    const payment = await authorizedPayment(db, actor, input.paymentId);
+    if (payment.status !== "verified") fail("Pago no verificado.", 409, "conflict");
+    await validateAllocations(db, payment.designatedAdultId, allocations, payment.unallocatedMinor, true);
+    const now = iso();
+    const result = await batch(db, [
+      claimFinancialOperation(db, operation, now),
+      ...allocations.map(a => bindings(db,
+        "INSERT INTO payment_allocations(id,payment_id,charge_id,amount_minor,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM financial_operations WHERE claim_token=?)",
+        [id(), input.paymentId, a.chargeId, a.amountMinor, now, operation.claimToken])),
+      financialOperationAudit(db, actor, operation, "payment", "apply_credit", { ...input, allocations, reason }, now),
+    ]);
+    if (!result[0].meta.changes) await completedFinancialOperation(db, operation);
+  } catch (error) {
+    // A competing identical request may finish while this request validates balances.
+    if (await completedFinancialOperation(db, operation)) return;
+    throw error;
+  }
+}
+
+/** Synthetic demo enrollment only; no payment/receipt history is silently invented. */
+export async function seedDemo(db: D1Database): Promise<void> {
+  const adminActor: Actor = {
+    id: "demo-admin",
+    email: "admin@example.invalid",
+    name: "Administración de prueba",
+    isAdmin: true,
+    mode: "demo",
+  };
+  const adults: Actor[] = [
+    adminActor,
+    {
+      id: "demo-parent-a",
+      email: "ana@example.invalid",
+      name: "Ana de prueba",
+      isAdmin: false,
+      mode: "demo",
+    },
+    {
+      id: "demo-parent-b",
+      email: "diego@example.invalid",
+      name: "Diego de prueba",
+      isAdmin: false,
+      mode: "demo",
+    },
+    {
+      id: "demo-unrelated",
+      email: "otra@example.invalid",
+      name: "Familia independiente",
+      isAdmin: false,
+      mode: "demo",
+    },
+  ];
+  for (const actor of adults) await ensureUser(db, actor);
+  const now = iso(),
+    currentPeriod = billingPeriod(now);
+  for (const [athleteId, name, fee] of [
+    ["demo-athlete-1", "Timothy de prueba", 1200000],
+    ["demo-athlete-2", "Sofía de prueba", 1500000],
+    ["demo-athlete-3", "Alex independiente", 1200000],
+  ] as const)
+    await bindings(
+      db,
+      "INSERT OR IGNORE INTO athletes(id,name,category,fee_minor,discount_minor,active,start_period,created_at,updated_at) VALUES(?,?,?, ?,0,1,?,?,?)",
+      [
+        athleteId,
+        name,
+        fee === 1200000 ? "Formación" : "Competitivo",
+        fee,
+        currentPeriod,
+        now,
+        now,
+      ],
+    ).run();
+  for (const [userId, athleteId] of [
+    ["demo-parent-a", "demo-athlete-1"],
+    ["demo-parent-a", "demo-athlete-2"],
+    ["demo-parent-b", "demo-athlete-1"],
+    ["demo-unrelated", "demo-athlete-3"],
+  ])
+    await bindings(
+      db,
+      "INSERT OR IGNORE INTO guardian_links(user_id,athlete_id,active,receipt_opt_in,linked_by,created_at,updated_at) VALUES(?,?,1,0,?,?,?)",
+      [userId, athleteId, adminActor.id, now, now],
+    ).run();
+  await publishMonth(db, adminActor, currentPeriod);
+}

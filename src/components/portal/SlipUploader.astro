@@ -1,0 +1,359 @@
+---
+import OcrReview from './OcrReview.astro';
+interface Props { mode: 'off' | 'demo' | 'groq'; available: boolean; required?: boolean; id?: string; athletes?: readonly {id:string;name:string}[]; }
+const { mode, available, required = true, id = 'slip', athletes = [] } = Astro.props;
+const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
+---
+<section class="portal-slip-uploader" data-slip-uploader data-ocr-mode={mode} data-ocr-available={String(available)} data-authorized-athletes={JSON.stringify(authorizedAthletes)}>
+  <div class="portal-form-step"><span aria-hidden="true">01</span><div><h2>{required ? 'Primero, adjunta tu transferencia.' : '¿Necesitas corregir el archivo?'}</h2><p>{required ? 'Usa la imagen o el PDF original del banco.' : 'El archivo nuevo reemplaza la versión actual y conserva el historial.'}</p></div></div>
+  <div class="portal-slip-drop" data-slip-drop><svg width="30" height="34" viewBox="0 0 30 34" fill="none" aria-hidden="true"><path d="M1 1h19l9 9v23H1zM20 1v9h9M15 26V15m-5 5 5-5 5 5" stroke="currentColor" stroke-width="1.2"/></svg><div class="portal-field"><label for={id}>{required ? 'Comprobante de la transferencia' : 'Archivo actualizado (opcional)'}</label><input id={id} name="slip" type="file" accept="image/jpeg,image/png,application/pdf" required={required} aria-describedby={`${id}-help ${id}-status`} data-slip-input /><p id={`${id}-help`} class="portal-help">JPG, PNG o PDF · máximo 3 MB. Se guarda de forma privada.</p></div></div>
+  <input type="hidden" name="draftId" value="" data-slip-draft />
+  <div class="portal-slip-preview" data-slip-preview hidden><div class="portal-slip-preview-image" data-slip-image-wrap hidden><button class="portal-slip-preview-button" type="button" data-slip-zoom aria-label="Ampliar imagen seleccionada"><img alt="Vista previa del archivo seleccionado" data-slip-image /><span class="portal-evidence-zoom">Ampliar imagen <span aria-hidden="true">↗</span></span></button></div><div class="portal-slip-preview-info"><span class="portal-private-label"><svg width="12" height="14" viewBox="0 0 12 14" fill="none" aria-hidden="true"><path d="M3 6V4a3 3 0 0 1 6 0v2M1 6h10v7H1z" stroke="currentColor"/></svg>Archivo privado</span><strong data-slip-name></strong><p data-slip-size></p><p class="portal-help" data-slip-preview-note></p></div></div>
+  <p id={`${id}-status`} class="portal-slip-status" role="status" aria-live="polite" data-slip-status>El archivo se adjuntará al enviar el formulario.</p>
+  <div class="portal-ocr-controls" data-ocr-controls hidden><div class="portal-ocr-disclosure"><p class="portal-eyebrow">{mode === 'demo' ? 'Demostración · datos ficticios' : 'Lectura opcional'}</p><p data-ocr-disclosure>{mode === 'demo' ? 'La lectura simulada usa un ejemplo ficticio del sistema. No analiza tu archivo ni envía información a un servicio externo.' : 'Al pulsar Leer datos, se enviará la imagen de tu comprobante a Groq para sugerir los campos del formulario. Puedes completar todo manualmente.'}</p><p class="portal-help" data-ocr-pdf-note hidden>En un PDF se leerá únicamente la primera página convertida a imagen. El PDF original se conserva completo.</p></div><button class="portal-button portal-button-secondary" type="button" disabled data-slip-extract>{mode === 'demo' ? 'Probar lectura simulada' : 'Leer datos'}<span aria-hidden="true">↗</span></button><button class="portal-link portal-text-button" type="button" data-slip-retry hidden>Reintentar guardar archivo</button></div>
+  <OcrReview interactive />
+  <section class="portal-athlete-suggestions" aria-labelledby={`${id}-athlete-heading`} data-athlete-suggestions hidden>
+    <p class="portal-eyebrow" data-athlete-description-label>Detalle detectado</p>
+    <p class="portal-athlete-description" data-athlete-description></p>
+    <h3 id={`${id}-athlete-heading`}>Revisa el atleta del detalle.</h3>
+    <p class="portal-help" role="status" aria-live="polite" data-athlete-suggestion-summary></p>
+    <ul class="portal-athlete-candidates" data-athlete-candidates></ul>
+    <p class="portal-help">Esta sugerencia solo te ayuda a encontrar sus mensualidades. Tú eliges el mes y el monto; no cambia la distribución del pago.</p>
+    <p class="portal-athlete-navigation-status" role="status" aria-live="polite" data-athlete-navigation-status></p>
+  </section>
+  <noscript><p class="portal-help">Puedes completar los datos manualmente. El archivo se guardará al enviar el formulario.</p></noscript>
+  <dialog class="portal-image-dialog" aria-label="Archivo seleccionado" data-slip-dialog><div class="portal-image-dialog-toolbar"><span>Archivo seleccionado <small data-slip-dialog-note>Vista previa del original</small></span><button class="portal-image-dialog-close" type="button" data-slip-close aria-label="Cerrar imagen"><span aria-hidden="true">×</span> Cerrar</button></div><div class="portal-image-dialog-body"><img alt="Archivo seleccionado ampliado" data-slip-dialog-image /></div></dialog>
+</section>
+<script>
+  import { renderFirstPdfPage } from '../../lib/portal/pdf-preview';
+  import { suggestAthletes, type MatchableAthlete } from '../../lib/portal/athlete-match';
+  type Suggestions = { amount: string | null; currency: string | null; transferDate: string | null; bankReference: string | null; payerName: string | null; description: string | null; warnings: string[] };
+  type Extraction = { status: string; suggestions: Suggestions | null; mode: 'demo' | 'groq'; code?: string | null; sourceKind?: string; };
+  type UploadResponse = { draft: {id:string;expiresAt:string}; ocr: {mode:'off'|'demo'|'groq';available:boolean} };
+  const fieldNames = ['amount', 'transferDate', 'bankReference', 'payerName'] as const;
+  const warningLabels: Record<string,string> = {demo_fixture:'Datos ficticios de demostración; no fueron leídos del archivo.',unreadable:'El archivo no se lee con claridad.',ambiguous:'Algunos datos son ambiguos. Revísalos en el original.',not_transfer:'No se identificó un comprobante de transferencia.',unsupported_currency:'La moneda no se identifica como colones.',date_uncertain:'La fecha no está clara.',reference_uncertain:'La referencia no está clara.',instruction_like_text:'El archivo contiene texto adicional que requiere revisión.',invalid_amount:'El monto no pudo identificarse.',currency_uncertain:'La moneda no está clara.',invalid_date:'La fecha no pudo identificarse.',future_date:'La fecha detectada es posterior a hoy.',invalid_payer_name:'El nombre de quien transfirió no pudo identificarse.',invalid_bank_reference:'La referencia no pudo identificarse.',invalid_description:'El detalle no pudo identificarse.',unverified_pdf_derivative:'La lectura usa una imagen convertida del PDF; revisa el original.'};
+  const messages: Record<string,string> = {
+    draft_expired: 'El archivo guardado venció. Vuelve a guardarlo o envía el formulario con el archivo adjunto.',
+    draft_not_found: 'El archivo temporal no está disponible. Vuelve a guardarlo o envía el formulario con el original adjunto.',
+    draft_limit: 'Alcanzaste el límite de archivos temporales. Espera a que venzan o solicita su limpieza a la Asociación.',
+    ocr_disabled: 'La lectura no está disponible. Completa los datos manualmente.',
+    ocr_busy: 'Hay otra lectura en curso. Espera un momento antes de intentarlo de nuevo.',
+    ocr_limit: 'Se alcanzó el límite de lecturas. Completa los datos manualmente.',
+    ocr_pdf_preview_required: 'No pudimos preparar la primera página del PDF. Completa los datos manualmente.',
+    invalid_image: 'La imagen no pudo leerse. Comprueba el archivo o completa los datos manualmente.',
+    original_missing: 'El archivo original ya no está disponible. Vuelve a seleccionarlo.',
+    forbidden: 'No fue posible acceder al archivo. Vuelve a entrar a tu cuenta.',
+    invalid_file: 'Selecciona un JPG, PNG o PDF válido de hasta 3 MB.',
+    too_large: 'El archivo supera los 3 MB. Selecciona una versión más pequeña.',
+  };
+  document.querySelectorAll<HTMLElement>('[data-slip-uploader]').forEach(uploader => {
+    const form = uploader.closest<HTMLFormElement>('form');
+    const input = uploader.querySelector<HTMLInputElement>('[data-slip-input]')!;
+    const draft = uploader.querySelector<HTMLInputElement>('[data-slip-draft]')!;
+    const status = uploader.querySelector<HTMLElement>('[data-slip-status]')!;
+    const preview = uploader.querySelector<HTMLElement>('[data-slip-preview]')!;
+    const previewWrap = uploader.querySelector<HTMLElement>('[data-slip-image-wrap]')!;
+    const image = uploader.querySelector<HTMLImageElement>('[data-slip-image]')!;
+    const controls = uploader.querySelector<HTMLElement>('[data-ocr-controls]')!;
+    const readButton = uploader.querySelector<HTMLButtonElement>('[data-slip-extract]')!;
+    const retryButton = uploader.querySelector<HTMLButtonElement>('[data-slip-retry]')!;
+    const review = uploader.querySelector<HTMLElement>('[data-ocr-review]')!;
+    const athleteSuggestions = uploader.querySelector<HTMLElement>('[data-athlete-suggestions]')!;
+    const athleteDescription = uploader.querySelector<HTMLElement>('[data-athlete-description]')!;
+    const athleteSummary = uploader.querySelector<HTMLElement>('[data-athlete-suggestion-summary]')!;
+    const athleteCandidates = uploader.querySelector<HTMLUListElement>('[data-athlete-candidates]')!;
+    const athleteNavigationStatus = uploader.querySelector<HTMLElement>('[data-athlete-navigation-status]')!;
+    const pdfNote = uploader.querySelector<HTMLElement>('[data-ocr-pdf-note]')!;
+    const previewNote = uploader.querySelector<HTMLElement>('[data-slip-preview-note]')!;
+    const dialog = uploader.querySelector<HTMLDialogElement>('[data-slip-dialog]')!;
+    const zoom = uploader.querySelector<HTMLButtonElement>('[data-slip-zoom]')!;
+    const close = uploader.querySelector<HTMLButtonElement>('[data-slip-close]')!;
+    const dialogImage = uploader.querySelector<HTMLImageElement>('[data-slip-dialog-image]')!;
+    if (!form) return;
+    let athletes: MatchableAthlete[] = [];
+    try {
+      const value: unknown = JSON.parse(uploader.dataset.authorizedAthletes ?? '[]');
+      if (Array.isArray(value) && value.every(athlete => athlete && typeof athlete.id === 'string' && typeof athlete.name === 'string')) {
+        athletes = value.map(({id,name}) => ({id,name}));
+      }
+    } catch { /* A malformed page list leaves athlete selection fully manual. */ }
+    const fields = new Map(fieldNames.map(name => [name, form.querySelector<HTMLInputElement>(`[name="${name}"]`)]));
+    const initial = new Map(fieldNames.map(name => [name, fields.get(name)?.value ?? '']));
+    const dirty = new Set<string>();
+    const automatic = new Set<string>();
+    fields.forEach((field,name) => field?.addEventListener('input', () => { dirty.add(name); automatic.delete(name); }));
+    let generation = 0;
+    let controller: AbortController | null = null;
+    let objectUrl: string | null = null;
+    let renderedPdf: File | null = null;
+    let currentFile: File | null = null;
+    let draftExpiresAt: number | null = null;
+    let saving = false;
+    let reading = false;
+    let mode = uploader.dataset.ocrMode ?? 'off';
+    let available = uploader.dataset.ocrAvailable === 'true';
+    let previousOverflow = '';
+    controls.hidden = !available;
+    function allocationRows(athleteId: string) {
+      return Array.from(form!.querySelectorAll<HTMLElement>('[data-allocation-athlete-id]')).filter(row => row.dataset.allocationAthleteId === athleteId);
+    }
+    function clearAthleteSuggestions() {
+      athleteSuggestions.hidden = true;
+      athleteDescription.textContent = ''; athleteSummary.textContent = ''; athleteCandidates.replaceChildren(); athleteNavigationStatus.textContent = '';
+      form!.querySelectorAll<HTMLElement>('.portal-allocation-suggested').forEach(row => row.classList.remove('portal-allocation-suggested'));
+    }
+    function showAthleteSuggestions(suggestions: Suggestions, simulated: boolean) {
+      clearAthleteSuggestions();
+      athleteSuggestions.hidden = false;
+      athleteDescription.textContent = suggestions.description ?? 'Sin detectar';
+      uploader.querySelector<HTMLElement>('[data-athlete-description-label]')!.textContent = simulated ? 'Detalle ficticio · demostración' : 'Detalle detectado';
+      // Text in the file is untrusted. Only its detail is matched; suspicious instructions abstain.
+      const manualReview = suggestions.warnings.includes('instruction_like_text');
+      const result = manualReview ? {kind: 'none' as const, candidates: []} : suggestAthletes(suggestions.description, athletes);
+      athleteSummary.textContent = manualReview
+        ? 'Este detalle necesita revisión manual. Selecciona el atleta y sus mensualidades abajo.'
+        : result.kind === 'ambiguous'
+          ? 'El detalle podría corresponder a más de un atleta de esta cuenta. Comprueba el nombre y elige a quién quieres ver.'
+          : result.kind === 'unique'
+            ? result.candidates[0]!.match === 'partial_name'
+              ? 'Encontramos parte del nombre de un atleta de esta cuenta. Confirma que corresponde a tu pago antes de ver sus mensualidades.'
+              : 'El detalle podría corresponder a este atleta de tu cuenta. Confirma que corresponde a tu pago antes de ver sus mensualidades.'
+            : 'No encontramos un atleta de esta cuenta en el detalle. Selecciona las mensualidades manualmente abajo.';
+      result.candidates.forEach(candidate => {
+        const item = document.createElement('li');
+        const match = document.createElement('small'); match.textContent = candidate.match === 'full_name' ? 'Nombre completo en el detalle' : 'Coincidencia parcial · confirma el atleta';
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'portal-athlete-view'; button.dataset.athleteView = candidate.id;
+        const label = document.createElement('span'); label.textContent = `Ver mensualidades de ${candidate.name}`;
+        const arrow = document.createElement('span'); arrow.textContent = '↓'; arrow.setAttribute('aria-hidden','true');
+        button.appendChild(label); button.appendChild(arrow); item.appendChild(match); item.appendChild(button);
+        if (allocationRows(candidate.id).length === 0) {
+          button.disabled = true;
+          const note = document.createElement('p'); note.className = 'portal-help'; note.textContent = 'No hay mensualidades pendientes de este atleta en este formulario.'; item.appendChild(note);
+        }
+        button.addEventListener('click', () => {
+          const rows = allocationRows(candidate.id);
+          if (!rows.length) return;
+          form!.querySelectorAll<HTMLElement>('.portal-allocation-suggested').forEach(row => row.classList.remove('portal-allocation-suggested'));
+          rows.forEach(row => row.classList.add('portal-allocation-suggested'));
+          athleteNavigationStatus.textContent = `Mostramos las mensualidades de ${candidate.name}. Los montos que escribiste se conservan.`;
+          rows[0]!.focus({preventScroll:true});
+          rows[0]!.scrollIntoView({block:'center',behavior:'instant'});
+        });
+        athleteCandidates.appendChild(item);
+      });
+    }
+    function showStatus(message: string, error = false) { status.textContent = message; status.classList.toggle('portal-slip-status-error', error); }
+    function showImage(file: File) {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(file); image.src = objectUrl; dialogImage.src = objectUrl; previewWrap.hidden = false;
+    }
+    function updateReadButton() {
+      readButton.disabled = saving || reading || !draft.value || !available || (currentFile?.type === 'application/pdf' && !renderedPdf);
+      retryButton.disabled = saving || reading;
+      controls.setAttribute('aria-busy', String(saving || reading));
+    }
+    async function readJson<T>(response: Response): Promise<T> {
+      const body = await response.json();
+      const code = body && typeof body === 'object' && 'error' in body && typeof body.error === 'string' ? body.error : 'operation_failed';
+      if (!response.ok) throw new Error(code);
+      return body as T;
+    }
+    async function requestJson<T>(url: string, data: FormData, signal: AbortSignal): Promise<T> {
+      const request = new AbortController();
+      const abort = () => request.abort();
+      signal.addEventListener('abort', abort, { once: true });
+      if (signal.aborted) request.abort();
+      const timeout = window.setTimeout(abort, 45_000);
+      try {
+        return await readJson<T>(await fetch(url, { method: 'POST', body: data, headers: { Accept: 'application/json' }, credentials: 'same-origin', signal: request.signal }));
+      } finally {
+        window.clearTimeout(timeout);
+        signal.removeEventListener('abort', abort);
+      }
+    }
+    async function saveFile(file: File, run: number, signal: AbortSignal) {
+      if (saving || reading || signal.aborted) return;
+      saving = true; updateReadButton();
+      showStatus('Guardando el archivo original de forma privada…'); retryButton.hidden = true;
+      const data = new FormData(); data.set('slip', file);
+      try {
+        const body = await requestJson<UploadResponse>('/api/portal/slips', data, signal);
+        if (run !== generation || signal.aborted) return;
+        if (!body.draft?.id || typeof body.draft.id !== 'string') throw new Error('operation_failed');
+        const expiry = Date.parse(body.draft.expiresAt);
+        if (!Number.isFinite(expiry)) throw new Error('operation_failed');
+        draft.value = body.draft.id;
+        draftExpiresAt = expiry;
+        mode = body.ocr?.mode ?? 'off'; available = body.ocr?.available === true;
+        controls.hidden = !available; readButton.hidden = !available; updateReadButton();
+        showStatus('Original guardado de forma privada. Revisa los datos antes de enviar el pago.');
+      } catch (error) {
+        if (run !== generation || signal.aborted) return;
+        draft.value = ''; draftExpiresAt = null; updateReadButton(); retryButton.hidden = false; controls.hidden = false;
+        readButton.hidden = !available;
+        const code = error instanceof Error ? error.message : '';
+        showStatus(messages[code] ?? 'No pudimos guardar el archivo todavía. Puedes reintentar o enviar el formulario con el archivo adjunto.', true);
+      } finally {
+        if (run === generation) { saving = false; updateReadButton(); }
+      }
+    }
+    async function selectFile() {
+      generation++; const run = generation; controller?.abort(); controller = new AbortController(); const signal = controller.signal;
+      saving = false; reading = false;
+      clearAthleteSuggestions();
+      if (dialog.open) dialog.close();
+      if (objectUrl) URL.revokeObjectURL(objectUrl); objectUrl = null;
+      image.removeAttribute('src'); dialogImage.removeAttribute('src');
+      automatic.forEach(name => { if (!dirty.has(name)) { const field = fields.get(name as typeof fieldNames[number]); if (field) { field.value = initial.get(name as typeof fieldNames[number]) ?? ''; field.dispatchEvent(new Event('change', { bubbles: true })); } } }); automatic.clear();
+      draft.value = ''; draftExpiresAt = null; renderedPdf = null; review.hidden = true; preview.hidden = true; previewWrap.hidden = true; retryButton.hidden = true; readButton.hidden = false; readButton.textContent = mode === 'demo' ? 'Probar lectura simulada ↗' : 'Leer datos ↗'; input.setCustomValidity('');
+      currentFile = input.files?.[0] ?? null;
+      updateReadButton();
+      if (!currentFile) { showStatus('El archivo se adjuntará al enviar el formulario.'); return; }
+      const file = currentFile;
+      if (!['image/jpeg','image/png','application/pdf'].includes(file.type) || file.size < 8 || file.size > 3 * 1024 * 1024) { input.setCustomValidity(messages.invalid_file); showStatus(messages.invalid_file, true); return; }
+      input.setCustomValidity(''); preview.hidden = false;
+      uploader.querySelector<HTMLElement>('[data-slip-name]')!.textContent = file.name;
+      uploader.querySelector<HTMLElement>('[data-slip-size]')!.textContent = `${Math.ceil(file.size / 1024)} KB · ${file.type === 'application/pdf' ? 'PDF original' : file.type === 'image/png' ? 'PNG' : 'JPG'}`;
+      pdfNote.hidden = file.type !== 'application/pdf'; previewNote.textContent = '';
+      if (file.type !== 'application/pdf') showImage(file);
+      const saveRequest = saveFile(file, run, signal);
+      if (file.type === 'application/pdf') {
+        previewNote.textContent = 'Preparando una vista de la primera página…';
+        try {
+          const result = await renderFirstPdfPage(file, signal);
+          if (run !== generation || signal.aborted) return;
+          renderedPdf = result.file; showImage(result.file); updateReadButton();
+          previewNote.textContent = `Vista de la página 1 de ${result.pageCount}. El PDF original se conserva completo.`;
+          uploader.querySelector<HTMLElement>('[data-slip-dialog-note]')!.textContent = `Página 1 de ${result.pageCount} · Vista convertida del PDF`;
+        } catch {
+          if (run !== generation || signal.aborted) return;
+          previewNote.textContent = 'No pudimos mostrar la primera página. El PDF original puede enviarse con los datos manuales.';
+        }
+      } else uploader.querySelector<HTMLElement>('[data-slip-dialog-note]')!.textContent = 'Vista previa del original';
+      await saveRequest;
+    }
+    input.addEventListener('change', () => { void selectFile(); });
+    form.addEventListener('submit', () => {
+      // Keep the original multipart file, so an expired temporary ID can fall back safely.
+      if (draft.value && draftExpiresAt !== null && draftExpiresAt <= Date.now() && (input.files?.[0]?.size ?? 0) > 0) {
+        draft.value = ''; draftExpiresAt = null;
+      }
+    });
+    const drop = uploader.querySelector<HTMLElement>('[data-slip-drop]')!;
+    drop.addEventListener('dragover', event => { event.preventDefault(); drop.classList.add('portal-slip-dragging'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('portal-slip-dragging'));
+    drop.addEventListener('drop', event => {
+      event.preventDefault(); drop.classList.remove('portal-slip-dragging');
+      if (event.dataTransfer?.files.length === 1) { input.files = event.dataTransfer.files; input.dispatchEvent(new Event('change', { bubbles: true })); }
+      else showStatus('Adjunta un solo comprobante por pago. El archivo anterior se conserva hasta que elijas uno nuevo.', true);
+    });
+    retryButton.addEventListener('click', () => { if (currentFile && controller) void saveFile(currentFile, generation, controller.signal); });
+    readButton.addEventListener('click', async () => {
+      if (!draft.value || !controller || !available || saving || reading) return;
+      const run = generation; const signal = controller.signal;
+      const data = new FormData(); if (renderedPdf) data.set('ocrImage', renderedPdf);
+      clearAthleteSuggestions();
+      reading = true; updateReadButton(); readButton.textContent = mode === 'demo' ? 'Preparando ejemplo simulado…' : 'Leyendo los datos…';
+      showStatus(mode === 'demo' ? 'Preparando datos ficticios de demostración. Tu archivo no se envía a un servicio externo.' : 'Leyendo el archivo con Groq. Puedes seguir revisando el formulario.');
+      try {
+        const body = await requestJson<{extraction:Extraction}>(`/api/portal/slips/${encodeURIComponent(draft.value)}/extract`, data, signal);
+        if (run !== generation || signal.aborted) return;
+        const extraction = body.extraction as Extraction;
+        if (extraction.status !== 'ready' || !extraction.suggestions) throw new Error(extraction.code ?? 'reading_unavailable');
+        const suggestions = extraction.suggestions;
+        review.hidden = false; review.querySelector<HTMLElement>('[data-ocr-mode-label]')!.textContent = extraction.mode === 'demo' ? '· Simulada' : '· Groq';
+        review.querySelector<HTMLElement>('[data-ocr-summary]')!.textContent = extraction.mode === 'demo' ? 'Estos datos son ficticios y no corresponden al archivo adjunto. Corrígelos antes de registrar un pago real.' : 'Comprueba cada dato contra el original. La lectura no confirma el ingreso bancario.';
+        fieldNames.forEach(name => {
+          const value = suggestions[name]; const field = fields.get(name);
+          const valueOutput = review.querySelector<HTMLElement>(`[data-ocr-value="${name}"]`)!;
+          const stateOutput = review.querySelector<HTMLElement>(`[data-ocr-field-status="${name}"]`)!;
+          valueOutput.textContent = value ?? 'Sin detectar';
+          if (!value || (name === 'amount' && suggestions.currency !== 'CRC')) { stateOutput.textContent = 'Completa este dato manualmente'; return; }
+          if (field && !dirty.has(name)) { field.value = value; automatic.add(name); stateOutput.textContent = 'Sugerido en el formulario · revísalo'; field.dispatchEvent(new Event('change', { bubbles: true })); }
+          else stateOutput.textContent = 'Conservamos el dato que editaste';
+        });
+        const warnings = review.querySelector<HTMLUListElement>('[data-ocr-warnings]')!; warnings.replaceChildren();
+        suggestions.warnings.forEach(warning => { const item = document.createElement('li'); item.textContent = warningLabels[warning] ?? 'Revisa los datos de la lectura contra el archivo original.'; warnings.appendChild(item); });
+        if (extraction.sourceKind === 'pdf_preview') { const item = document.createElement('li'); item.textContent = 'Lectura de una imagen convertida de la primera página. Revisa el PDF original completo.'; warnings.appendChild(item); }
+        showAthleteSuggestions(suggestions, extraction.mode === 'demo');
+        showStatus(extraction.mode === 'demo' ? 'Lectura simulada lista. Revisa los datos ficticios y completa las mensualidades.' : 'Lectura lista. Revisa las sugerencias y completa los datos que falten.');
+      } catch (error) {
+        if (run !== generation || signal.aborted) return;
+        clearAthleteSuggestions();
+        const code = error instanceof Error ? error.message : '';
+        if (['draft_expired','draft_not_found','original_missing'].includes(code)) { draft.value = ''; draftExpiresAt = null; retryButton.hidden = false; }
+        showStatus(messages[code] ?? 'No pudimos obtener datos del archivo. Completa el formulario manualmente; tu original sigue guardado.', true);
+      } finally {
+        if (run === generation && !signal.aborted) { reading = false; updateReadButton(); readButton.textContent = mode === 'demo' ? 'Probar lectura simulada ↗' : 'Leer datos ↗'; }
+      }
+    });
+    zoom.addEventListener('click', () => { if (!objectUrl || typeof dialog.showModal !== 'function') return; previousOverflow = document.documentElement.style.overflow; document.documentElement.style.overflow = 'hidden'; dialog.showModal(); close.focus(); });
+    close.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+    dialog.addEventListener('close', () => { document.documentElement.style.overflow = previousOverflow; zoom.focus(); });
+    window.addEventListener('pagehide', () => {
+      generation++; controller?.abort(); saving = false; reading = false;
+      if (dialog.open) dialog.close();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = null;
+    });
+    async function restoreHistoryFile(persisted: boolean) {
+      const restoredFile = input.files?.[0];
+      if (!restoredFile) return;
+      // A full history reload can restore native fields without restoring JS state.
+      // Its hidden draft ID has no trusted expiry/file pairing, so discard it.
+      // Existing field values belong to the user; later OCR must not overwrite them.
+      if (!persisted) {
+        draft.value = ''; draftExpiresAt = null; renderedPdf = null;
+        fields.forEach((field, name) => { if (field?.value) dirty.add(name); });
+      }
+      generation++; const run = generation;
+      controller?.abort(); controller = new AbortController();
+      const signal = controller.signal;
+      saving = false; reading = false; currentFile = restoredFile;
+      if (!['image/jpeg','image/png','application/pdf'].includes(restoredFile.type) || restoredFile.size < 8 || restoredFile.size > 3 * 1024 * 1024) input.setCustomValidity(messages.invalid_file);
+      if (!input.validity.valid) {
+        updateReadButton();
+        showStatus('Vuelve a seleccionar un JPG, PNG o PDF válido. Los datos que escribiste se conservan.', true);
+        return;
+      }
+      if (draftExpiresAt !== null && draftExpiresAt <= Date.now()) { draft.value = ''; draftExpiresAt = null; }
+      preview.hidden = false;
+      uploader.querySelector<HTMLElement>('[data-slip-name]')!.textContent = restoredFile.name;
+      uploader.querySelector<HTMLElement>('[data-slip-size]')!.textContent = `${Math.ceil(restoredFile.size / 1024)} KB · ${restoredFile.type === 'application/pdf' ? 'PDF original' : restoredFile.type === 'image/png' ? 'PNG' : 'JPG'}`;
+      pdfNote.hidden = restoredFile.type !== 'application/pdf';
+      readButton.textContent = mode === 'demo' ? 'Probar lectura simulada ↗' : 'Leer datos ↗';
+      retryButton.hidden = Boolean(draft.value) || !input.validity.valid;
+      controls.hidden = !available && retryButton.hidden;
+      readButton.hidden = !available;
+      updateReadButton();
+      showStatus(draft.value
+        ? 'Conservamos el archivo y los datos. Revisa el estado del pago en tu cuenta antes de volver a enviarlo.'
+        : 'Conservamos el archivo adjunto y los datos. Revisa tu cuenta antes de volver a enviar; puedes guardar el archivo otra vez si necesitas la lectura.');
+      // Rebuild the local preview only; saving and OCR still require user action.
+      if (restoredFile.type !== 'application/pdf') {
+        showImage(restoredFile);
+        previewNote.textContent = '';
+        uploader.querySelector<HTMLElement>('[data-slip-dialog-note]')!.textContent = 'Vista previa del original';
+      } else if (renderedPdf) showImage(renderedPdf);
+      else {
+        previewWrap.hidden = true;
+        previewNote.textContent = 'Recuperando la vista de la primera página…';
+        try {
+          const result = await renderFirstPdfPage(restoredFile, signal);
+          if (run !== generation || signal.aborted) return;
+          renderedPdf = result.file; showImage(result.file); updateReadButton();
+          previewNote.textContent = `Vista de la página 1 de ${result.pageCount}. El PDF original se conserva completo.`;
+          uploader.querySelector<HTMLElement>('[data-slip-dialog-note]')!.textContent = `Página 1 de ${result.pageCount} · Vista convertida del PDF`;
+        } catch {
+          if (run !== generation || signal.aborted) return;
+          previewNote.textContent = 'No pudimos mostrar la primera página. El PDF original sigue adjunto y puedes completar los datos manualmente.';
+        }
+      }
+    }
+    window.addEventListener('pageshow', event => {
+      // Native history values may be restored after pageshow itself.
+      window.setTimeout(() => { void restoreHistoryFile(event.persisted); }, 0);
+    });
+  });
+</script>

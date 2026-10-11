@@ -1,0 +1,143 @@
+import type { ReceiptSnapshot } from './types.ts';
+
+export type FrozenReceiptSnapshot = Readonly<Omit<ReceiptSnapshot, 'lines' | 'designatedAdult'>> & {
+  readonly lines: ReadonlyArray<Readonly<ReceiptSnapshot['lines'][number]>>;
+  readonly designatedAdult: Readonly<ReceiptSnapshot['designatedAdult']>;
+};
+
+export interface ReceiptPresentation {
+  voidedAt?: string | null;
+  voidReason?: string | null;
+}
+
+export interface RenderedReceipt { subject: string; html: string; text: string }
+
+export const DEMO_RECEIPT_NOTICE = 'DEMOSTRACIÓN — Datos ficticios. Este documento no acredita un pago real.';
+
+function text(value: unknown, max: number): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.length <= max &&
+    !/[\u0000-\u001f\u007f]/.test(value);
+}
+
+function validDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T12:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function validTimestamp(value: unknown): value is string {
+  return typeof value === 'string' &&
+    /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?Z$/.test(value) &&
+    validDate(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
+}
+
+export function validEmail(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 254 &&
+    /^[^\s\u0000-\u001f\u007f<>(),;:"\\@]+@[^\s\u0000-\u001f\u007f<>(),;:"\\@]+\.[^\s\u0000-\u001f\u007f<>(),;:"\\@]+$/.test(value);
+}
+
+// Historical contact metadata is not the delivery envelope. An absent address is
+// stored as an empty string so a held email never prevents receipt rendering.
+function snapshotContactEmail(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 254 &&
+    !/[\u0000-\u001f\u007f\u0085\u2028\u2029]/.test(value);
+}
+
+/** Validate and copy every value before freezing the nested issuance snapshot. */
+export function createReceiptSnapshot(input: ReceiptSnapshot): FrozenReceiptSnapshot {
+  if (!input || input.version !== 1 || !text(input.receiptNumber, 64) ||
+      !/^AB-\d{4}-\d{1,12}$/.test(input.receiptNumber) ||
+      !text(input.associationName, 200) || !text(input.payerName, 160) ||
+      !validDate(input.paymentDate) || !validTimestamp(input.issuedAt) || input.currency !== 'CRC' ||
+      !Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0 ||
+      !Number.isSafeInteger(input.unallocatedMinor) || input.unallocatedMinor < 0 ||
+      !text(input.bankReference, 128) || !text(input.bankName, 120) || !text(input.receivingAccount, 160) ||
+      !input.designatedAdult || !text(input.designatedAdult.id, 128) ||
+      !text(input.designatedAdult.name, 160) || !snapshotContactEmail(input.designatedAdult.email) ||
+      typeof input.demo !== 'boolean' || !Array.isArray(input.lines) || input.lines.length > 100) {
+    throw new Error('Invalid receipt snapshot.');
+  }
+  let allocatedMinor = 0;
+  const chargeIds = new Set<string>();
+  const lines = input.lines.map((line) => {
+    if (!line || !text(line.athleteId, 128) || !text(line.athleteName, 160) || !text(line.chargeId, 128) ||
+        !/^\d{4}-(0[1-9]|1[0-2])$/.test(line.period) ||
+        !Number.isSafeInteger(line.amountMinor) || line.amountMinor <= 0 || chargeIds.has(line.chargeId)) {
+      throw new Error('Invalid receipt allocation.');
+    }
+    chargeIds.add(line.chargeId);
+    allocatedMinor += line.amountMinor;
+    if (!Number.isSafeInteger(allocatedMinor)) throw new Error('Invalid receipt total.');
+    return Object.freeze({ athleteId: line.athleteId, athleteName: line.athleteName,
+      chargeId: line.chargeId, period: line.period, amountMinor: line.amountMinor });
+  });
+  if (allocatedMinor + input.unallocatedMinor !== input.amountMinor) throw new Error('Receipt total does not match allocations.');
+  return Object.freeze({ version: 1, receiptNumber: input.receiptNumber,
+    associationName: input.associationName, payerName: input.payerName, paymentDate: input.paymentDate,
+    issuedAt: input.issuedAt, currency: 'CRC', amountMinor: input.amountMinor,
+    bankReference: input.bankReference, bankName: input.bankName, receivingAccount: input.receivingAccount,
+    lines: Object.freeze(lines), unallocatedMinor: input.unallocatedMinor,
+    designatedAdult: Object.freeze({ id: input.designatedAdult.id, name: input.designatedAdult.name,
+      email: input.designatedAdult.email }), demo: input.demo });
+}
+
+export function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;',
+    '"': '&quot;', "'": '&#39;' })[character]!);
+}
+
+const money = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC',
+  minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const date = new Intl.DateTimeFormat('es-CR', { dateStyle: 'long', timeZone: 'America/Costa_Rica' });
+const month = new Intl.DateTimeFormat('es-CR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+/** Association receipt, independent of a mail provider; bank evidence is never embedded. */
+export function renderReceipt(input: ReceiptSnapshot, presentation: ReceiptPresentation = {}): RenderedReceipt {
+  const data = createReceiptSnapshot(input);
+  const voided = !!presentation.voidedAt;
+  if ((voided && (!validTimestamp(presentation.voidedAt) || !text(presentation.voidReason, 500))) ||
+      (!voided && presentation.voidReason)) throw new Error('Invalid receipt void notice.');
+  const title = voided ? 'Comprobante de pago anulado' : 'Comprobante de pago';
+  const rows: Array<[string, string]> = [
+    ['Número', data.receiptNumber], ['Pagado por', data.payerName],
+    ['Fecha del pago', date.format(new Date(`${data.paymentDate}T12:00:00.000Z`))],
+    ['Referencia bancaria', data.bankReference], ['Banco', data.bankName],
+    ['Cuenta receptora', data.receivingAccount], ['Monto recibido', money.format(data.amountMinor / 100)],
+    ['Fecha de emisión', date.format(new Date(data.issuedAt))],
+  ];
+  const allocations = data.lines.map((line) => ({ athlete: line.athleteName,
+    period: month.format(new Date(`${line.period}-01T12:00:00.000Z`)), amount: money.format(line.amountMinor / 100) }));
+  const voidReason = presentation.voidReason?.trim() ?? '';
+  const voidNotice = voided ? `ANULADO — ${voidReason}${/[.!?…]$/.test(voidReason) ? '' : '.'} Fecha de anulación: ${date.format(new Date(presentation.voidedAt!))}.` : '';
+  const note = 'Comprobante numerado emitido por la Asociación después de verificar el ingreso en la cuenta bancaria.';
+  const credit = data.unallocatedMinor > 0 ? `Saldo a favor sin aplicar: ${money.format(data.unallocatedMinor / 100)}.` : '';
+  const replyNotice = 'Las respuestas a este correo no se atienden. Para consultas, escribinos por';
+  const whatsappUrl = 'https://wa.me/50687686102';
+  return {
+    subject: `${data.demo ? '[DEMOSTRACIÓN] ' : ''}${voided ? '[ANULADO] ' : ''}Comprobante ${data.receiptNumber}`,
+    text: [data.demo ? DEMO_RECEIPT_NOTICE : '', voidNotice, data.associationName, title, '',
+      ...rows.map(([label, value]) => `${label}: ${value}`), '', 'Aplicación del pago:',
+      ...allocations.map((line) => `${line.athlete} — ${line.period}: ${line.amount}`), credit, '', note, '',
+      `Correo automático. ${replyNotice} WhatsApp.`, whatsappUrl]
+      .filter((line, index, all) => line !== '' || (index > 0 && all[index - 1] !== '')).join('\n'),
+    html: `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} ${escapeHtml(data.receiptNumber)}</title>
+<style>@media print{body{background:white!important;padding:0!important}main{border:0!important;max-width:none!important}.print-button{display:none!important}}</style></head>
+<body style="margin:0;padding:24px;background:#f8f6f2;color:#202220;font-family:Arial,sans-serif;line-height:1.5"><main style="max-width:720px;margin:auto;background:white;border:1px solid #d9d5cc;padding:32px">
+${data.demo ? `<p style="padding:12px;border:2px solid #ad7c14;background:#fff8df;font-weight:bold">${escapeHtml(DEMO_RECEIPT_NOTICE)}</p>` : ''}
+${voided ? `<p style="padding:12px;border:2px solid #bc312e;color:#921b19;font-weight:bold">${escapeHtml(voidNotice)}</p>` : ''}
+<p style="font-size:14px;font-weight:bold">${escapeHtml(data.associationName)}</p><h1 style="font-size:28px;margin:8px 0">${escapeHtml(title)}</h1><p style="font-size:18px;color:#bc312e;font-weight:bold">${escapeHtml(data.receiptNumber)}</p>
+<table style="border-collapse:collapse;width:100%"><tbody>${rows.map(([label, value]) => `<tr><th scope="row" style="text-align:left;vertical-align:top;padding:9px 12px 9px 0;border-bottom:1px solid #e4e0d7">${escapeHtml(label)}</th><td style="padding:9px 0;border-bottom:1px solid #e4e0d7;overflow-wrap:anywhere">${escapeHtml(value)}</td></tr>`).join('')}</tbody></table>
+<h2 style="font-size:18px;margin-top:28px">Aplicación del pago</h2><table style="border-collapse:collapse;width:100%"><thead><tr><th scope="col" style="text-align:left;padding:8px 4px">Atleta</th><th scope="col" style="text-align:left;padding:8px 4px">Mensualidad</th><th scope="col" style="text-align:right;padding:8px 4px">Monto aplicado</th></tr></thead><tbody>${allocations.map((line) => `<tr><td style="padding:9px 4px;border-top:1px solid #e4e0d7;overflow-wrap:anywhere">${escapeHtml(line.athlete)}</td><td style="padding:9px 4px;border-top:1px solid #e4e0d7">${escapeHtml(line.period)}</td><td style="padding:9px 4px;border-top:1px solid #e4e0d7;text-align:right">${escapeHtml(line.amount)}</td></tr>`).join('')}</tbody></table>
+${credit ? `<p style="font-weight:bold">${escapeHtml(credit)}</p>` : ''}<p style="margin-top:28px;font-size:13px;color:#62615a">${escapeHtml(note)}</p>
+<p style="margin-top:20px;padding-top:16px;border-top:1px solid #e4e0d7;font-size:13px;color:#62615a"><strong>Correo automático.</strong> ${escapeHtml(replyNotice)} <a href="${whatsappUrl}" style="color:#921b19;text-decoration:underline">WhatsApp</a>.</p>
+</main></body></html>`,
+  };
+}
+
+export function renderReceiptHtml(input: ReceiptSnapshot, presentation?: ReceiptPresentation): string {
+  return renderReceipt(input, presentation).html;
+}
+export function renderReceiptText(input: ReceiptSnapshot, presentation?: ReceiptPresentation): string {
+  return renderReceipt(input, presentation).text;
+}

@@ -1,0 +1,15 @@
+---
+import { env } from 'cloudflare:workers';
+import { authorizePortal } from '../../../lib/portal/access';
+import { getReceipt } from '../../../lib/portal/domain';
+import { renderReceipt } from '../../../lib/portal/receipt';
+import { portalResponse } from '../../../lib/portal/http';
+import type { Receipt } from '../../../lib/portal/types';
+export const prerender = false;
+const access = await authorizePortal(Astro, env);
+if (!access.ok) return access.response;
+let receipt: Receipt;
+try { receipt = await getReceipt(env.DB, access.actor, Astro.params.id ?? ''); } catch { return portalResponse('Comprobante no disponible.', 404); }
+const html = renderReceipt(receipt.snapshot, {voidedAt:receipt.voidedAt,voidReason:receipt.voidReason}).html;
+return portalResponse(html, 200, {'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
+---

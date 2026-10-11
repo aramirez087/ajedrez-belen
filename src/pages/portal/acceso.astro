@@ -1,0 +1,17 @@
+---
+import { env } from 'cloudflare:workers';
+import PortalLayout from '../../layouts/PortalLayout.astro';
+import PageHeader from '../../components/portal/PageHeader.astro';
+import { allowPortalDemo } from '../../lib/portal/demo-policy';
+import { portalResponse } from '../../lib/portal/http';
+export const prerender = false;
+if (env.PORTAL_ENABLED !== 'true') return portalResponse('No encontrado.', 404);
+const demo = allowPortalDemo(Astro.url, import.meta.env.DEV, env);
+---
+<PortalLayout title="Acceso al portal" hideNav>
+  <PageHeader title="Tu cuenta, al día." eyebrow="Portal de pagos" description="Consulta las mensualidades de tus atletas, registra una transferencia y recibe el comprobante después de su verificación." />
+  <div class="portal-two-columns">
+    <section class="portal-panel"><div class="portal-guidance"><h3>Para las familias</h3><p>Ingresa con el correo que la Asociación vinculó a tus atletas. Ambos encargados pueden tener su propia cuenta.</p><a class="portal-button" href="/auth/parent">Iniciar sesión <span aria-hidden="true">→</span></a><p>Si aún no tienes acceso, solicita a la Asociación un enlace de invitación.</p></div></section>
+    <section class="portal-panel"><h2>Administración</h2><p class="portal-section-caption">Ingreso reservado para el personal autorizado de la Asociación.</p><a class="portal-link" href="/auth/admin">Ingresar como administrador <span aria-hidden="true">↗</span></a>{demo && <><hr class="portal-divider" /><p class="portal-help">La demostración usa datos ficticios y está disponible en este equipo.</p><a class="portal-link" href="/demo">Abrir demostración <span aria-hidden="true">↗</span></a></>}</section>
+  </div>
+</PortalLayout>

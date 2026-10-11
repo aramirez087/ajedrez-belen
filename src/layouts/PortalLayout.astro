@@ -1,0 +1,68 @@
+---
+import '@fontsource-variable/dm-sans';
+import '../styles/global.css';
+import '../styles/portal.css';
+import Notice from '../components/portal/Notice.astro';
+interface Props { title: string; actor?: { id: string; email: string; name: string; isAdmin: boolean; mode: 'demo' | 'workos' }; active?: string; hideNav?: boolean; }
+const { title, actor, active = '', hideNav = false } = Astro.props;
+const admin = actor?.isAdmin ?? false;
+const nav = admin
+  ? [['/admin', 'Resumen', 'overview'], ['/admin/familias', 'Familias', 'families'], ['/admin/mensualidades', 'Mensualidades', 'charges'], ['/admin/comprobantes', 'Comprobantes', 'receipts']]
+  : [['/portal', 'Mi cuenta', 'overview'], ['/portal/pagos/nuevo', 'Registrar pago', 'new-payment']];
+---
+<!doctype html>
+<html lang="es">
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="robots" content="noindex,nofollow" /><meta name="referrer" content="same-origin" /><title>{title} · Ajedrez Belén</title></head>
+  <body class="portal-page">
+    <a class="skip-link" href="#portal-main">Saltar al contenido</a>
+    {actor?.mode === 'demo' && <div class="portal-demo-banner"><span class="checker-mark" aria-hidden="true"></span>Demostración local · datos ficticios<a href="/demo">Cambiar cuenta</a></div>}
+    <div class="portal-shell">
+      <header class="portal-header">
+        <a class="portal-brand" href={admin ? '/admin' : '/portal'}><img src="/media/crest-provisional.webp" alt="" width="35" height="44" /><span>Ajedrez Belén<small>Portal de pagos</small></span></a>
+        <div class="portal-session">{actor ? <><span>{actor.name || actor.email}<small>{admin ? 'Administración' : 'Cuenta familiar'}</small></span>{actor.mode === 'workos' && <form action="/auth/logout" method="post"><button class="portal-link portal-text-button" type="submit">Salir <span aria-hidden="true">↗</span></button></form>}</> : <a class="portal-link" href="/auth/parent">Iniciar sesión <span aria-hidden="true">↗</span></a>}</div>
+      </header>
+      {!hideNav && <nav class="portal-navigation" aria-label={admin ? 'Administración de pagos' : 'Mi cuenta'}>{nav.map(([href, label, key]) => <a href={href} aria-current={active === key ? 'page' : undefined}>{label}</a>)}{admin && <a class="portal-family-view" href="/portal">Ver cuenta familiar <span aria-hidden="true">↗</span></a>}</nav>}
+      <main id="portal-main" tabindex="-1"><Notice /><slot /></main>
+      <footer class="portal-footer"><span>Ajedrez Belén · Belén, Heredia</span><a href="/">Volver al sitio <span aria-hidden="true">↗</span></a></footer>
+    </div>
+  </body>
+</html>
+<script>
+  // Keep native navigation and the clicked submitter's name/value intact.
+  // Disabling buttons during submit would omit actions such as reject/needs_info.
+  document.querySelectorAll<HTMLFormElement>('form[method="post"]').forEach(form => {
+    const buttons = Array.from(form.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button[type="submit"], input[type="submit"]'));
+    const status = document.createElement('p');
+    status.className = 'portal-submit-status';
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    status.hidden = true;
+    form.appendChild(status);
+    let pending = false;
+    const originalStates = buttons.map(button => button.getAttribute('aria-disabled'));
+    function restore() {
+      pending = false;
+      delete form.dataset.submitting;
+      status.hidden = true;
+      status.textContent = '';
+      buttons.forEach((button, index) => {
+        const state = originalStates[index];
+        if (state === null) button.removeAttribute('aria-disabled');
+        else if (state !== undefined) button.setAttribute('aria-disabled', state);
+      });
+    }
+    form.addEventListener('submit', event => {
+      if (pending) { event.preventDefault(); return; }
+      pending = true;
+      queueMicrotask(() => {
+        // Other page-specific validation may cancel submission later in this event.
+        if (event.defaultPrevented) { restore(); return; }
+        form.dataset.submitting = 'true';
+        buttons.forEach(button => button.setAttribute('aria-disabled', 'true'));
+        status.hidden = false;
+        status.textContent = 'Enviando… Espera la respuesta antes de volver a enviar.';
+      });
+    });
+    window.addEventListener('pageshow', restore);
+  });
+</script>

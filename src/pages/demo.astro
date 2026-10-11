@@ -1,0 +1,19 @@
+---
+import { env } from 'cloudflare:workers';
+import PortalLayout from '../layouts/PortalLayout.astro';
+import PageHeader from '../components/portal/PageHeader.astro';
+import { allowPortalDemo } from '../lib/portal/demo-policy';
+import { portalResponse } from '../lib/portal/http';
+export const prerender = false;
+if (!allowPortalDemo(Astro.url, import.meta.env.DEV, env)) return portalResponse('No encontrado.', 404);
+const roles = [
+  { key: 'parent-a', name: 'Ana · Encargada', description: 'Registra pagos y consulta dos atletas de la misma familia.' },
+  { key: 'parent-b', name: 'Diego · Segundo encargado', description: 'Consulta las mensualidades compartidas y los pagos a los que tiene acceso.' },
+  { key: 'admin', name: 'Administración', description: 'Publica mensualidades, revisa transferencias y emite comprobantes.' },
+  { key: 'unrelated', name: 'Otra familia', description: 'Una cuenta independiente para comprobar que los datos familiares permanecen privados.' },
+];
+---
+<PortalLayout title="Demostración del portal" hideNav>
+  <PageHeader title="Probemos el recorrido." eyebrow="Demostración local" description="Elige una cuenta de prueba. Los atletas, las transferencias y los comprobantes de esta demostración son ficticios." />
+  <div class="portal-demo-roles">{roles.map(role => <form class="portal-demo-role" action="/api/portal/demo" method="post"><h2>{role.name}</h2><p>{role.description}</p><input type="hidden" name="role" value={role.key} /><button type="submit" class="portal-button">Entrar a esta cuenta <span aria-hidden="true">→</span></button></form>)}</div>
+</PortalLayout>

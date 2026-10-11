@@ -1,0 +1,8 @@
+---
+interface Props { eyebrow?: string; title: string; description?: string; }
+const { eyebrow = 'Ajedrez Belén', title, description } = Astro.props;
+---
+<header class="portal-page-heading">
+  <div><p class="portal-eyebrow"><span class="checker-mark" aria-hidden="true"></span>{eyebrow}</p><h1>{title}</h1>{description && <p class="portal-description">{description}</p>}</div>
+  <div class="portal-heading-action"><slot /></div>
+</header>
