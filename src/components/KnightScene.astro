@@ -3,8 +3,13 @@ interface Props { src: string }
 const { src } = Astro.props;
 ---
 <figure class="knight-figure">
-  <div class="knight-scene">
-    <div class="scene-backdrop" aria-hidden="true"><span class="scene-coordinate coordinate-top">a b c d e f g h</span><span class="scene-coordinate coordinate-side">8<br />7<br />6<br />5</span></div>
+  <div class="knight-scene" data-knight-scene>
+    <div class="scene-backdrop" aria-hidden="true">
+      <span class="scene-ghost">64</span>
+      <span class="scene-coordinate coordinate-top">a&ensp;b&ensp;c&ensp;d&ensp;e&ensp;f&ensp;g&ensp;h</span>
+      <span class="scene-coordinate coordinate-side">8<br />7<br />6<br />5<br />4</span>
+      <span class="scene-notation">1. e4 …</span>
+    </div>
     <svg class="chess-board" viewBox="0 0 540 240" aria-hidden="true" focusable="false">
       <defs>
         <pattern id="board-checks" width="420" height="420" patternUnits="userSpaceOnUse" patternTransform="matrix(1 .086 -.334 .352 215 132)">
@@ -22,5 +27,5 @@ const { src } = Astro.props;
     <div class="knight-shadow" aria-hidden="true"></div>
     <img src={src} class="knight-piece" alt="Caballo de ajedrez tallado en madera clara, sobre un tablero." width="750" height="1000" fetchpriority="high" decoding="async" />
   </div>
-  <figcaption><span>64 casillas. Infinitas posibilidades.</span><span class="checker-mark" aria-hidden="true"></span></figcaption>
+  <figcaption><span>64 casillas. Infinitas posibilidades.</span><span class="figcaption-move" aria-hidden="true">Tu turno ↓</span><span class="checker-mark" aria-hidden="true"></span></figcaption>
 </figure>

@@ -2,6 +2,8 @@
 
 The design presents a welcoming local chess community through confident sans-serif typography, warm paper surfaces and a restrained deep-red accent. The approved wooden knight is the central visual asset, framed by a quiet coordinate grid and anchored by the cropped board in shallow perspective. A three-line headline leads to a WhatsApp invitation and a direct link to the classes.
 
+The elevated landing (v2) keeps this identity and adds numbered editorial sections (01 El club, 02 El reto, 03 Las clases, 04 Cómo empezar, 05 Preguntas frecuentes), a dark notation marquee in Spanish algebraic notation beneath the hero, an interactive mate-in-one puzzle (the back-rank "mate del pasillo", Ta8#) built as `PuzzleBoard.astro`, the full-board `chess-staunton-v2.webp` photograph in the club section, hard-shadow square buttons, a sticky translucent header, hero quick-facts (price, levels, sibling discount), per-level WhatsApp deep links with prefilled messages, a red sibling-discount panel, FAQ disclosures, a giant "¿Jugamos?" contact close and a mobile sticky WhatsApp bar that appears after the hero. Motion is limited to staggered hero entrances, reveal-on-scroll, subtle knight parallax and the marquee, all disabled under `prefers-reduced-motion`; the small vanilla scripts are the only client JavaScript on the page.
+
 ## Visual system
 
 - Paper `#f7f4ec`; ink `#252a25`; deep red `#8c302f`; red hover `#712523`; secondary text `#606357`.
