@@ -21,6 +21,12 @@
 .portal-session > span { min-width: 0; overflow-wrap: anywhere; }
 .portal-session > form { flex-shrink: 0; }
 .portal-session small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
+.portal-role-switch { display: inline-flex; margin: 4px 0 14px; border: 1px solid var(--line); }
+.portal-role-switch a { padding: 9px 18px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.portal-role-switch a + a { border-left: 1px solid var(--line); }
+.portal-role-switch a[aria-current='page'] { background: var(--red); color: var(--paper); }
+.portal-role-switch a:hover { color: var(--red); }
+.portal-role-switch a[aria-current='page']:hover { color: var(--paper); }
 .portal-navigation { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 30px; flex-wrap: wrap; min-height: 57px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .portal-navigation a { position: relative; display: flex; align-items: center; min-height: 55px; font-size: 12.5px; }
 .portal-navigation a::after { content: ''; position: absolute; left: 0; right: 100%; bottom: -1px; border-top: 2px solid var(--red); transition: right .25s var(--ease); }
@@ -144,6 +150,9 @@
 .portal-field input::file-selector-button { min-height: 44px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); font: inherit; font-size: 12.5px; font-weight: 600; padding: 10px 14px; margin-right: 10px; cursor: pointer; transition: background .15s; }
 .portal-field input::file-selector-button:hover { background: var(--red); border-color: var(--red); }
 .portal-help { margin-top: 7px; color: var(--muted); font-size: 11.5px; line-height: 1.65; }
+.portal-date-row { display: grid; gap: 9px; }
+.portal-date-row-month { grid-template-columns: 1fr 110px; }
+.portal-date-row-date { grid-template-columns: 84px 1fr 104px; }
 .portal-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 19px; }
 .portal-checkbox { display: flex; align-items: flex-start; gap: 11px; font-size: 13px; line-height: 1.6; }
 .portal-checkbox input { accent-color: var(--red); width: 18px; height: 18px; margin: 2px 0 0; flex-shrink: 0; }

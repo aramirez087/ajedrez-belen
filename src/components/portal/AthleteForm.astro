@@ -1,17 +1,27 @@
 ---
 import type { Athlete } from '../../lib/portal/types';
-import { inputMoney } from './format';
-import { athleteFeeSnapshot } from '../../lib/portal/domain';
-interface Props { athlete?: Athlete; month: string; }
-const { athlete, month } = Astro.props;
+import MonthInput from './MonthInput.astro';
+import { ATHLETE_CATEGORIES, DEFAULT_FEES, athleteFeeSnapshot } from '../../lib/portal/domain';
+import { money } from './format';
+interface Props { athlete?: Athlete; month: string; fees?: Record<string, number>; }
+const { athlete, month, fees = DEFAULT_FEES } = Astro.props;
 const prefix = athlete?.id ?? 'new';
+const feeLabel = (category: string) => `${money(fees[category] ?? 0)} al mes`;
+const feeLabels = Object.fromEntries(ATHLETE_CATEGORIES.map(category => [category, feeLabel(category)]));
 ---
 <form class="portal-form" action={athlete ? `/api/admin/athletes/${athlete.id}` : '/api/admin/athletes'} method="post">
   {athlete && <input type="hidden" name="expectedSnapshot" value={athleteFeeSnapshot(athlete)} />}
-  <div class="portal-form-row"><div class="portal-field"><label for={`${prefix}-name`}>Nombre completo del atleta</label><input id={`${prefix}-name`} name="name" type="text" maxlength="160" autocomplete="off" placeholder="Nombre y apellidos…" value={athlete?.name ?? ''} required /></div><div class="portal-field"><label for={`${prefix}-category`}>Categoría</label><input id={`${prefix}-category`} name="category" type="text" list="athlete-categories" maxlength="100" value={athlete?.category ?? 'Iniciación'} required /></div></div>
-  <div class="portal-form-row"><div class="portal-field"><label for={`${prefix}-fee`}>Cuota mensual (₡)</label><select id={`${prefix}-fee`} name="monthlyFee" required><option value="12000" selected={(athlete?.feeMinor ?? 1200000) === 1200000}>₡12.000 · Iniciación</option><option value="15000" selected={athlete?.feeMinor === 1500000}>₡15.000 · Cadetes, intermedios y avanzados</option></select></div><div class="portal-field"><label for={`${prefix}-discount`}>Descuento manual (₡)</label><input id={`${prefix}-discount`} name="manualDiscount" type="number" min="0" max="15000" step="0.01" inputmode="decimal" value={inputMoney(athlete?.discountMinor ?? 0)} required /></div></div>
-  <div class="portal-field"><label for={`${prefix}-discount-reason`}>Motivo del descuento</label><input id={`${prefix}-discount-reason`} name="discountReason" type="text" maxlength="500" autocomplete="off" placeholder="Ej.: beca, convenio…" value={athlete?.discountReason ?? ''} /><p class="portal-help">Obligatorio cuando hay descuento. La regla para hermanos se mantiene manual.</p></div>
-  <div class="portal-form-row"><div class="portal-field"><label for={`${prefix}-start`}>Mes de inicio de cobro</label><input id={`${prefix}-start`} name="startPeriod" type="month" value={athlete?.startPeriod ?? month} required /></div><label class="portal-checkbox" style="align-self:center"><input type="checkbox" name="active" value="on" checked={athlete?.active ?? true} /><span>Inscripción activa</span></label></div>
-  <button class="portal-button" type="submit">{athlete ? 'Guardar cuota y datos' : 'Inscribir atleta'} <span aria-hidden="true">→</span></button>
-  {athlete && <p class="portal-help">La cuota nueva se usa en meses que aún no se han publicado. Para corregir un cargo existente, registra un ajuste en Mensualidades.</p>}
+  <div class="portal-form-row"><div class="portal-field"><label for={`${prefix}-name`}>Nombre completo del atleta</label><input id={`${prefix}-name`} name="name" type="text" maxlength="160" autocomplete="off" placeholder="Nombre y apellidos…" value={athlete?.name ?? ''} required /></div><div class="portal-field"><label for={`${prefix}-category`}>Categoría</label><select id={`${prefix}-category`} name="category" required data-category-select>{ATHLETE_CATEGORIES.map(category => <option value={category} selected={(athlete?.category ?? 'Iniciación') === category}>{category} · {feeLabel(category)}</option>)}</select></div></div>
+  <p class="portal-help" data-fee-note>Cuota mensual según la categoría: <strong data-fee-value>{feeLabel(athlete?.category ?? 'Iniciación')}</strong>. El descuento de hermanos (25 % para cada atleta cuando una familia tiene 2 o más) se calcula según la cantidad de atletas vinculados y se aplica automáticamente al publicar el mes; no hay descuento manual.</p>
+  <div class="portal-form-row"><MonthInput id={`${prefix}-start`} name="startPeriod" label="Mes de inicio de cobro" value={athlete?.startPeriod ?? month} /><label class="portal-checkbox" style="align-self:center"><input type="checkbox" name="active" value="on" checked={athlete?.active ?? true} /><span>Inscripción activa</span></label></div>
+  <button class="portal-button" type="submit">{athlete ? 'Guardar datos' : 'Inscribir atleta'} <span aria-hidden="true">→</span></button>
+  {athlete && <p class="portal-help">La cuota según la categoría se usa en meses que aún no se han publicado. Para corregir un cargo existente, registra un ajuste en Mensualidades.</p>}
 </form>
+<script define:vars={{ feeLabels }}>
+  document.querySelectorAll('[data-category-select]').forEach(select => {
+    const form = select.closest('form');
+    const target = form?.querySelector('[data-fee-value]');
+    if (!target) return;
+    select.addEventListener('change', () => { target.textContent = feeLabels[select.value] ?? ''; });
+  });
+</script>

@@ -38,7 +38,7 @@ class SQLiteD1 {
   readonly sqlite = new DatabaseSync(':memory:');
   constructor(t: TestContext) {
     t.after(() => this.sqlite.close());
-    for (const migration of ['0002_portal.sql', '0004_financial_operations.sql'])
+    for (const migration of ['0002_portal.sql', '0004_financial_operations.sql', '0006_self_registration.sql'])
       this.sqlite.exec(readFileSync(new URL(`../migrations/${migration}`, import.meta.url), 'utf8'));
   }
   prepare(sql: string) {

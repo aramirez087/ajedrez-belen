@@ -6,6 +6,7 @@ import ChargeAllocator from '../../../components/portal/ChargeAllocator.astro';
 import PaymentHistory from '../../../components/portal/PaymentHistory.astro';
 import EvidenceViewer from '../../../components/portal/EvidenceViewer.astro';
 import SlipUploader from '../../../components/portal/SlipUploader.astro';
+import DateInput from '../../../components/portal/DateInput.astro';
 import OcrReview from '../../../components/portal/OcrReview.astro';
 import { money, inputMoney, dateLabel, paymentLabels, monthLabel } from '../../../components/portal/format';
 import { authorizePortal } from '../../../lib/portal/access';
@@ -43,7 +44,7 @@ const requested = Object.fromEntries(detail.requestedAllocations.map(allocation 
       <h2>Completar información</h2><p class="portal-help">{payment.reviewNote ?? 'Actualiza los datos solicitados por la Asociación.'}</p>
       <SlipUploader mode={ocr.mode} available={ocr.available && businessReady} eagerUpload={businessReady} athletes={athletes} required={false} />
       <div class="portal-field"><label for="payer-name">Nombre de quien transfirió</label><input id="payer-name" name="payerName" value={payment.payerName} type="text" maxlength="160" autocomplete="name" placeholder="Nombre y apellidos…" required /></div>
-      <div class="portal-form-row"><div class="portal-field"><label for="amount">Monto transferido (₡)</label><input id="amount" name="amount" type="number" min="0.01" max="10000000" step="0.01" inputmode="decimal" value={inputMoney(payment.amountMinor)} required /></div><div class="portal-field"><label for="transfer-date">Fecha de transferencia</label><input id="transfer-date" name="transferDate" type="date" value={payment.transferDate} required /></div></div>
+      <div class="portal-form-row"><div class="portal-field"><label for="amount">Monto transferido (₡)</label><input id="amount" name="amount" type="number" min="0.01" max="10000000" step="0.01" inputmode="decimal" value={inputMoney(payment.amountMinor)} required /></div><DateInput id="transfer-date" name="transferDate" label="Fecha de transferencia" value={payment.transferDate} minYear={2020} /></div>
       <div class="portal-field"><label for="bank-reference">Referencia bancaria</label><input id="bank-reference" name="bankReference" type="text" maxlength="128" autocomplete="off" spellcheck="false" value={payment.bankReference} required /></div>
       <ChargeAllocator charges={charges.filter(charge => charge.balanceMinor>0 || requested[charge.id])} values={requested} prefix="revision" />
       <div class="portal-field"><label for="revision-note">Información para la Asociación</label><textarea id="revision-note" name="note" maxlength="500" required></textarea></div>

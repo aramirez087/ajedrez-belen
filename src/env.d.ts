@@ -33,5 +33,6 @@ declare namespace Cloudflare {
     EMAIL_FROM_NAME?: string;
     EMAIL_TEST_RECIPIENT?: string;
     EMAIL_TIMEOUT_MS?: string;
+    CRON_SECRET?: string;
   }
 }

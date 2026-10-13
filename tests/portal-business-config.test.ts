@@ -112,6 +112,17 @@ test('pinned parent staging composes with readiness while incomplete or unsafe p
   }), null);
 });
 
+test('local loopback demo resolves fictional business labels and never leaks to remote hosts', () => {
+  const demo: BusinessEnvironment = { PORTAL_ENABLED: 'true', PORTAL_DEMO: 'true', PROTOTYPE_ENABLED: 'true', PROTOTYPE_LOCAL: 'true', PORTAL_BUSINESS_CONFIG_APPROVED: 'false' };
+  const local = resolveBusinessConfiguration(new Request('http://127.0.0.1:4322/portal/pagos/nuevo'), demo);
+  assert.equal(local?.receivingAccount, 'demo-synthetic-only');
+  assert.ok(local?.paymentDestination.includes('no realizar transferencias'));
+  assert.equal(resolveBusinessConfiguration(new Request('http://localhost:4322/portal/pagos/nuevo'), demo)?.receivingAccount, 'demo-synthetic-only');
+  assert.equal(resolveBusinessConfiguration(request(), demo), null, 'demo must not resolve on the https test origin');
+  assert.equal(resolveBusinessConfiguration(new Request('https://127.0.0.1:4322/portal/pagos/nuevo'), demo), null, 'demo requires http loopback');
+  assert.equal(resolveBusinessConfiguration(new Request('http://127.0.0.1:4322/portal/pagos/nuevo'), { ...demo, PORTAL_ENABLED: 'false' }), null);
+});
+
 test('resolving setup never accesses stores, credentials outside staging, or external services', () => {
   const env = new Proxy({ ...approved }, { get(target, key, receiver) {
     if (['DB', 'SLIPS', 'BREVO_API_KEY', 'WORKOS_API_KEY', 'WORKOS_COOKIE_PASSWORD'].includes(String(key))) throw new Error('forbidden binding access');

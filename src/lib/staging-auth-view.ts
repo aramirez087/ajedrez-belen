@@ -1,18 +1,18 @@
 const styles = `
-  :root { color-scheme: light; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #292521; background: #f5f1e8; }
+  :root { color-scheme: light; font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; color: #23281f; background: #f7f4ec; }
   * { box-sizing: border-box; }
   body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center; padding: 24px; line-height: 1.65; }
-  main { width: 100%; max-width: 580px; padding: clamp(24px, 6vw, 48px); border: 1px solid #d7cfc1; border-top: 4px solid #a32930; background: #fffcf5; }
+  main { width: 100%; max-width: 580px; padding: clamp(24px, 6vw, 48px); border: 1px solid #d8d3c2; border-top: 4px solid #8c302f; background: #fffdf7; }
   .brand { margin: 0 0 36px; font-size: 15px; font-weight: 650; letter-spacing: -.02em; }
-  .eyebrow { margin: 0 0 12px; color: #a32930; font-size: 11px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; }
+  .eyebrow { margin: 0 0 12px; color: #8c302f; font-size: 11px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; }
   h1 { margin: 0; font-size: clamp(30px, 6vw, 42px); font-weight: 550; line-height: 1.12; letter-spacing: -.04em; overflow-wrap: anywhere; }
   p { margin: 20px 0 0; font-size: 16px; }
-  .scope { margin-top: 26px; padding-top: 20px; border-top: 1px solid #d7cfc1; color: #645c54; font-size: 14px; }
+  .scope { margin-top: 26px; padding-top: 20px; border-top: 1px solid #d8d3c2; color: #5d6152; font-size: 14px; }
   form { margin: 28px 0 0; }
-  .action { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; max-width: 100%; margin-top: 28px; padding: 12px 20px; border: 1px solid #a32930; border-radius: 0; background: #a32930; color: #fffdf7; font: inherit; font-size: 16px; font-weight: 600; line-height: 1.5; text-align: center; text-decoration: none; cursor: pointer; touch-action: manipulation; }
+  .action { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; max-width: 100%; margin-top: 28px; padding: 12px 20px; border: 1px solid #8c302f; border-radius: 0; background: #8c302f; color: #f7f4ec; font: inherit; font-size: 16px; font-weight: 600; line-height: 1.5; text-align: center; text-decoration: none; cursor: pointer; touch-action: manipulation; }
   form .action { margin-top: 0; }
-  .action:hover { background: #842129; border-color: #842129; }
-  .action:focus-visible { outline: 3px solid #a32930; outline-offset: 4px; }
+  .action:hover { background: #6e2422; border-color: #6e2422; }
+  .action:focus-visible { outline: 3px solid #8c302f; outline-offset: 4px; }
   @media (max-width: 380px) { body { padding: 16px; } .action { width: 100%; } }
 `;
 

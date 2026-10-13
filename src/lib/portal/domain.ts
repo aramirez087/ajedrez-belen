@@ -232,7 +232,7 @@ async function siblingDiscounts(db: D1Database, athletes: Athlete[]): Promise<Ma
   const sizes = siblingFamilySizes(links, athletes.map((a) => a.id));
   return new Map(athletes.map((a) => {
     const familySize = sizes.get(a.id) ?? 1;
-    const siblingMinor = familySize > 1 ? Math.round((a.feeMinor - a.discountMinor) * 0.25) : 0;
+    const siblingMinor = familySize > 1 ? Math.round(a.feeMinor * 0.25) : 0;
     return [a.id, { siblingMinor, familySize }];
   }));
 }
@@ -242,7 +242,7 @@ async function snapshotDigest(snapshot: string): Promise<string> {
 }
 // This roster deliberately excludes publication state, so an unchanged replay is
 // idempotent. Fee/profile/eligibility changes and newly eligible athletes invalidate it.
-const monthlySnapshotSql = `(SELECT json_array(?,json_group_array(json_array(id,name,category,fee_minor,discount_minor,discount_reason,active,start_period))) FROM (SELECT id,name,category,fee_minor,discount_minor,discount_reason,active,start_period FROM athletes WHERE active=1 AND start_period<=? ORDER BY id))`;
+const monthlySnapshotSql = `(SELECT json_array(?,json_group_array(json_array(id,name,category,fee_minor,discount_minor,discount_reason,active,start_period))) FROM (SELECT id,name,category,fee_minor,discount_minor,discount_reason,active,start_period FROM athletes WHERE active=1 AND paused=0 AND start_period<=? ORDER BY id))`;
 const chargeSql = `SELECT c.id,c.athlete_id AS athleteId,s.name AS athleteName,c.period,c.due_date AS dueDate,c.base_minor AS baseMinor,c.discount_minor AS discountMinor,c.discount_reason AS discountReason,c.base_minor-c.discount_minor+COALESCE((SELECT sum(amount_minor) FROM charge_adjustments WHERE charge_id=c.id),0) AS totalMinor,COALESCE((SELECT sum(a.amount_minor) FROM payment_allocations a JOIN payments p ON p.id=a.payment_id WHERE a.charge_id=c.id AND p.status='verified'),0) AS paidMinor FROM charges c JOIN athletes s ON s.id=c.athlete_id`;
 const paymentFields = `p.id,p.designated_user_id AS designatedAdultId,p.submitted_by AS submitterId,p.payer_name AS payerName,p.amount_minor AS amountMinor,p.transfer_date AS transferDate,p.bank_reference AS bankReference,p.status,p.review_note AS reviewNote,p.submitted_at AS submittedAt,p.revision,p.verified_amount_minor AS verifiedAmountMinor,CASE WHEN p.status='verified' THEN p.verified_amount_minor-COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0) ELSE 0 END AS unallocatedMinor,r.id AS receiptId,r.number AS receiptNumber`;
 const paymentFrom = `FROM payments p LEFT JOIN receipts r ON r.payment_id=p.id`;
@@ -404,7 +404,7 @@ export async function getMonthlyPreview(
   const base = athleteMap(
     await rows<Athlete & { alreadyPublished: number }>(
       db,
-      `${athleteSql.replace(" FROM athletes", ",EXISTS(SELECT 1 FROM charges c WHERE c.athlete_id=athletes.id AND c.period=?) AS alreadyPublished FROM athletes")} WHERE active=1 AND start_period<=? ORDER BY name`,
+      `${athleteSql.replace(" FROM athletes", ",EXISTS(SELECT 1 FROM charges c WHERE c.athlete_id=athletes.id AND c.period=?) AS alreadyPublished FROM athletes")} WHERE active=1 AND paused=0 AND start_period<=? ORDER BY name`,
       [period, period],
     ),
   );
@@ -417,7 +417,7 @@ export async function getMonthlyPreview(
         .alreadyPublished,
       siblingMinor: sibling.siblingMinor,
       familySize: sibling.familySize,
-      totalMinor: a.feeMinor - a.discountMinor - sibling.siblingMinor,
+      totalMinor: a.feeMinor - sibling.siblingMinor,
     };
   });
   return {
@@ -564,16 +564,53 @@ export async function getPaymentDetail(
   };
 }
 
-function athleteInput(input: AthleteInput) {
+export const ATHLETE_CATEGORIES = ["Iniciación", "Cadetes", "Intermedios", "Avanzados"] as const;
+/** La cuota se infiere de la categoría; no se captura por separado. */
+export function feeForCategory(category: string): number | null {
+  if (category === "Iniciación") return 1200000;
+  if (category === "Cadetes" || category === "Intermedios" || category === "Avanzados") return 1500000;
+  return null;
+}
+/** Sin descuento manual: el único descuento es el de hermanos, al publicar. */
+function athleteInput(input: AthleteInput, schedule?: Record<string, number>): AthleteInput {
   text(input.name);
-  text(input.category, 80);
+  const category = typeof input.category === "string" ? input.category.trim() : "";
+  const feeMinor = schedule?.[category] ?? feeForCategory(category);
+  if (feeMinor === null || feeMinor === undefined) fail("Elige la categoría del atleta.");
   validatePeriod(input.startPeriod);
-  if (![1200000, 1500000].includes(input.feeMinor))
-    fail("La tarifa debe ser ₡12.000 o ₡15.000.");
-  amount(input.discountMinor, true);
-  if (input.discountMinor > input.feeMinor)
-    fail("El descuento supera la tarifa.");
-  if (input.discountMinor > 0) text(input.discountReason, 500);
+  return { ...input, category, feeMinor, discountMinor: 0, discountReason: undefined };
+}
+
+export const DEFAULT_FEES: Record<string, number> = {
+  "Iniciación": 1200000, "Cadetes": 1500000, "Intermedios": 1500000, "Avanzados": 1500000,
+};
+/** Montos vigentes por categoría; sin la migración 0007 rigen los valores por defecto. */
+export async function getFeeSchedule(db: D1Database): Promise<Record<string, number>> {
+  const schedule = { ...DEFAULT_FEES };
+  try {
+    const stored = await rows<{ category: string; feeMinor: number }>(db, "SELECT category, fee_minor AS feeMinor FROM fee_schedule");
+    for (const row of stored) if (row.category in schedule && Number.isSafeInteger(row.feeMinor) && row.feeMinor > 0) schedule[row.category] = row.feeMinor;
+  } catch { /* Base anterior a la migración: se usan los montos por defecto. */ }
+  return schedule;
+}
+/** Actualiza los montos y los aplica a los atletas de cada categoría; los cargos ya publicados no cambian. */
+export async function updateFeeSchedule(db: D1Database, actor: Actor, fees: Record<string, number>): Promise<void> {
+  admin(actor);
+  await requireActor(db, actor);
+  const entries = ATHLETE_CATEGORIES.map((category) => [category, fees[category]] as const);
+  for (const [category, feeMinor] of entries) {
+    if (!Number.isSafeInteger(feeMinor) || feeMinor <= 0 || feeMinor > 100_000_000)
+      fail(`Revisa el monto de ${category}.`);
+  }
+  const now = iso();
+  await batch(db, [
+    ...entries.map(([category, feeMinor]) => bindings(db,
+      "INSERT INTO fee_schedule(category,fee_minor,updated_at,updated_by) VALUES(?,?,?,?) ON CONFLICT(category) DO UPDATE SET fee_minor=excluded.fee_minor,updated_at=excluded.updated_at,updated_by=excluded.updated_by",
+      [category, feeMinor, now, actor.id])),
+    ...entries.map(([category, feeMinor]) => bindings(db,
+      "UPDATE athletes SET fee_minor=?,updated_at=? WHERE category=?", [feeMinor, now, category])),
+    audit(db, actor, "fee_schedule", "categories", "update", Object.fromEntries(entries), now),
+  ]);
 }
 export async function enrollAthlete(
   db: D1Database,
@@ -582,7 +619,7 @@ export async function enrollAthlete(
 ): Promise<string> {
   admin(actor);
   await requireActor(db, actor);
-  athleteInput(input);
+  input = athleteInput(input, await getFeeSchedule(db));
   const count = await one<{ n: number }>(db, "SELECT count(*) n FROM athletes");
   if ((count?.n || 0) >= 300)
     fail("Se alcanzó el límite de atletas.", 409, "limit");
@@ -618,7 +655,7 @@ export async function setAthleteFee(
 ): Promise<void> {
   admin(actor);
   await requireActor(db, actor);
-  athleteInput(input);
+  input = athleteInput(input, await getFeeSchedule(db));
   const expected = text(expectedSnapshot, 2048);
   if (!(await one(db, "SELECT id FROM athletes WHERE id=?", [athleteId])))
     fail("Atleta no disponible.", 404, "not_found");
@@ -743,6 +780,8 @@ export async function setReceiptConsent(
   ]);
   if (!result[0].meta.changes) fail("Vínculo no disponible.", 404, "not_found");
 }
+export type InvitationKind = "link" | "register";
+
 export async function createInvitation(
   db: D1Database,
   actor: Actor,
@@ -751,15 +790,17 @@ export async function createInvitation(
     athleteIds: string[];
     tokenHash: string;
     expiresAt?: string;
+    kind?: InvitationKind;
   },
 ): Promise<string> {
   admin(actor);
   await requireActor(db, actor);
+  const kind: InvitationKind = input.kind === "register" ? "register" : "link";
   const email = text(input.email, 254).toLowerCase();
   if (
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-    !input.athleteIds.length ||
-    input.athleteIds.length > 10 ||
+    (kind === "link" && (!input.athleteIds.length || input.athleteIds.length > 10)) ||
+    (kind === "register" && input.athleteIds.length > 0) ||
     new Set(input.athleteIds).size !== input.athleteIds.length ||
     !/^[a-f0-9]{64}$/.test(input.tokenHash)
   )
@@ -776,7 +817,7 @@ export async function createInvitation(
   await batch(db, [
     bindings(
       db,
-      "INSERT INTO invitations(id,token_hash,email,athlete_ids_json,invited_by,expires_at,created_at) VALUES(?,?,?,?,?,?,?)",
+      "INSERT INTO invitations(id,token_hash,email,athlete_ids_json,invited_by,expires_at,created_at,kind) VALUES(?,?,?,?,?,?,?,?)",
       [
         invitationId,
         input.tokenHash,
@@ -785,6 +826,7 @@ export async function createInvitation(
         actor.id,
         expiresAt,
         now,
+        kind,
       ],
     ),
     audit(
@@ -793,17 +835,62 @@ export async function createInvitation(
       "invitation",
       invitationId,
       "create",
-      { email, athleteIds: input.athleteIds },
+      { email, athleteIds: input.athleteIds, kind },
       now,
     ),
   ]);
   return invitationId;
 }
+/**
+ * A guardian invites the other guardian to their own athletes. The invited
+ * person gets exactly the athletes the inviter is linked to — never more —
+ * through the same link invitation an administrator would create.
+ */
+export async function createGuardianInvitation(
+  db: D1Database,
+  actor: Actor,
+  input: { email: string; athleteIds: string[]; tokenHash: string; expiresAt?: string },
+): Promise<string> {
+  await requireActor(db, actor);
+  const email = text(input.email, 254).toLowerCase();
+  if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    email === actor.email.toLowerCase() ||
+    !input.athleteIds.length ||
+    input.athleteIds.length > 10 ||
+    new Set(input.athleteIds).size !== input.athleteIds.length ||
+    !/^[a-f0-9]{64}$/.test(input.tokenHash)
+  )
+    fail(email === actor.email.toLowerCase() ? "Usa el correo de la otra persona encargada." : "Invitación inválida.");
+  for (const athleteId of input.athleteIds) {
+    const link = await one(
+      db,
+      "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND athlete_id=? AND active=1 LIMIT 1",
+      [actor.id, athleteId],
+    );
+    if (!link) fail("Solo puedes compartir atletas vinculados a tu cuenta.", 403, "forbidden");
+  }
+  const invitationId = id(),
+    now = iso(),
+    expiresAt = input.expiresAt || new Date(Date.now() + 7 * 86400000).toISOString();
+  if (!Number.isFinite(Date.parse(expiresAt)) || expiresAt <= now)
+    fail("Vencimiento inválido.");
+  await batch(db, [
+    bindings(
+      db,
+      "INSERT INTO invitations(id,token_hash,email,athlete_ids_json,invited_by,expires_at,created_at,kind) VALUES(?,?,?,?,?,?,?,'link')",
+      [invitationId, input.tokenHash, email, JSON.stringify(input.athleteIds), actor.id, expiresAt, now],
+    ),
+    audit(db, actor, "invitation", invitationId, "create", { email, athleteIds: input.athleteIds, via: "guardian" }, now),
+  ]);
+  return invitationId;
+}
+
 export async function redeemInvitation(
   db: D1Database,
   actor: Actor,
   tokenHash: string,
-): Promise<void> {
+): Promise<{ kind: InvitationKind }> {
   await requireActor(db, actor);
   const now = iso(),
     invite = await one<{
@@ -811,9 +898,10 @@ export async function redeemInvitation(
       email: string;
       athleteIds: string;
       invitedBy: string;
+      kind: InvitationKind;
     }>(
       db,
-      "SELECT id,email,athlete_ids_json AS athleteIds,invited_by AS invitedBy FROM invitations WHERE token_hash=? AND redeemed_at IS NULL AND expires_at>?",
+      "SELECT id,email,athlete_ids_json AS athleteIds,invited_by AS invitedBy,kind FROM invitations WHERE token_hash=? AND redeemed_at IS NULL AND expires_at>?",
       [tokenHash, now],
     );
   if (!invite || invite.email.toLowerCase() !== actor.email.toLowerCase())
@@ -856,7 +944,196 @@ export async function redeemInvitation(
   const result = await batch(db, statements);
   if (!result[0].meta.changes)
     fail("Invitación ya utilizada.", 409, "invitation_invalid");
+  return { kind: invite.kind === "register" ? "register" : "link" };
 }
+
+// Self-service stays open in two cases: a claimed (redeemed) 'register'
+// invitation that has not expired yet (seven days), or an already-linked
+// family adding another athlete at any time. New families need an invitation.
+export async function getRegistrationWindow(
+  db: D1Database,
+  actor: Actor,
+): Promise<{ invitationId: string | null; expiresAt: string | null; via: "invitation" | "family" } | null> {
+  const invite = await one<{ id: string; expiresAt: string }>(
+    db,
+    "SELECT id,expires_at AS expiresAt FROM invitations WHERE redeemed_by=? AND kind='register' AND expires_at>? ORDER BY redeemed_at DESC LIMIT 1",
+    [actor.id, iso()],
+  );
+  if (invite) return { invitationId: invite.id, expiresAt: invite.expiresAt, via: "invitation" };
+  const linked = await one(
+    db,
+    "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND active=1 LIMIT 1",
+    [actor.id],
+  );
+  return linked ? { invitationId: null, expiresAt: null, via: "family" } : null;
+}
+
+/** Completed years on a Costa Rica calendar date (both YYYY-MM-DD). */
+export function ageOn(birthDate: string, onDate: string): number {
+  const [by, bm, bd] = birthDate.split("-").map(Number);
+  const [oy, om, od] = onDate.split("-").map(Number);
+  return oy - by - (om < bm || (om === bm && od < bd) ? 1 : 0);
+}
+
+export function costaRicaToday(instant: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Costa_Rica",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(instant));
+}
+
+export interface SelfAthleteInput {
+  name: string;
+  birthDate: string;
+  nationalId?: string;
+  school: string;
+  category: string;
+}
+
+// The Google-Form group names map onto the portal categories and their fees.
+const selfCategories: Record<string, { category: string; feeMinor: number }> = {
+  "Iniciación": { category: "Iniciación", feeMinor: 1200000 },
+  "Principiantes": { category: "Iniciación", feeMinor: 1200000 },
+  "Cadetes": { category: "Cadetes", feeMinor: 1500000 },
+  "Intermedios": { category: "Intermedios", feeMinor: 1500000 },
+  "Avanzados": { category: "Avanzados", feeMinor: 1500000 },
+};
+
+function selfAthlete(input: SelfAthleteInput, today: string, schedule?: Record<string, number>) {
+  const name = text(input.name);
+  const birthDate = date(input.birthDate);
+  if (birthDate > today) fail("La fecha de nacimiento no puede ser futura.");
+  const age = ageOn(birthDate, today);
+  if (age > 100) fail("Revisa la fecha de nacimiento.");
+  // Age is derived, never asked. The cédula replaces the old "fill with ones"
+  // rule: required from age 12, optional before, never a placeholder.
+  const digits = (input.nationalId ?? "").replace(/[\s-]/g, "");
+  let nationalId: string | null = null;
+  if (digits) {
+    if (!/^\d{9,12}$/.test(digits) || /^(\d)\1+$/.test(digits))
+      fail("Revisa el número de cédula.");
+    nationalId = digits;
+  }
+  if (age >= 12 && !nationalId)
+    fail("Indica el número de cédula del atleta (tiene 12 años o más).");
+  const school = text(input.school);
+  const mapped = selfCategories[input.category?.trim()];
+  if (!mapped) fail("Elige el grupo del atleta.");
+  return { name, birthDate, nationalId, school, category: mapped.category, feeMinor: schedule?.[mapped.category] ?? mapped.feeMinor };
+}
+
+/**
+ * Self-service enrollment inside a claimed registration window. Every athlete
+ * is created active, linked to the guardian, and charged from the current
+ * Costa Rica month by the normal (automatic) publication.
+ */
+export async function registerAthletes(
+  db: D1Database,
+  actor: Actor,
+  inputs: SelfAthleteInput[],
+): Promise<string[]> {
+  await requireActor(db, actor);
+  if (!inputs.length || inputs.length > 6)
+    fail("Inscriba al menos un atleta (máximo seis por vez).");
+  const window = await getRegistrationWindow(db, actor);
+  if (!window) fail("Necesitas una invitación de inscripción vigente.", 403, "invitation_invalid");
+  const now = iso(), today = costaRicaToday(now), period = billingPeriod(now);
+  const schedule = await getFeeSchedule(db);
+  const athletes = inputs.map((input) => selfAthlete(input, today, schedule));
+  const total = await one<{ n: number }>(db, "SELECT count(*) n FROM athletes");
+  if ((total?.n || 0) + athletes.length > 300)
+    fail("Se alcanzó el límite de atletas.", 409, "limit");
+  for (const athlete of athletes) {
+    const dupe = await one(
+      db,
+      `SELECT a.id FROM athletes a JOIN guardian_links l ON l.athlete_id=a.id
+       WHERE l.user_id=? AND lower(trim(a.name))=lower(trim(?)) AND a.birth_date=? LIMIT 1`,
+      [actor.id, athlete.name, athlete.birthDate],
+    );
+    if (dupe) fail(`"${athlete.name}" ya está inscrito en tu cuenta.`, 409, "conflict");
+  }
+  const ids = athletes.map(() => id());
+  const statements: D1PreparedStatement[] = [];
+  athletes.forEach((athlete, index) => {
+    statements.push(bindings(
+      db,
+      "INSERT INTO athletes(id,name,category,fee_minor,discount_minor,discount_reason,active,start_period,created_at,updated_at,birth_date,national_id,school) VALUES(?,?,?,?,0,NULL,1,?,?,?,?,?,?)",
+      [ids[index], athlete.name, athlete.category, athlete.feeMinor, period, now, now, athlete.birthDate, athlete.nationalId, athlete.school],
+    ));
+    statements.push(bindings(
+      db,
+      "INSERT INTO guardian_links(user_id,athlete_id,active,receipt_opt_in,linked_by,created_at,updated_at) VALUES(?,?,1,0,?,?,?)",
+      [actor.id, ids[index], actor.id, now, now],
+    ));
+    statements.push(audit(db, actor, "athlete", ids[index], "self_register", { invitationId: window.invitationId, category: athlete.category }, now));
+  });
+  await batch(db, statements);
+  return ids;
+}
+
+export interface AthleteProfile { birthDate: string | null; nationalId: string | null; school: string | null; paused: boolean }
+
+export async function listAthleteProfiles(db: D1Database): Promise<Map<string, AthleteProfile>> {
+  const profiles = await rows<{ id: string; birthDate: string | null; nationalId: string | null; school: string | null; paused: number }>(
+    db,
+    "SELECT id,birth_date AS birthDate,national_id AS nationalId,school,paused FROM athletes",
+  );
+  return new Map(profiles.map(({ id: athleteId, paused, ...profile }) => [athleteId, { ...profile, paused: !!paused }]));
+}
+
+/**
+ * Admin membership pause: the athlete stays enrolled (access and history are
+ * preserved) but monthly publication skips them until resumed. Charges that
+ * already exist are untouched; use a charge adjustment for those.
+ */
+export async function setAthletePaused(
+  db: D1Database,
+  actor: Actor,
+  athleteId: string,
+  paused: boolean,
+): Promise<void> {
+  admin(actor);
+  await requireActor(db, actor);
+  const athlete = await one<{ id: string; paused: number }>(db, "SELECT id,paused FROM athletes WHERE id=?", [athleteId]);
+  if (!athlete) fail("Atleta no disponible.", 404, "not_found");
+  if (!!athlete.paused === paused) return;
+  const now = iso();
+  await batch(db, [
+    bindings(db, "UPDATE athletes SET paused=?,updated_at=? WHERE id=?", [paused ? 1 : 0, now, athleteId]),
+    audit(db, actor, "athlete", athleteId, paused ? "pause" : "resume", {}, now),
+  ]);
+}
+
+/**
+ * A guardian activates/deactivates their own linked athlete at any time.
+ * Deactivation never deletes history: past charges stay payable and monthly
+ * publication simply stops creating new ones.
+ */
+export async function setOwnAthleteActive(
+  db: D1Database,
+  actor: Actor,
+  athleteId: string,
+  active: boolean,
+): Promise<void> {
+  await requireActor(db, actor);
+  const link = await one(
+    db,
+    "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND athlete_id=? LIMIT 1",
+    [actor.id, athleteId],
+  );
+  if (!link) fail("Atleta no disponible.", 404, "not_found");
+  const athlete = await one<{ id: string; active: number }>(db, "SELECT id,active FROM athletes WHERE id=?", [athleteId]);
+  if (!athlete) fail("Atleta no disponible.", 404, "not_found");
+  if (!!athlete.active === active) return;
+  const now = iso();
+  await batch(db, [
+    bindings(db, "UPDATE athletes SET active=?,updated_at=? WHERE id=?", [active ? 1 : 0, now, athleteId]),
+    audit(db, actor, "athlete", athleteId, active ? "self_reactivate" : "self_deactivate", {}, now),
+  ]);
+}
+
 export async function publishMonth(
   db: D1Database,
   actor: Actor,
@@ -884,16 +1161,53 @@ export async function publishMonth(
       db,
       `INSERT OR IGNORE INTO charges(id,athlete_id,period,due_date,base_minor,discount_minor,discount_reason,published_by,created_at) SELECT ?,?,?,?,?,?,?,?,? WHERE ${monthlySnapshotSql}=?`,
       [id(), a.id, period, `${period}-08`, a.feeMinor,
-        Math.min(a.feeMinor, a.discountMinor + a.siblingMinor),
-        a.siblingMinor > 0
-          ? [a.discountReason, SIBLING_DISCOUNT_REASON].filter(Boolean).join(" · ")
-          : a.discountReason,
+        Math.min(a.feeMinor, a.siblingMinor),
+        a.siblingMinor > 0 ? SIBLING_DISCOUNT_REASON : null,
         actor.id, now, period, period, reviewed],
     )),
   ]);
   if (!result[0].meta.changes)
     fail("Las cuotas o las inscripciones cambiaron. Actualiza la vista previa.", 409, "conflict");
   return result.slice(1).reduce((sum, r) => sum + (r.meta.changes || 0), 0);
+}
+
+// Dedicated non-login identity for the automatic monthly publication. It only
+// exists so charges/audit rows name a stable system actor instead of a person.
+export const SYSTEM_MONTHLY_ACTOR: Actor = {
+  id: "system:monthly-publish",
+  email: "sistema@mensualidades.invalid",
+  name: "Sistema — publicación automática",
+  isAdmin: true,
+  mode: "workos",
+};
+
+/**
+ * Publish the Costa Rica current month if it is not published yet. Safe to run
+ * repeatedly (the cron runs daily): already-published athletes are skipped and
+ * a snapshot conflict retries once with a fresh preview.
+ */
+export async function publishCurrentMonth(
+  db: D1Database,
+  instant: string,
+): Promise<{ period: string; created: number }> {
+  const period = billingPeriod(instant);
+  const now = iso();
+  await bindings(
+    db,
+    "INSERT OR IGNORE INTO users(id,email,name,active,created_at,updated_at) VALUES(?,?,?,1,?,?)",
+    [SYSTEM_MONTHLY_ACTOR.id, SYSTEM_MONTHLY_ACTOR.email, SYSTEM_MONTHLY_ACTOR.name, now, now],
+  ).run();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const preview = await getMonthlyPreview(db, period);
+    if (preview.newCount === 0) return { period, created: 0 };
+    try {
+      return { period, created: await publishMonth(db, SYSTEM_MONTHLY_ACTOR, period, preview.snapshot) };
+    } catch (error) {
+      if (attempt === 0 && error instanceof PortalError && error.status === 409) continue;
+      throw error;
+    }
+  }
+  return { period, created: 0 };
 }
 type FinancialOperation = {
   actorId: string;
@@ -1029,7 +1343,11 @@ function canonicalSubmission(actor: Actor, input: SubmissionRequest) {
   if (!actor.isAdmin && designatedAdultId !== actor.id)
     fail("Acceso denegado.", 403, "forbidden");
   if (actor.isAdmin && !input.designatedAdultId) fail("Seleccione al adulto responsable.");
-  const auditReason = actor.isAdmin ? text(input.auditReason, 500)
+  // Dual role: an administrator paying for their own family is self-service,
+  // exactly like any other guardian — no staff-assistance reason is required.
+  // The reason stays mandatory only when registering for someone else.
+  const staffAssisted = actor.isAdmin && designatedAdultId !== actor.id;
+  const auditReason = staffAssisted ? text(input.auditReason, 500)
     : input.auditReason ? text(input.auditReason, 500) : null;
   validateSlip({ ...input.file, key: "submission-original" });
   const amountMinor = amount(input.amountMinor);
@@ -1044,7 +1362,7 @@ function canonicalSubmission(actor: Actor, input: SubmissionRequest) {
   return {
     payerName: text(input.payerName), amountMinor, transferDate: date(input.transferDate),
     bankReference: text(input.bankReference, 128), allocations,
-    designatedAdultId, shareEvidence: actor.isAdmin ? Boolean(input.shareEvidence) : true,
+    designatedAdultId, shareEvidence: staffAssisted ? Boolean(input.shareEvidence) : true,
     auditReason, note: input.note ? text(input.note, 500) : null,
     file: { type: input.file.type, size: input.file.size, sha256: input.file.sha256 },
   };
@@ -1592,7 +1910,7 @@ export async function seedDemo(db: D1Database): Promise<void> {
       [
         athleteId,
         name,
-        fee === 1200000 ? "Formación" : "Competitivo",
+        fee === 1200000 ? "Iniciación" : "Avanzados",
         fee,
         currentPeriod,
         now,

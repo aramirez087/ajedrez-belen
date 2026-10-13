@@ -1,4 +1,4 @@
 {
   "extends": "astro/tsconfigs/strict",
-  "exclude": ["node_modules", "dist", "dist-staging", "output"]
+  "exclude": ["node_modules", "dist", "dist-staging", "dist-production", ".vite-production", ".vite-staging", "output"]
 }

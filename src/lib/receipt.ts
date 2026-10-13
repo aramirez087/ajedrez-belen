@@ -110,14 +110,14 @@ export function renderReceipt(input: ReceiptData): RenderedReceipt {
     html: `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title>
 <style>@media print { body { background: white !important; } main { border: 0 !important; max-width: none !important; } }</style></head>
-<body style="margin:0;padding:24px;background:#f5f3ee;color:#20352d;font-family:Arial,sans-serif;line-height:1.5">
-<main style="max-width:640px;margin:auto;background:#fff;border:1px solid #d8dfd8;padding:28px">
+<body style="margin:0;padding:24px;background:#f7f4ec;color:#23281f;font-family:'DM Sans',Arial,sans-serif;line-height:1.5">
+<main style="max-width:640px;margin:auto;background:#fffdf7;border:1px solid #d8d3c2;border-top:4px solid #8c302f;padding:28px">
 <p style="padding:12px;border:2px solid #886600;background:#fff8df;font-weight:bold">${escapeHtml(PROTOTYPE_RECEIPT_NOTICE)}</p>
-<p style="font-size:14px">${escapeHtml(association)}</p><h1 style="font-size:26px">${escapeHtml(title)}</h1>
+<p style="font-size:14px;font-weight:bold;color:#8c302f;letter-spacing:.02em;text-transform:uppercase">${escapeHtml(association)}</p><h1 style="font-size:26px;font-family:Manrope,'DM Sans',Arial,sans-serif">${escapeHtml(title)}</h1>
 <table style="border-collapse:collapse;width:100%"><tbody>${rows.map(([label, value]) =>
-        `<tr><th scope="row" style="text-align:left;vertical-align:top;padding:10px 12px 10px 0;border-bottom:1px solid #e1e5e1">${escapeHtml(label)}</th><td style="padding:10px 0;border-bottom:1px solid #e1e5e1;overflow-wrap:anywhere">${escapeHtml(value)}</td></tr>`).join('')}</tbody></table>
-<p style="font-size:13px;color:#526158">${escapeHtml(note)}</p>
-<p style="margin-top:20px;padding-top:16px;border-top:1px solid #e1e5e1;font-size:13px;color:#526158"><strong>Correo automático.</strong> ${escapeHtml(replyNotice)} <a href="${whatsappUrl}" style="color:#20352d;text-decoration:underline">WhatsApp</a>.</p>
+        `<tr><th scope="row" style="text-align:left;vertical-align:top;padding:10px 12px 10px 0;border-bottom:1px solid #ddd6c3">${escapeHtml(label)}</th><td style="padding:10px 0;border-bottom:1px solid #ddd6c3;overflow-wrap:anywhere">${escapeHtml(value)}</td></tr>`).join('')}</tbody></table>
+<p style="font-size:13px;color:#5d6152">${escapeHtml(note)}</p>
+<p style="margin-top:20px;padding-top:16px;border-top:1px solid #ddd6c3;font-size:13px;color:#5d6152"><strong>Correo automático.</strong> ${escapeHtml(replyNotice)} <a href="${whatsappUrl}" style="color:#8c302f;text-decoration:underline">WhatsApp</a>.</p>
 </main></body></html>`,
   };
 }

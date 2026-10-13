@@ -4,6 +4,7 @@ import { applyPaymentCredit, reviewPayment } from '../../../../../lib/portal/dom
 import { sendOutboxBatch } from '../../../../../lib/portal/email';
 import { businessConfigurationUnavailable, formText, InputError, parseAllocations, parseMoney, successRedirect } from '../../../../../lib/portal/http';
 import { resolveBusinessConfiguration } from '../../../../../lib/portal/business-config';
+import { formDate } from '../../../../../lib/portal/forms';
 import { portalMutation, readPaymentReviewSnapshot } from '../../../../../lib/portal/routes';
 export const prerender=false;
 export const POST: APIRoute=context=>portalMutation(context,env,{admin:true,back:`/admin/pagos/${context.params.id}`},async(actor,form)=>{
@@ -20,7 +21,7 @@ export const POST: APIRoute=context=>portalMutation(context,env,{admin:true,back
       associationName:business.associationName,
       bankName,receivingAccount,
       bankReference:formText(form,'verifiedReference',128),amountMinor:parseMoney(form.get('verifiedAmount')),
-      paymentDate:formText(form,'verifiedDate',10),allocations:parseAllocations(form),
+      paymentDate:formDate(form,'verifiedDate'),allocations:parseAllocations(form),
       note:formText(form,'reason',500,true)||undefined,
     });
     try {if(receiptId)await sendOutboxBatch(env.DB,actor,env,{receiptId});}

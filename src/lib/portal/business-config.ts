@@ -17,6 +17,22 @@ export interface BusinessConfiguration {
   associationName: string;
 }
 
+// Fictional destination for the loopback-only local demo (PORTAL_DEMO).
+// It is never a payment instruction and can only appear on http loopback.
+const demoBusiness: BusinessConfiguration = {
+  bankName: 'PRUEBA — no transferir',
+  receivingAccount: 'demo-synthetic-only',
+  paymentDestination: 'ENTORNO DE PRUEBA — no realizar transferencias',
+  associationName: 'PRUEBAS — Ajedrez Belén (datos ficticios)',
+};
+
+function isLoopbackHttp(request: Request): boolean {
+  try {
+    const url = new URL(request.url);
+    return url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
+  } catch { return false; }
+}
+
 // These are the already approved fictional staging labels, never payment instructions.
 const stagingBusiness: BusinessConfiguration = {
   bankName: 'PRUEBA — no transferir',
@@ -32,6 +48,9 @@ function validText(value: unknown, maximum: number): value is string {
 
 /** Resolve public business bindings only; no stores, provider requests or fallback identity. */
 export function resolveBusinessConfiguration(request: Request, environment: BusinessEnvironment): BusinessConfiguration | null {
+  // Local demo only: fictional labels on http loopback so the demo portal can
+  // exercise the full payment form. Production/staging never set PORTAL_DEMO.
+  if (environment.PORTAL_DEMO === 'true' && environment.PORTAL_ENABLED === 'true' && isLoopbackHttp(request)) return demoBusiness;
   if (!validText(environment.PAYMENT_BANK_NAME, 80) || !validText(environment.PAYMENT_ACCOUNT_ID, 100) ||
       !validText(environment.PAYMENT_DESTINATION, 200) || !validText(environment.ASSOCIATION_RECEIPT_NAME, 200)) return null;
   const configuration: BusinessConfiguration = {

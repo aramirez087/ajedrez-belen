@@ -1,0 +1,35 @@
+---
+import { MONTHS_ES } from './format';
+interface Props { id: string; name: string; label: string; value?: string; minYear?: number; maxYear?: number; dataOriginal?: string; }
+const { id, name, label, value = '', minYear, maxYear, dataOriginal } = Astro.props;
+const [yearPart, monthPart, dayPart] = (value ?? '').split('-');
+const currentYear = new Date().getFullYear();
+const from = minYear ?? currentYear - 30;
+const to = maxYear ?? currentYear;
+const years = Array.from({ length: to - from + 1 }, (_, i) => to - i);
+const days = Array.from({ length: 31 }, (_, i) => i + 1);
+const selectedDay = Number(dayPart) || 0;
+const selectedMonth = Number(monthPart) || 0;
+const selectedYear = Number(yearPart) || 0;
+const groupAttrs = dataOriginal ? { 'data-date-group': name, 'data-original': dataOriginal } : {};
+---
+<div class="portal-field">
+  <span class="portal-label" id={`${id}-label`}>{label}</span>
+  <div class="portal-date-row portal-date-row-date" role="group" aria-labelledby={`${id}-label`} {...groupAttrs}>
+    <label class="visually-hidden" for={`${id}-day`}>Día</label>
+    <select id={`${id}-day`} name={`${name}Day`} required>
+      <option value="" selected={selectedDay === 0}>Día</option>
+      {days.map(day => <option value={day} selected={selectedDay === day}>{day}</option>)}
+    </select>
+    <label class="visually-hidden" for={`${id}-month`}>Mes</label>
+    <select id={`${id}-month`} name={`${name}Month`} required>
+      <option value="" selected={selectedMonth === 0}>Mes</option>
+      {MONTHS_ES.map((month, i) => <option value={i + 1} selected={selectedMonth === i + 1}>{month}</option>)}
+    </select>
+    <label class="visually-hidden" for={`${id}-year`}>Año</label>
+    <select id={`${id}-year`} name={`${name}Year`} required>
+      <option value="" selected={selectedYear === 0}>Año</option>
+      {years.map(year => <option value={year} selected={selectedYear === year}>{year}</option>)}
+    </select>
+  </div>
+</div>

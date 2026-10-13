@@ -3,6 +3,7 @@ const currencyWhole = new Intl.NumberFormat('es-CR', { style: 'currency', curren
 /** Whole colones read without céntimos (₡27 000); exact cents keep two decimals. */
 export function money(minor: number): string { return minor % 100 === 0 ? currencyWhole.format(minor / 100) : currency.format(minor / 100); }
 export function inputMoney(minor: number): string { return (minor / 100).toFixed(2); }
+export const MONTHS_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'] as const;
 export function monthLabel(value: string): string {
   if (!/^\d{4}-\d{2}$/.test(value)) return value;
   return new Intl.DateTimeFormat('es-CR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}-01T12:00:00Z`));

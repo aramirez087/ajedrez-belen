@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import { getPaymentDetail, revisePayment } from '../../../../../lib/portal/domain';
 import { attachSlipDraft } from '../../../../../lib/portal/ocr';
 import { formText, parseAllocations, parseMoney, successRedirect } from '../../../../../lib/portal/http';
+import { formDate } from '../../../../../lib/portal/forms';
 import { portalMutation, readPaymentReviewSnapshot } from '../../../../../lib/portal/routes';
 import { resolveSubmissionSlip } from '../../../../../lib/portal/slip-upload';
 
@@ -14,7 +15,7 @@ export const POST: APIRoute = context => portalMutation(
     const input = {
       ...readPaymentReviewSnapshot(form),
       payerName: formText(form, 'payerName'), amountMinor: parseMoney(form.get('amount')),
-      transferDate: formText(form, 'transferDate', 10), bankReference: formText(form, 'bankReference', 128),
+      transferDate: formDate(form, 'transferDate'), bankReference: formText(form, 'bankReference', 128),
       allocations: parseAllocations(form), note: formText(form, 'note', 500),
     };
     const saved = await resolveSubmissionSlip(env, actor, form, { optional: true });

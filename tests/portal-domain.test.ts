@@ -50,6 +50,7 @@ class SQLiteD1 {
       ),
     );
     this.sqlite.exec(readFileSync(new URL("../migrations/0004_financial_operations.sql", import.meta.url), "utf8"));
+    this.sqlite.exec(readFileSync(new URL("../migrations/0006_self_registration.sql", import.meta.url), "utf8"));
   }
   prepare(sql: string) {
     const database = this;
@@ -264,7 +265,7 @@ test("a blocked confirmation still allows requesting a correction and rejecting 
   assert.equal((await getPaymentDetail(db, parent, paymentId)).payment.status, "rejected");
   assert.equal((await getParentDashboard(db, parent)).charges.find(c => c.id === charges[0].id)!.paidMinor, 0);
 });
-test("monthly publication is idempotent, due on eighth and snapshots manual discounts", async () => {
+test("monthly publication is idempotent, due on eighth and snapshots fees", async () => {
   const { db, charges } = await setup();
   const preview = await getMonthlyPreview(db, charges[0].period);
   assert.equal(preview.newCount, 0);
@@ -278,20 +279,20 @@ test("monthly publication is idempotent, due on eighth and snapshots manual disc
   assert.equal((await getMonthlyPreview(db, "2027-01")).newCount, 0);
 });
 
-test("a stale athlete form cannot reactivate an athlete or replace a newer fee and discount", async () => {
+test("a stale athlete form cannot reactivate an athlete or replace a newer category fee", async () => {
   const { db, adapter } = await setup();
   const athlete = (await getAdminDashboard(db)).athletes[0];
   const original = { ...athlete, discountReason: athlete.discountReason ?? undefined };
   const expected = athleteFeeSnapshot(athlete);
   await setAthleteFee(db, admin, athlete.id, {
-    ...original, active: false, feeMinor: 1500000, discountMinor: 10000, discountReason: "Descuento revisado",
+    ...original, active: false, category: "Cadetes", feeMinor: 1, discountMinor: 10000, discountReason: "Descuento revisado",
   }, expected);
   await assert.rejects(setAthleteFee(db, admin, athlete.id, { ...original, name: "Nombre desde pestaña anterior" }, expected),
     (error: unknown) => (error as { code: string }).code === "conflict");
   const saved = (await getAdminDashboard(db)).athletes.find(a => a.id === athlete.id)!;
   assert.equal(saved.active, false);
   assert.equal(saved.feeMinor, 1500000);
-  assert.equal(saved.discountMinor, 10000);
+  assert.equal(saved.discountMinor, 0);
   assert.equal(saved.name, athlete.name);
   assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM audit_events WHERE entity_id=? AND action='update'").get(athlete.id)!.n, 1);
 });
@@ -339,7 +340,7 @@ test("fee and month mutations require the displayed snapshot, including for admi
 });
 
 test("a monthly preview becomes stale when fees, discounts, eligibility or its roster change", async () => {
-  for (const change of ["fee", "discount", "active", "start", "enroll"] as const) {
+  for (const change of ["fee", "active", "start", "enroll"] as const) {
     const { db, adapter } = await setup();
     const period = "2027-02";
     const preview = await getMonthlyPreview(db, period);
@@ -348,8 +349,7 @@ test("a monthly preview becomes stale when fees, discounts, eligibility or its r
     if (change === "enroll") await enrollAthlete(db, admin, { ...input, name: "Inscripción nueva" });
     else await setAthleteFee(db, admin, athlete.id, {
       ...input,
-      ...(change === "fee" ? { feeMinor: athlete.feeMinor === 1200000 ? 1500000 : 1200000 } : {}),
-      ...(change === "discount" ? { discountMinor: 10000, discountReason: "Descuento aprobado" } : {}),
+      ...(change === "fee" ? { category: athlete.category === "Iniciación" ? "Cadetes" : "Iniciación" } : {}),
       ...(change === "active" ? { active: false } : {}),
       ...(change === "start" ? { startPeriod: "2027-03" } : {}),
     }, athleteFeeSnapshot(athlete));
@@ -409,8 +409,7 @@ test("monthly publication recovers a lost committed response without duplicate c
 test("Unicode profile values and an empty roster have stable, compact publication snapshots", async () => {
   const { db, adapter } = await setup();
   const athlete = (await getAdminDashboard(db)).athletes[0];
-  await setAthleteFee(db, admin, athlete.id, { ...athlete, name: 'María “Prueba” \\ / ♞',
-    discountReason: 'Acuerdo: "prueba" / familiar', discountMinor: 10000 }, athleteFeeSnapshot(athlete));
+  await setAthleteFee(db, admin, athlete.id, { ...athlete, name: 'María “Prueba” \\ / ♞', discountReason: athlete.discountReason ?? undefined }, athleteFeeSnapshot(athlete));
   const reviewed = await getMonthlyPreview(db, "2027-02");
   assert.match(reviewed.snapshot, /^[a-f0-9]{64}$/);
   assert.equal(await publishMonth(db, admin, "2027-02", reviewed.snapshot), reviewed.newCount);

@@ -47,6 +47,7 @@ const notices: Record<string, string> = {
   email_prepared: 'La preparación del correo quedó registrada. Revisa su destinatario y estado en la lista; esta acción no realiza el envío.',
   athlete_created: 'Atleta inscrito. Ya puedes crear la invitación de sus encargados.',
   athlete_updated: 'Datos y cuota del atleta actualizados.',
+  fees_updated: 'Montos por categoría actualizados. Se aplican a los meses que aún no se han publicado.',
   links_updated: 'Vínculos y preferencias actualizados.',
   month_published: 'Mensualidades publicadas. Los cargos de este mes ya están disponibles para las familias.',
   charge_adjusted: 'Ajuste guardado. El cargo conserva el registro de esta corrección.',
@@ -72,6 +73,11 @@ const notices: Record<string, string> = {
   revoked: 'Vínculo revocado.',
   email: 'Se procesó el correo. Revisa el estado de entrega en la lista.',
   demo: 'Sesión de demostración iniciada.',
+  athletes_registered: 'Atletas inscritos y vinculados a tu cuenta. La mensualidad se genera automáticamente.',
+  athlete_paused: 'Membresía en pausa. No se generarán mensualidades nuevas hasta reactivarla.',
+  athlete_resumed: 'Membresía reactivada. Los cobros retoman desde este mes.',
+  athlete_deactivated: 'Atleta dado de baja. Dejó de generar mensualidades nuevas; el historial se conserva.',
+  athlete_reactivated: 'Atleta reactivado. Volverá a generar mensualidades.',
 };
 const error = Astro.url.searchParams.get('error');
 const notice = Astro.url.searchParams.get('notice');

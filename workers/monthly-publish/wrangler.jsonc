@@ -1,0 +1,16 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ajedrez-belen-monthly-publish",
+  "account_id": "7d3e79129c4f0b3619a419cabbfa021e",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  // Daily 00:00 America/Costa_Rica (UTC-6, no DST). The publish itself is
+  // idempotent: on the 1st it creates the month, later runs are no-ops or
+  // catch athletes enrolled mid-month.
+  "triggers": { "crons": ["0 6 * * *"] },
+  "services": [{ "binding": "PORTAL", "service": "ajedrez-belen" }]
+}
