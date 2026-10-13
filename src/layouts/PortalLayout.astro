@@ -36,11 +36,11 @@ const nav = admin
     <div class="portal-shell">
       <header class="portal-header">
         <a class="portal-brand" href={admin ? '/admin' : '/portal'}><img src="/media/crest-provisional.webp" alt="" width="35" height="44" /><span>Ajedrez Belén<small>Portal de pagos{stagingTest && <span class="portal-test-badge">Prueba</span>}</small></span></a>
-        <div class="portal-session">{actor ? <><span>{actor.name || actor.email}<small>{admin ? 'Administración' : 'Cuenta familiar'}</small></span>{actor.mode === 'workos' && <form action="/auth/logout" method="post"><button class="portal-link portal-text-button" type="submit">Salir <span aria-hidden="true">↗</span></button></form>}</> : <a class="portal-link" href="/auth/parent">Iniciar sesión <span aria-hidden="true">↗</span></a>}</div>
+        <div class="portal-session">{actor ? <><span>{actor.name || actor.email}<small>{admin ? 'Administración' : 'Cuenta familiar'}</small></span>{actor.mode === 'workos' && <form action="/auth/logout" method="post"><button class="portal-link portal-text-button" type="submit">Salir <span aria-hidden="true">↗</span></button></form>}</> : !hideNav && <a class="portal-link" href="/auth/parent">Iniciar sesión <span aria-hidden="true">↗</span></a>}</div>
       </header>
       {!hideNav && <nav class="portal-navigation" aria-label={admin ? 'Administración de pagos' : 'Mi cuenta'}>{nav.map(([href, label, key]) => <a href={href} aria-current={active === key ? 'page' : undefined}>{label}</a>)}{admin && <a class="portal-family-view" href="/portal">Ver cuenta familiar <span aria-hidden="true">↗</span></a>}</nav>}
       <main id="portal-main" tabindex="-1">{stagingNotice ? <div class="portal-notice" role="status"><p>{stagingNotice}</p></div> : <Notice />}<slot /></main>
-      <footer class="portal-footer"><span>Ajedrez Belén · Belén, Heredia</span><a href="/">Volver al sitio <span aria-hidden="true">↗</span></a></footer>
+      <footer class="portal-footer"><span>Ajedrez Belén · Belén, Heredia</span><a href="https://wa.me/50687686102">¿Dudas con un pago? Escríbenos por WhatsApp <span aria-hidden="true">↗</span></a><a href="/">Volver al sitio <span aria-hidden="true">↗</span></a></footer>
     </div>
   </body>
 </html>
@@ -81,5 +81,37 @@ const nav = admin
       });
     });
     window.addEventListener('pageshow', restore);
+  });
+  // Destructive or batch actions ask once before the native submit continues.
+  document.querySelectorAll<HTMLFormElement>('form[data-confirm]').forEach(form => {
+    form.addEventListener('submit', event => {
+      if (form.dataset.confirmed === 'true') return;
+      if (!window.confirm(form.dataset.confirm || '¿Confirmas esta acción?')) { event.preventDefault(); return; }
+      form.dataset.confirmed = 'true';
+    });
+    window.addEventListener('pageshow', () => { delete form.dataset.confirmed; });
+  });
+  // Warn before losing a half-completed payment form.
+  document.querySelectorAll<HTMLFormElement>('form[data-unsaved-guard]').forEach(form => {
+    let dirty = false;
+    form.addEventListener('input', () => { dirty = true; });
+    form.addEventListener('change', () => { dirty = true; });
+    form.addEventListener('submit', () => { dirty = false; });
+    form.addEventListener('reset', () => { dirty = false; });
+    window.addEventListener('beforeunload', event => { if (dirty) event.preventDefault(); });
+    window.addEventListener('pageshow', () => { dirty = false; });
+  });
+  // Copy-to-clipboard helpers (payment destination, invitation links).
+  document.querySelectorAll<HTMLButtonElement>('[data-copy-value]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const feedback = button.closest('[data-copy-scope]')?.querySelector<HTMLElement>('[data-copy-feedback]')
+        ?? button.parentElement?.querySelector<HTMLElement>('[data-copy-feedback]');
+      try {
+        await navigator.clipboard.writeText(button.dataset.copyValue ?? '');
+        if (feedback) feedback.textContent = 'Copiado.';
+      } catch {
+        if (feedback) feedback.textContent = 'Selecciona el texto y cópialo manualmente.';
+      }
+    });
   });
 </script>

@@ -1,7 +1,7 @@
 import type { APIContext } from 'astro';
 import { getAuthConfigurationStatus } from '../auth';
 import { allowPortalDemo, getDemoIdentity } from './demo-policy';
-import { portalResponse } from './http';
+import { portalMessagePage, portalResponse } from './http';
 import { ensureUser } from './domain';
 import type { Actor } from './types';
 import { isStagingPortalActor, restrictedModeRequested, stagingPortalTestRequested } from '../staging-auth-policy';
@@ -38,12 +38,19 @@ export async function authorizePortal(context: APIContext, env: Cloudflare.Env, 
     const html = context.request.method === 'GET' && !context.url.pathname.startsWith('/api/');
     return {ok:false,response:html ? portalResponse(null,302,{Location:'/portal/acceso'}) : portalResponse('Authentication required',401)};
   }
-  if (options.admin && !actor.isAdmin) return {ok:false,response:portalResponse('Administrator access required',403)};
+  const browserPage = context.request.method === 'GET' && !context.url.pathname.startsWith('/api/');
+  if (options.admin && !actor.isAdmin) return {ok:false,response:browserPage
+    ? portalMessagePage('Esta sección es de administración.', 'Tu cuenta familiar no tiene acceso a las herramientas de administración. Tu cuenta, tus mensualidades y tus comprobantes siguen disponibles en tu portal.', 403)
+    : portalResponse('Administrator access required',403)};
   try {
     const user=await ensureUser(env.DB,actor);
-    if(!user.active)return {ok:false,response:portalResponse('La cuenta está desactivada. Contacta a la Asociación.',403)};
+    if(!user.active)return {ok:false,response:browserPage
+      ? portalMessagePage('Tu cuenta está desactivada.', 'La cuenta está desactivada. Contacta a la Asociación para revisar tu acceso al portal.', 403, '/portal/acceso', 'Volver al acceso')
+      : portalResponse('La cuenta está desactivada. Contacta a la Asociación.',403)};
   } catch {
-    return {ok:false,response:portalResponse('El acceso no está disponible. Revisa la inscripción y la configuración del portal.',403)};
+    return {ok:false,response:browserPage
+      ? portalMessagePage('El acceso no está disponible.', 'El acceso no está disponible. Revisa la inscripción y la configuración del portal, o contacta a la Asociación.', 403, '/portal/acceso', 'Volver al acceso')
+      : portalResponse('El acceso no está disponible. Revisa la inscripción y la configuración del portal.',403)};
   }
   context.locals.portalActor = actor;
   return {ok:true,actor};

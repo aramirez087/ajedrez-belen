@@ -10,7 +10,7 @@ const { charges, values = {}, legend = 'Distribuir entre mensualidades', prefix 
   {charges.map(charge => <div class="portal-allocation-row" data-allocation-athlete-id={charge.athleteId} role="group" tabindex="-1" aria-label={`Mensualidad de ${charge.athleteName}, ${monthLabel(charge.period)}`}>
     <label for={`${prefix}-${charge.id}`}>{charge.athleteName}<small id={`${prefix}-${charge.id}-balance`}>{monthLabel(charge.period)} · saldo {money(charge.balanceMinor)}</small></label>
     <input type="hidden" name="allocationChargeId[]" value={charge.id} />
-    <input id={`${prefix}-${charge.id}`} name="allocationAmount[]" type="number" min="0" max={inputMoney(Math.max(charge.balanceMinor, values[charge.id] ?? 0))} step="0.01" inputmode="decimal" value={inputMoney(values[charge.id] ?? 0)} aria-label={`Monto en colones para ${charge.athleteName}, ${monthLabel(charge.period)}`} aria-describedby={`${prefix}-${charge.id}-balance ${prefix}-amount-check`} data-allocation />
+    <input id={`${prefix}-${charge.id}`} name="allocationAmount[]" type="number" min="0" max={inputMoney(Math.max(charge.balanceMinor, values[charge.id] ?? 0))} step="0.01" inputmode="decimal" value={(values[charge.id] ?? 0) > 0 ? inputMoney(values[charge.id] ?? 0) : ''} placeholder="0,00…" aria-label={`Monto en colones para ${charge.athleteName}, ${monthLabel(charge.period)}`} aria-describedby={`${prefix}-${charge.id}-balance ${prefix}-amount-check`} data-allocation />
   </div>)}
   {charges.length === 0 && <p class="portal-help">No hay mensualidades pendientes para esta cuenta.</p>}
   <div class="portal-total"><span>Total distribuido</span><output data-allocation-total aria-live="polite">{money(Object.values(values).reduce((total, value) => total + value, 0))}</output></div>
@@ -18,7 +18,9 @@ const { charges, values = {}, legend = 'Distribuir entre mensualidades', prefix 
 </fieldset>
 <script>
   import { allocationSummary, minorAmount } from '../../lib/portal/allocation-validation';
-  const formatter = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC' });
+  const formatter = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const wholeFormatter = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 });
+  const formatMinor = (minor: number) => minor % 100 === 0 ? wholeFormatter.format(minor / 100) : formatter.format(minor / 100);
   document.querySelectorAll<HTMLElement>('[data-allocator]').forEach(group => {
     const form = group.closest<HTMLFormElement>('form');
     const output = group.querySelector<HTMLOutputElement>('[data-allocation-total]');
@@ -49,7 +51,7 @@ const { charges, values = {}, legend = 'Distribuir entre mensualidades', prefix 
       const summary = allocationSummary(inputs.map(input => input.value));
       valid = valid && summary.kind !== 'invalid';
       const total = summary.totalMinor;
-      if (output) output.value = valid ? formatter.format(total / 100) : 'Revisa los montos';
+      if (output) output.value = valid ? formatMinor(total) : 'Revisa los montos';
       const allocationError = eligible.length === 0
         ? 'No hay mensualidades disponibles para esta operación. Podrás continuar cuando haya una mensualidad pendiente.'
         : !valid ? 'Revisa los montos de las mensualidades. Usa un máximo de dos decimales y respeta cada saldo.'
@@ -65,13 +67,13 @@ const { charges, values = {}, legend = 'Distribuir entre mensualidades', prefix 
       if (transfer.value !== '' && amount === null) transfer.setCustomValidity('Escribe el monto en colones con un máximo de dos decimales, sin letras ni separadores de miles.');
       if (amount === null || !transfer.validity.valid) { if (transfer.value !== '') transfer.setAttribute('aria-invalid', 'true'); if (status) status.textContent = 'Completa un monto válido en colones para compararlo con el total distribuido. Usa un máximo de dos decimales, sin letras ni separadores de miles.'; return false; }
       if (total > amount) {
-        const message = `El total distribuido supera la transferencia por ${formatter.format((total - amount) / 100)}. Reduce la distribución o corrige el monto transferido.`;
+        const message = `El total distribuido supera la transferencia por ${formatMinor(total - amount)}. Reduce la distribución o corrige el monto transferido.`;
         if (status) { status.textContent = message; status.style.color = 'var(--red)'; }
         transfer.setCustomValidity(message); transfer.setAttribute('aria-invalid', 'true'); return false;
       }
       if (status) status.textContent = total === amount
         ? 'El total distribuido coincide con la transferencia. El pago se aplica después de la verificación bancaria.'
-        : `${formatter.format((amount - total) / 100)} quedarán como saldo a favor después de la verificación bancaria.`;
+        : `${formatMinor(amount - total)} quedarán como saldo a favor después de la verificación bancaria.`;
       return true;
     };
     (form ?? group).addEventListener('input', update);

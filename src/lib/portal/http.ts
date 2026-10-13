@@ -15,11 +15,24 @@ export class InputError extends Error {
   constructor(public code: string, public status = 400) { super(code); }
 }
 
+function escapeMessageHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+}
+
+/** Designed standalone message page for browser navigations that cannot render the portal shell. */
+export function portalMessagePage(title: string, message: string, status = 400, backHref = '/portal', backLabel = 'Volver a mi cuenta'): Response {
+  const html = `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${escapeMessageHtml(title)} · Ajedrez Belén</title>
+<style>:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:24px;background:#f7f4ec;color:#23281f;font-family:'DM Sans',Arial,sans-serif;line-height:1.65}main{width:100%;max-width:580px;padding:clamp(26px,6vw,44px);border:1px solid #d8d3c2;border-top:4px solid #8c302f;background:#fffdf7}.brand{margin:0 0 34px;font-size:15px;font-weight:700;letter-spacing:-.02em}.eyebrow{margin:0 0 12px;color:#8c302f;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}h1{margin:0;font-size:clamp(30px,6vw,42px);font-weight:600;line-height:1.12;letter-spacing:-.04em;text-wrap:balance}p{margin:18px 0 0;font-size:15.5px;color:#39402f}.actions{display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;margin-top:30px}.action{display:inline-flex;align-items:center;justify-content:center;gap:18px;min-height:50px;padding:13px 20px;border:1px solid #8c302f;background:#8c302f;color:#f7f4ec;font-size:14px;font-weight:600;text-decoration:none;box-shadow:5px 5px 0 rgb(35 40 31/.9)}.action:hover{background:#6e2422}.help{color:#8c302f;font-size:13px;font-weight:600}a:focus-visible{outline:3px solid #8c302f;outline-offset:4px}@media(max-width:380px){body{padding:16px}.action{width:100%}}</style></head>
+<body><main><p class="brand">Ajedrez Belén</p><p class="eyebrow">Portal de pagos</p><h1>${escapeMessageHtml(title)}</h1><p>${escapeMessageHtml(message)}</p><div class="actions"><a class="action" href="${escapeMessageHtml(backHref)}">${escapeMessageHtml(backLabel)} <span aria-hidden="true">→</span></a><a class="help" href="https://wa.me/50687686102">Consultar por WhatsApp ↗</a></div></main></body></html>`;
+  return portalResponse(html, status, { 'Content-Type': 'text/html; charset=utf-8' });
+}
+
 /** A setup hold is temporary and must not expose configured account details. */
 export function businessConfigurationUnavailable(request: Request): Response {
   return request.headers.get('accept')?.includes('application/json')
     ? portalResponse(JSON.stringify({ error: 'business_setup_required' }), 503, { 'Content-Type': 'application/json; charset=utf-8' })
-    : portalResponse('El registro y la confirmación de nuevos pagos no están disponibles. Contacta a la Asociación para confirmar la configuración de cobro.', 503, { 'Content-Type': 'text/plain; charset=utf-8' });
+    : portalMessagePage('El registro de pagos está en pausa.', 'El registro y la confirmación de nuevos pagos no están disponibles por el momento. Tu cuenta, tus mensualidades y tus comprobantes siguen disponibles. Contacta a la Asociación para confirmar la configuración de cobro.', 503);
 }
 
 export async function readPortalForm(request: Request, upload = false): Promise<FormData> {

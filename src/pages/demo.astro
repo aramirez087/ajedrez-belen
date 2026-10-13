@@ -15,5 +15,5 @@ const roles = [
 ---
 <PortalLayout title="Demostración del portal" hideNav>
   <PageHeader title="Probemos el recorrido." eyebrow="Demostración local" description="Elige una cuenta de prueba. Los atletas, las transferencias y los comprobantes de esta demostración son ficticios." />
-  <div class="portal-demo-roles">{roles.map(role => <form class="portal-demo-role" action="/api/portal/demo" method="post"><h2>{role.name}</h2><p>{role.description}</p><input type="hidden" name="role" value={role.key} /><button type="submit" class="portal-button">Entrar a esta cuenta <span aria-hidden="true">→</span></button></form>)}</div>
+  <div class="portal-demo-roles">{roles.map(role => <form class="portal-demo-role" action="/api/portal/demo" method="post"><h2>{role.name}</h2><p>{role.description}</p><input type="hidden" name="role" value={role.key} /><button type="submit" class="portal-button" aria-label={`Entrar a la cuenta de ${role.name}`}>Entrar a esta cuenta <span aria-hidden="true">→</span></button></form>)}</div>
 </PortalLayout>
