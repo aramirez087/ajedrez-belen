@@ -13,15 +13,18 @@ export const POST: APIRoute = async (context) => {
   const service = getAuthService(env);
   if (!service) return authUnavailableResponse();
   if (stagingAuthSetupRequested(env)) return stagingSignOut(context, env, service);
+  // A shared phone must not hand the next person a saved invitation.
+  context.cookies.delete('pending-invitation', { path: '/' });
+  context.cookies.delete('wos-pending-auth', { path: '/auth' });
   const auth = context.locals.auth;
   if (!auth?.user) {
     await service.clearSession(context.cookies);
-    return context.redirect('/', 303);
+    return context.redirect('/portal/acceso?notice=logged_out', 303);
   }
   // Replace any refresh queued by middleware before Astro appends its cookies.
   await service.clearSession(context.cookies);
   const { logoutUrl, headers } = await service.signOut(auth.sessionId, {
-    returnTo: new URL('/', env.WORKOS_REDIRECT_URI).toString(),
+    returnTo: new URL('/portal/acceso?notice=logged_out', env.WORKOS_REDIRECT_URI).toString(),
   });
   return appendAuthHeaders(context.redirect(logoutUrl, 303), headers);
 };

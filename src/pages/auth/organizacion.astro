@@ -1,0 +1,53 @@
+---
+import { env } from 'cloudflare:workers';
+import AuthShell from '../../components/portal/AuthShell.astro';
+import { authUnavailableResponse } from '../../lib/auth';
+import { selectOrganization } from '../../lib/auth-actions';
+import { clientMeta } from '../../lib/auth-flow';
+import { applyAuthOutcome, clearPendingAuth, readPendingAuth, workosClient } from '../../lib/auth-pages';
+import { portalResponse, readPortalForm } from '../../lib/portal/http';
+export const prerender = false;
+if (env.PORTAL_ENABLED !== 'true') return portalResponse('No encontrado.', 404);
+
+const pending = await readPendingAuth(Astro.cookies);
+if (!pending) return Astro.redirect('/auth/entrar', 302);
+if (pending.kind !== 'organization') return Astro.redirect('/auth/codigo', 302);
+
+let error = '';
+if (Astro.request.method === 'POST') {
+  const auth = workosClient();
+  if (!auth) return authUnavailableResponse();
+  try {
+    const form = await readPortalForm(Astro.request);
+    if (String(form.get('accion') ?? '') === 'cancelar') {
+      clearPendingAuth(Astro.cookies);
+      return Astro.redirect('/auth/entrar', 303);
+    }
+    const organizationId = String(form.get('organizationId') ?? '');
+    if (!pending.organizations?.some(org => org.id === organizationId)) {
+      error = 'Elige una de las organizaciones de la lista.';
+    } else {
+      const outcome = await selectOrganization(auth.client, env, pending, organizationId, clientMeta(Astro.request));
+      const applied = await applyAuthOutcome(Astro, outcome, { destino: pending.destino, next: pending.next });
+      if ('response' in applied) return applied.response;
+      error = applied.error;
+    }
+  } catch {
+    error = 'No pudimos leer el formulario. Vuelve a intentarlo.';
+  }
+}
+---
+<AuthShell title="Elige tu organización" heading="¿Con cuál organización entras?" description="Tu correo pertenece a más de una organización. Elige con cuál quieres entrar esta vez; puedes salir y volver a entrar con la otra cuando lo necesites." error={error}>
+  <div class="portal-auth-orgs">
+    {pending.organizations!.map(org => (
+      <form method="post">
+        <input type="hidden" name="organizationId" value={org.id} />
+        <button class="portal-button portal-button-secondary portal-button-wide" type="submit">Continuar con {org.name} <span aria-hidden="true">→</span></button>
+      </form>
+    ))}
+  </div>
+  <div class="portal-auth-links">
+    <span></span>
+    <form method="post"><input type="hidden" name="accion" value="cancelar" /><button class="portal-link portal-text-button" type="submit">Cancelar y volver <span aria-hidden="true">↗</span></button></form>
+  </div>
+</AuthShell>

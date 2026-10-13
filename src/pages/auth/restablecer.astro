@@ -1,0 +1,60 @@
+---
+import { env } from 'cloudflare:workers';
+import AuthShell from '../../components/portal/AuthShell.astro';
+import PasswordField from '../../components/portal/PasswordField.astro';
+import { authUnavailableResponse } from '../../lib/auth';
+import { completePasswordReset } from '../../lib/auth-actions';
+import { workosClient } from '../../lib/auth-pages';
+import { portalResponse, readPortalForm } from '../../lib/portal/http';
+export const prerender = false;
+if (env.PORTAL_ENABLED !== 'true') return portalResponse('No encontrado.', 404);
+
+const TOKEN_PATTERN = /^[A-Za-z0-9_\-.]{10,1024}$/;
+let token = Astro.url.searchParams.get('token') ?? '';
+let error = '';
+if (Astro.request.method === 'POST') {
+  const auth = workosClient();
+  if (!auth) return authUnavailableResponse();
+  try {
+    const form = await readPortalForm(Astro.request);
+    token = String(form.get('token') ?? '');
+    const password = String(form.get('password') ?? '');
+    const confirmation = String(form.get('confirmation') ?? '');
+    if (!TOKEN_PATTERN.test(token)) {
+      error = 'Este enlace no es válido. Pide un enlace nuevo desde «¿Olvidaste tu contraseña?».';
+    } else if (password.length < 10) {
+      error = 'La contraseña debe tener al menos 10 caracteres, mezclando letras y números.';
+    } else if (password.length > 256) {
+      error = 'La contraseña es demasiado larga. Usa una de menos de 256 caracteres.';
+    } else if (password !== confirmation) {
+      error = 'Las contraseñas no coinciden. Escríbelas de nuevo.';
+    } else {
+      const result = await completePasswordReset(auth.client, token, password);
+      if (result.ok) return Astro.redirect('/auth/entrar?notice=contrasena_actualizada', 303);
+      error = result.message;
+    }
+  } catch {
+    error = 'No pudimos leer el formulario. Vuelve a intentarlo.';
+  }
+}
+const validLink = TOKEN_PATTERN.test(token);
+---
+<AuthShell title="Contraseña nueva" heading="Elige tu contraseña nueva." description="Escribe una contraseña que no uses en otro sitio. Al guardarla se cierran tus sesiones en otros equipos, por seguridad." error={error}>
+  {validLink ? <>
+    <form class="portal-form" method="post" action="/auth/restablecer">
+      <input type="hidden" name="token" value={token} />
+      <PasswordField id="password" name="password" label="Contraseña nueva" autocomplete="new-password" toggle help="Al menos 10 caracteres, mezclando letras y números." />
+      <PasswordField id="confirmation" name="confirmation" label="Repite tu contraseña" autocomplete="new-password" />
+      <button class="portal-button portal-button-wide" type="submit">Guardar contraseña nueva <span aria-hidden="true">→</span></button>
+    </form>
+  </> : <>
+    <div class="portal-guidance">
+      <h3>Este enlace no sirve</h3>
+      <p>Venció, ya se usó o llegó incompleto. Pide un enlace nuevo y úsalo apenas llegue a tu correo.</p>
+    </div>
+    <div class="portal-auth-links">
+      <a class="portal-link" href="/auth/recuperar">Pedir un enlace nuevo <span aria-hidden="true">↗</span></a>
+      <a class="portal-link" href="/auth/entrar">Volver a iniciar sesión <span aria-hidden="true">↗</span></a>
+    </div>
+  </>}
+</AuthShell>

@@ -22,9 +22,9 @@ This branding covers hosted AuthKit, WorkOS transactional emails (invitation,
 verification, magic auth, password reset) and the Admin Portal. Read-back verified
 in both environments; billing read-back remains $0 / Pay as you go with no paid add-on.
 
-### Spanish localization — fixed 13 October 2026
+### Spanish localization — fixed 13 October 2026, replaced by own UI later that day
 
-The login screen was still in English because both environments had
+The login screen was still partly in English because both environments had
 `defaultLocale: en-US` (localization enabled), the sign-up heading was
 `Create your Ajedrez Belén account`, Staging's sign-in heading was
 `Welcome to Ajedrez Belén`, and every existing user had `locale: en-US`/`en-GB`
@@ -33,7 +33,6 @@ The login screen was still in English because both environments had
 Fixed in Staging and Production, read-back verified:
 
 - `defaultLocale: es-419` (Latin-American Spanish), localization still enabled.
-  This localizes all AuthKit UI labels and future WorkOS transactional emails.
 - Sign-in/sign-up headings above, also pinned in Spanish for `es`, `es-419`,
   `es-ES`, `en`, `en-US` and `en-GB` so a browser set to English cannot fall
   back to an English heading.
@@ -41,6 +40,40 @@ Fixed in Staging and Production, read-back verified:
   `user_01M4SQMQKETQMKM1254C25V224`; Staging `user_01M4MJY2GGNK2GTTH9AYRDTP78`
   and `user_01M4P8D7B09WZD8A27CB7MG72P`. Emails already sent stay English;
   no test email was sent to prove the new wording.
+
+That fix was incomplete: WorkOS serves the hosted AuthKit UI in the locale
+closest to the visitor's device/browser language, and `defaultLocale` is
+only the fallback when no locale matches. An English-language phone still
+saw English labels and links (`Don't have an account? Sign up`) under the
+Spanish heading — verified live by fetching the hosted page with
+`Accept-Language: en-US` vs `es-CR`. Neither a `locale` authorize parameter
+nor disabling localization forces Spanish (both tested; staging restored).
+
+Resolution: the app no longer sends families or administrators to the
+hosted UI. Own Spanish pages live at `/auth/entrar`, `/auth/registro`,
+`/auth/codigo`, `/auth/organizacion`, `/auth/recuperar` and
+`/auth/restablecer` (`src/lib/auth-actions.ts`, `src/lib/auth-flow.ts`),
+calling the WorkOS User Management API directly while sessions, refresh
+and logout still come from `@workos/authkit-session` (same `wos-session`
+cookie). The pending second step travels in an HMAC-signed cookie. The
+API only challenges TOTP when the environment/organization requires MFA,
+while hosted AuthKit challenged every enrolled person, so the app holds
+the sealed session back until one TOTP code passes for enrolled users
+(`sessionOutcome` in `src/lib/auth-actions.ts`). Password-reset email is
+sent by the app via Brevo in Spanish (`src/lib/auth-email.ts`);
+verification-code email is sent by WorkOS in the user's locale, pinned
+to `es-419` at sign-up and on every sign-in. The hosted flow remains
+only for the restricted staging test pins and the old prototype
+(`/auth/login`), plus any link inside a WorkOS-sent email that still
+points at AuthKit. Verified end to end locally against a WorkOS
+sandbox: registration → verification code → portal, sign-in,
+wrong-password message, invitation redirect priority, organization
+selection, TOTP step (session withheld until the code passes),
+administrator denial for a family account, password reset, and logout.
+Not covered by the new UI: MFA enrollment, passkeys, SSO and social
+login (none are used by production accounts today); the hosted page's
+built-in bot protection also no longer fronts sign-in, so WorkOS API
+rate limits are the only throttle — consider Turnstile if abuse appears.
 
 ### One manual step remains (dashboard upload)
 

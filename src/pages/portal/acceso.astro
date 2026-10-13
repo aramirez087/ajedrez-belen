@@ -4,14 +4,47 @@ import PortalLayout from '../../layouts/PortalLayout.astro';
 import PageHeader from '../../components/portal/PageHeader.astro';
 import { allowPortalDemo } from '../../lib/portal/demo-policy';
 import { portalResponse } from '../../lib/portal/http';
+import { getPortalIdentity } from '../../lib/portal/access';
+import { safePortalReturnPath } from '../../lib/portal/invitation-entry';
 export const prerender = false;
 if (env.PORTAL_ENABLED !== 'true') return portalResponse('No encontrado.', 404);
 const demo = allowPortalDemo(Astro.url, import.meta.env.DEV, env);
+const pendingInvitation = Astro.cookies.has('pending-invitation');
+const next = safePortalReturnPath(Astro.url.searchParams.get('next'));
+// Already signed in? This page has nothing for you: go where you were headed.
+const identity = getPortalIdentity(Astro, env);
+if (identity) return portalResponse(null, 302, { Location: pendingInvitation ? '/portal/invitacion' : (next ?? '/portal') });
+const parentHref = next ? `/auth/entrar?next=${encodeURIComponent(next)}` : '/auth/entrar';
+const whatsapp = 'https://wa.me/50687686102';
 ---
 <PortalLayout title="Acceso al portal" hideNav>
-  <PageHeader title="Tu cuenta, al día." eyebrow="Portal de pagos" description="Consulta las mensualidades de tus atletas, registra una transferencia y recibe el comprobante después de su verificación." />
-  <div class="portal-two-columns">
-    <section class="portal-panel"><div class="portal-guidance portal-guidance-strong"><h2>Para las familias</h2><p>Ingresa con el correo que la Asociación vinculó a tus atletas. Ambos encargados pueden tener su propia cuenta.</p><a class="portal-button" href="/auth/parent">Iniciar sesión <span aria-hidden="true">→</span></a><p>Si aún no tienes acceso, solicita a la Asociación un enlace de invitación.</p></div></section>
-    <section class="portal-panel"><h2>Administración</h2><p class="portal-section-caption">Ingreso reservado para el personal autorizado de la Asociación.</p><a class="portal-link" href="/auth/admin">Ingresar como administrador <span aria-hidden="true">↗</span></a>{demo && <><hr class="portal-divider" /><p class="portal-help">La demostración usa datos ficticios y está disponible en este equipo.</p><a class="portal-link" href="/demo">Abrir demostración <span aria-hidden="true">↗</span></a></>}</section>
-  </div>
+  <PageHeader title={pendingInvitation ? '¡Ya casi! Tu invitación llegó bien.' : 'Tu cuenta, al día.'} eyebrow="Portal de pagos" description={pendingInvitation ? 'Guardamos tu enlace de invitación en este teléfono. Solo falta que inicies sesión con el correo que recibió la invitación; al volver, la aceptas con un toque.' : 'Consulta las mensualidades de tus atletas, registra una transferencia y recibe el comprobante después de su verificación.'} />
+  {pendingInvitation ? <>
+    <div class="portal-two-columns">
+      <section class="portal-panel"><div class="portal-guidance portal-guidance-strong"><h2>Sigue estos 3 pasos</h2>
+        <ol class="portal-steps">
+          <li>Toca el botón de abajo. Te llevamos a nuestra página de acceso.</li>
+          <li>Entra con <strong>el mismo correo</strong> al que te enviaron la invitación. Si es tu primera vez, ahí mismo creas tu cuenta.</li>
+          <li>Vuelves aquí automáticamente y tocas <strong>«Aceptar invitación»</strong>. ¡Listo!</li>
+        </ol>
+        <a class="portal-button" href={parentHref} style="margin-top:20px">Iniciar sesión y aceptar mi invitación <span aria-hidden="true">→</span></a>
+        <p>¿El enlace te llegó a otro correo? Sal de cualquier otra cuenta y entra con ese correo; la invitación solo funciona con él.</p>
+      </div></section>
+      <aside class="portal-panel"><h2>¿Algo no sale?</h2><p class="portal-section-caption">Si el enlace venció (duran siete días) o no recuerdas qué correo usaste, te enviamos uno nuevo.</p><a class="portal-button portal-button-secondary" href={whatsapp}>Pedir ayuda por WhatsApp <span aria-hidden="true">↗</span></a><p class="portal-help" style="margin-top:16px">¿Eres de la Asociación? <a class="portal-link" href="/auth/entrar?destino=admin">Ingreso de administración <span aria-hidden="true">↗</span></a></p></aside>
+    </div>
+  </> : <>
+    <div class="portal-two-columns">
+      <section class="portal-panel"><div class="portal-guidance portal-guidance-strong"><h2>Para las familias</h2><p>Ingresa con el correo que la Asociación vinculó a tus atletas. Cada encargado puede tener su propia cuenta; no compartas la tuya.</p>
+        <ol class="portal-steps">
+          <li>Toca <strong>«Iniciar sesión»</strong>. Te llevamos a nuestra página de acceso.</li>
+          <li>Escribe tu correo y sigue los pasos en pantalla.</li>
+          <li>Vuelves a tu cuenta automáticamente.</li>
+        </ol>
+        <a class="portal-button" href={parentHref} style="margin-top:20px">Iniciar sesión <span aria-hidden="true">→</span></a>
+        <p><strong>¿Primera vez?</strong> Necesitas un enlace de invitación de la Asociación. Ábrelo en este mismo teléfono y sigue los pasos; si no lo tienes, pídelo por WhatsApp.</p>
+        <a class="portal-button portal-button-secondary" href={whatsapp} style="margin-top:14px">Pedir mi invitación por WhatsApp <span aria-hidden="true">↗</span></a>
+      </div></section>
+      <section class="portal-panel"><h2>Administración</h2><p class="portal-section-caption">Ingreso reservado para el personal autorizado de la Asociación. Si eres encargado de un atleta, usa el botón grande de familias.</p><a class="portal-link" href="/auth/entrar?destino=admin">Ingresar como administración <span aria-hidden="true">↗</span></a>{demo && <><hr class="portal-divider" /><p class="portal-help">La demostración usa datos ficticios y está disponible en este equipo.</p><a class="portal-link" href="/demo">Abrir demostración <span aria-hidden="true">↗</span></a></>}</section>
+    </div>
+  </>}
 </PortalLayout>

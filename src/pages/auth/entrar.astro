@@ -1,0 +1,81 @@
+---
+import { env } from 'cloudflare:workers';
+import AuthShell from '../../components/portal/AuthShell.astro';
+import PasswordField from '../../components/portal/PasswordField.astro';
+import { authUnavailableResponse } from '../../lib/auth';
+import { signInWithPassword } from '../../lib/auth-actions';
+import {
+  afterLoginPath, clientMeta, parseDestino, validAuthEmail,
+} from '../../lib/auth-flow';
+import { applyAuthOutcome, workosClient } from '../../lib/auth-pages';
+import { getPortalIdentity } from '../../lib/portal/access';
+import { safePortalReturnPath } from '../../lib/portal/invitation-entry';
+import { portalResponse, readPortalForm } from '../../lib/portal/http';
+export const prerender = false;
+if (env.PORTAL_ENABLED !== 'true') return portalResponse('No encontrado.', 404);
+
+const destino = parseDestino(Astro.url.searchParams.get('destino'));
+const next = safePortalReturnPath(Astro.url.searchParams.get('next'));
+const hasInvitation = Astro.cookies.has('pending-invitation');
+const identity = getPortalIdentity(Astro, env);
+if (identity) return Astro.redirect(afterLoginPath(destino, next, hasInvitation), 302);
+
+let error = '';
+let email = '';
+// ?error= and ?notice= are rendered by the layout's Notice component.
+
+if (Astro.request.method === 'POST') {
+  const auth = workosClient();
+  if (!auth) return authUnavailableResponse();
+  try {
+    const form = await readPortalForm(Astro.request);
+    email = String(form.get('email') ?? '').trim().toLowerCase();
+    const password = String(form.get('password') ?? '');
+    if (!validAuthEmail(email) || password.length === 0) {
+      error = 'Escribe tu correo completo y tu contraseña.';
+    } else if (password.length > 256) {
+      error = 'El correo o la contraseña no son correctos. Revisa los datos e inténtalo de nuevo.';
+    } else {
+      const outcome = await signInWithPassword(auth.client, env, {
+        email, password, destino, next, meta: clientMeta(Astro.request),
+      });
+      const applied = await applyAuthOutcome(Astro, outcome, { destino, next });
+      if ('response' in applied) return applied.response;
+      error = applied.error;
+    }
+  } catch {
+    error = 'No pudimos leer el formulario. Vuelve a intentarlo.';
+  }
+}
+
+const registroHref = `/auth/registro?destino=${destino}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
+const recuperarHref = `/auth/recuperar?destino=${destino}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
+const familiaHref = `/auth/entrar${next ? `?next=${encodeURIComponent(next)}` : ''}`;
+const adminHref = `/auth/entrar?destino=admin${next ? `&next=${encodeURIComponent(next)}` : ''}`;
+---
+<AuthShell
+  title={destino === 'admin' ? 'Ingreso de administración' : 'Iniciar sesión'}
+  heading={destino === 'admin' ? 'Ingreso de administración.' : 'Te damos la bienvenida.'}
+  description={destino === 'admin'
+    ? 'Ingreso reservado para el personal autorizado de la Asociación. Si eres encargado de un atleta, usa el ingreso de familias.'
+    : 'Entra con el correo que la Asociación vinculó a tus atletas para consultar mensualidades, registrar pagos y ver tus comprobantes.'}
+  error={error}
+>
+  <div class="portal-role-switch portal-auth-switch" role="navigation" aria-label="Tipo de ingreso">
+    <a href={familiaHref} aria-current={destino === 'familia' ? 'page' : undefined}>Familias</a>
+    <a href={adminHref} aria-current={destino === 'admin' ? 'page' : undefined}>Administración</a>
+  </div>
+  {hasInvitation && destino === 'familia' && <div class="portal-guidance" style="margin-bottom:20px"><h3>Tu invitación ya llegó</h3><p>Entra con <strong>el mismo correo</strong> al que te enviaron la invitación. Si es tu primera vez, crea tu cuenta con el enlace de abajo; al volver, aceptas la invitación con un toque.</p></div>}
+  <form class="portal-form" method="post" action={Astro.url.pathname + Astro.url.search}>
+    <div class="portal-field">
+      <label for="email">Correo electrónico</label>
+      <input id="email" name="email" type="email" autocomplete="username" inputmode="email" spellcheck="false" maxlength="254" value={email} placeholder="tucorreo@ejemplo.com" required />
+    </div>
+    <PasswordField id="password" name="password" label="Contraseña" autocomplete="current-password" toggle />
+    <button class="portal-button portal-button-wide" type="submit">Iniciar sesión <span aria-hidden="true">→</span></button>
+  </form>
+  <div class="portal-auth-links">
+    <a class="portal-link" href={recuperarHref}>¿Olvidaste tu contraseña? <span aria-hidden="true">↗</span></a>
+    <a class="portal-link" href={registroHref}>¿No tienes cuenta? Regístrate <span aria-hidden="true">↗</span></a>
+  </div>
+</AuthShell>

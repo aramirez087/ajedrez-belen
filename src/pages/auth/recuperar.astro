@@ -1,0 +1,62 @@
+---
+import { env } from 'cloudflare:workers';
+import AuthShell from '../../components/portal/AuthShell.astro';
+import { authUnavailableResponse } from '../../lib/auth';
+import { createPasswordReset } from '../../lib/auth-actions';
+import { sendPasswordResetEmail } from '../../lib/auth-email';
+import { validAuthEmail } from '../../lib/auth-flow';
+import { workosClient } from '../../lib/auth-pages';
+import { portalResponse, readPortalForm } from '../../lib/portal/http';
+export const prerender = false;
+if (env.PORTAL_ENABLED !== 'true') return portalResponse('No encontrado.', 404);
+
+let sent = false;
+let error = '';
+if (Astro.request.method === 'POST') {
+  const auth = workosClient();
+  if (!auth) return authUnavailableResponse();
+  try {
+    const form = await readPortalForm(Astro.request);
+    const email = String(form.get('email') ?? '').trim().toLowerCase();
+    if (!validAuthEmail(email)) {
+      error = 'Escribe tu correo completo.';
+    } else {
+      // The answer is always the same so this page cannot be used to find
+      // out whether a given correo has an account.
+      const reset = await createPasswordReset(auth.client, email);
+      if (reset) {
+        const resetUrl = new URL('/auth/restablecer', Astro.url.origin);
+        resetUrl.searchParams.set('token', reset.token);
+        await sendPasswordResetEmail(env, { to: reset.email, resetUrl: resetUrl.toString() });
+      }
+      sent = true;
+    }
+  } catch {
+    error = 'No pudimos leer el formulario. Vuelve a intentarlo.';
+  }
+}
+const entrarHref = '/auth/entrar';
+---
+<AuthShell title="Recuperar tu contraseña" heading="¿Olvidaste tu contraseña?" description="Escribe el correo de tu cuenta y te enviamos un enlace para elegir una contraseña nueva. El enlace vence pronto y solo se puede usar una vez." error={error}>
+  {sent ? <>
+    <div class="portal-guidance">
+      <h3>Revisa tu correo</h3>
+      <p>Si existe una cuenta con ese correo, ya te enviamos el enlace para restablecer tu contraseña. Revisa también la carpeta de spam o correo no deseado.</p>
+      <p>¿No llega nada en unos minutos? Pídenos ayuda por WhatsApp y lo resolvemos contigo.</p>
+    </div>
+    <div class="portal-auth-links">
+      <a class="portal-link" href={entrarHref}>Volver a iniciar sesión <span aria-hidden="true">↗</span></a>
+    </div>
+  </> : <>
+    <form class="portal-form" method="post">
+      <div class="portal-field">
+        <label for="email">Correo electrónico</label>
+        <input id="email" name="email" type="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" placeholder="tucorreo@ejemplo.com" required />
+      </div>
+      <button class="portal-button portal-button-wide" type="submit">Enviarme el enlace <span aria-hidden="true">→</span></button>
+    </form>
+    <div class="portal-auth-links">
+      <a class="portal-link" href={entrarHref}>Volver a iniciar sesión <span aria-hidden="true">↗</span></a>
+    </div>
+  </>}
+</AuthShell>

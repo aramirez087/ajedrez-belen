@@ -1,0 +1,15 @@
+---
+import PortalLayout from '../../layouts/PortalLayout.astro';
+import PageHeader from './PageHeader.astro';
+interface Props { title: string; heading: string; description: string; error?: string; notice?: string }
+const { title, heading, description, error, notice } = Astro.props;
+---
+<PortalLayout title={title} hideNav>
+  <div class="portal-auth">
+    <PageHeader title={heading} eyebrow="Portal de pagos" description={description} />
+    {error && <div class="portal-notice portal-notice-error" role="alert"><strong><span aria-hidden="true">✗</span> No se pudo completar.</strong><p>{error}</p></div>}
+    {notice && <div class="portal-notice portal-notice-success" role="status"><strong><span aria-hidden="true">✓</span> Listo.</strong><p>{notice}</p></div>}
+    <section class="portal-auth-card"><slot /></section>
+    <p class="portal-help" style="margin-top:18px">¿Algo no sale? <a class="portal-link" href="https://wa.me/50687686102">Escríbenos por WhatsApp <span aria-hidden="true">↗</span></a> y te ayudamos paso a paso.</p>
+  </div>
+</PortalLayout>
