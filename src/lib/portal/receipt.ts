@@ -106,7 +106,7 @@ export function renderReceipt(input: ReceiptSnapshot, presentation: ReceiptPrese
     ['Número', data.receiptNumber], ['Pagado por', data.payerName],
     ['Fecha del pago', date.format(new Date(`${data.paymentDate}T12:00:00.000Z`))],
     ['Referencia bancaria', data.bankReference], ['Banco', data.bankName],
-    ['Cuenta receptora', data.receivingAccount], ['Monto recibido', money.format(data.amountMinor / 100)],
+    ['Cuenta destino', data.receivingAccount], ['Monto recibido', money.format(data.amountMinor / 100)],
     ['Fecha de emisión', date.format(new Date(data.issuedAt))],
   ];
   const allocations = data.lines.map((line) => ({ athlete: line.athleteName,
@@ -117,7 +117,7 @@ export function renderReceipt(input: ReceiptSnapshot, presentation: ReceiptPrese
     ? 'Comprobante ficticio emitido durante una verificación simulada. No se recibieron fondos reales.'
     : 'Comprobante numerado emitido por la Asociación después de verificar el ingreso en la cuenta bancaria.';
   const credit = data.unallocatedMinor > 0 ? `Saldo a favor sin aplicar: ${money.format(data.unallocatedMinor / 100)}.` : '';
-  const replyNotice = 'Las respuestas a este correo no se atienden. Para consultas, escribinos por';
+  const replyNotice = 'Las respuestas a este correo no se atienden. Para consultas, escríbenos por';
   const whatsappUrl = 'https://wa.me/50687686102';
   return {
     subject: `${data.demo ? '[DEMOSTRACIÓN] ' : ''}${voided ? '[ANULADO] ' : ''}Comprobante ${data.receiptNumber}`,

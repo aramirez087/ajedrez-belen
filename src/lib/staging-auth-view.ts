@@ -44,7 +44,7 @@ export function stagingAuthSetupPage(verified: boolean, portalTest = false): Res
   if (verified) {
     return page('Inicio de sesión verificado', `
       <p>La cuenta autorizada para esta prueba completó el inicio de sesión.</p>
-      ${portalTest ? '<p class="scope">Prueba privada con datos ficticios. No realicés transferencias. Los correos se simulan y la lectura automática está desactivada.</p><a class="action" href="/admin">Abrir administración de prueba</a>' : '<p class="scope">El portal de pagos continúa deshabilitado. Esta prueba no consulta ni modifica datos de pagos.</p>'}
+      ${portalTest ? '<p class="scope">Prueba privada con datos ficticios. No realices transferencias. Los correos se simulan y la lectura automática está desactivada.</p><a class="action" href="/admin">Abrir administración de prueba</a>' : '<p class="scope">El portal de pagos continúa deshabilitado. Esta prueba no consulta ni modifica datos de pagos.</p>'}
       <form method="post" action="/auth/logout">
         <button class="action" type="submit">Cerrar sesión</button>
       </form>
@@ -53,7 +53,7 @@ export function stagingAuthSetupPage(verified: boolean, portalTest = false): Res
 
   return page('Verificación de acceso', `
     <p>Comprobá el inicio de sesión con la cuenta autorizada para esta prueba.</p>
-    <p class="scope">${portalTest ? 'Prueba privada para la cuenta autorizada. Solo datos ficticios; no realicés transferencias.' : 'El portal de pagos continúa deshabilitado. Esta prueba solo verifica el acceso; no consulta ni modifica datos de pagos.'}</p>
+    <p class="scope">${portalTest ? 'Prueba privada para la cuenta autorizada. Solo datos ficticios; no realices transferencias.' : 'El portal de pagos continúa deshabilitado. Esta prueba solo verifica el acceso; no consulta ni modifica datos de pagos.'}</p>
     <a class="action" href="/auth/admin">Iniciar sesión</a>
   `);
 }

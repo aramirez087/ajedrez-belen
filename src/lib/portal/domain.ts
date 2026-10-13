@@ -192,6 +192,50 @@ function monthlySnapshot(period: string, athletes: Athlete[]): string {
   return JSON.stringify([period, [...athletes].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
     .map(athlete => [athlete.id, ...JSON.parse(athleteFeeSnapshot(athlete))])]);
 }
+type PreviewAthlete = Athlete & { siblingMinor?: number; familySize?: number };
+function previewSnapshot(period: string, athletes: PreviewAthlete[]): string {
+  return JSON.stringify([period, [...athletes].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    .map(athlete => [athlete.id, ...JSON.parse(athleteFeeSnapshot(athlete)), athlete.siblingMinor ?? 0, athlete.familySize ?? 1])]);
+}
+export const SIBLING_DISCOUNT_REASON = "Descuento hermanos 25%";
+/** Siblings share at least one active guardian; groups merge transitively. */
+export function siblingFamilySizes(links: Array<{ userId: string; athleteId: string }>, athleteIds: string[]): Map<string, number> {
+  const parent = new Map<string, string>();
+  const find = (x: string): string => {
+    let root = x;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    return root;
+  };
+  for (const athleteId of athleteIds) parent.set(`a:${athleteId}`, `a:${athleteId}`);
+  for (const link of links) {
+    if (!parent.has(`a:${link.athleteId}`)) continue;
+    const userNode = `u:${link.userId}`;
+    if (!parent.has(userNode)) parent.set(userNode, userNode);
+    const ra = find(`a:${link.athleteId}`);
+    const ru = find(userNode);
+    if (ra !== ru) parent.set(ra, ru);
+  }
+  const counts = new Map<string, number>();
+  for (const athleteId of athleteIds) {
+    const root = find(`a:${athleteId}`);
+    counts.set(root, (counts.get(root) ?? 0) + 1);
+  }
+  return new Map(athleteIds.map((athleteId) => [athleteId, counts.get(find(`a:${athleteId}`)) ?? 1]));
+}
+async function siblingDiscounts(db: D1Database, athletes: Athlete[]): Promise<Map<string, { siblingMinor: number; familySize: number }>> {
+  if (!athletes.length) return new Map();
+  const links = await rows<{ userId: string; athleteId: string }>(
+    db,
+    `SELECT user_id AS userId, athlete_id AS athleteId FROM guardian_links WHERE active=1 AND athlete_id IN (${athletes.map(() => "?").join(",")})`,
+    athletes.map((a) => a.id),
+  );
+  const sizes = siblingFamilySizes(links, athletes.map((a) => a.id));
+  return new Map(athletes.map((a) => {
+    const familySize = sizes.get(a.id) ?? 1;
+    const siblingMinor = familySize > 1 ? Math.round((a.feeMinor - a.discountMinor) * 0.25) : 0;
+    return [a.id, { siblingMinor, familySize }];
+  }));
+}
 async function snapshotDigest(snapshot: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(snapshot));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
@@ -357,21 +401,28 @@ export async function getMonthlyPreview(
   period: string,
 ): Promise<MonthlyPreview> {
   validatePeriod(period);
-  const athletes = athleteMap(
+  const base = athleteMap(
     await rows<Athlete & { alreadyPublished: number }>(
       db,
       `${athleteSql.replace(" FROM athletes", ",EXISTS(SELECT 1 FROM charges c WHERE c.athlete_id=athletes.id AND c.period=?) AS alreadyPublished FROM athletes")} WHERE active=1 AND start_period<=? ORDER BY name`,
       [period, period],
     ),
-  ).map((a) => ({
-    ...a,
-    alreadyPublished: !!(a as Athlete & { alreadyPublished: number })
-      .alreadyPublished,
-    totalMinor: a.feeMinor - a.discountMinor,
-  }));
+  );
+  const discounts = await siblingDiscounts(db, base);
+  const athletes = base.map((a) => {
+    const sibling = discounts.get(a.id) ?? { siblingMinor: 0, familySize: 1 };
+    return {
+      ...a,
+      alreadyPublished: !!(a as Athlete & { alreadyPublished: number })
+        .alreadyPublished,
+      siblingMinor: sibling.siblingMinor,
+      familySize: sibling.familySize,
+      totalMinor: a.feeMinor - a.discountMinor - sibling.siblingMinor,
+    };
+  });
   return {
     period,
-    snapshot: await snapshotDigest(monthlySnapshot(period, athletes)),
+    snapshot: await snapshotDigest(previewSnapshot(period, athletes)),
     dueDate: `${period}-08`,
     athletes,
     newCount: athletes.filter((a) => !a.alreadyPublished).length,
@@ -822,21 +873,27 @@ export async function publishMonth(
     fail("Las cuotas o las inscripciones cambiaron. Actualiza la vista previa.", 409, "conflict");
   const reviewed = monthlySnapshot(period, preview.athletes);
   const now = iso();
+  const pending = preview.athletes.filter((a) => !a.alreadyPublished);
   const result = await batch(db, [
     // The guarded audit is also the transaction's successful snapshot claim.
     // A stale roster writes neither an audit nor charges; any later insert error rolls both back.
     bindings(db,
       `INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) SELECT ?,?,'month',?,'publish',?,? WHERE ${monthlySnapshotSql}=?`,
       [id(), actor.id, period, JSON.stringify({ snapshot: expectedSnapshot }), now, period, period, reviewed]),
-    bindings(
+    ...pending.map((a) => bindings(
       db,
-      `INSERT OR IGNORE INTO charges(id,athlete_id,period,due_date,base_minor,discount_minor,discount_reason,published_by,created_at) SELECT lower(hex(randomblob(16))),id,?,?,fee_minor,discount_minor,discount_reason,?,? FROM athletes WHERE active=1 AND start_period<=? AND ${monthlySnapshotSql}=?`,
-      [period, `${period}-08`, actor.id, now, period, period, period, reviewed],
-    ),
+      `INSERT OR IGNORE INTO charges(id,athlete_id,period,due_date,base_minor,discount_minor,discount_reason,published_by,created_at) SELECT ?,?,?,?,?,?,?,?,? WHERE ${monthlySnapshotSql}=?`,
+      [id(), a.id, period, `${period}-08`, a.feeMinor,
+        Math.min(a.feeMinor, a.discountMinor + a.siblingMinor),
+        a.siblingMinor > 0
+          ? [a.discountReason, SIBLING_DISCOUNT_REASON].filter(Boolean).join(" · ")
+          : a.discountReason,
+        actor.id, now, period, period, reviewed],
+    )),
   ]);
   if (!result[0].meta.changes)
     fail("Las cuotas o las inscripciones cambiaron. Actualiza la vista previa.", 409, "conflict");
-  return result[1].meta.changes || 0;
+  return result.slice(1).reduce((sum, r) => sum + (r.meta.changes || 0), 0);
 }
 type FinancialOperation = {
   actorId: string;

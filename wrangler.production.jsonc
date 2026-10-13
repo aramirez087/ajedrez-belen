@@ -1,0 +1,41 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ajedrez-belen",
+  "account_id": "7d3e79129c4f0b3619a419cabbfa021e",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "compatibility_date": "2026-10-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "WORKOS_CLIENT_ID": "client_01M4M8D2C6P4K1PPAYA9KM4E9W",
+    "WORKOS_REDIRECT_URI": "https://ajedrezbelen.com/auth/callback",
+    "WORKOS_ORGANIZATION_ID": "org_01M4SQM2B9VA23H4JEPW1NJRMV",
+    "ADMIN_USER_IDS": "user_01M4SQMQKETQMKM1254C25V224",
+    "PROTOTYPE_ENABLED": "false",
+    "PROTOTYPE_LOCAL": "false",
+    "PORTAL_ENABLED": "true",
+    "PORTAL_DEMO": "false",
+    "PORTAL_BUSINESS_CONFIG_APPROVED": "true",
+    "OCR_MODE": "off",
+    "EMAIL_MODE": "dry_run",
+    "PAYMENT_BANK_NAME": "SINPE Móvil",
+    "PAYMENT_ACCOUNT_ID": "87686102",
+    "PAYMENT_DESTINATION": "SINPE Móvil: 8768-6102",
+    "ASSOCIATION_RECEIPT_NAME": "Ajedrez Belén"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "ajedrez-belen-portal-production",
+    "database_id": "ffa2abc9-acce-44e0-ab96-c2cf68a13f13",
+    "migrations_dir": "migrations"
+  }],
+  "r2_buckets": [{
+    "binding": "SLIPS",
+    "bucket_name": "ajedrez-belen-portal-production-slips"
+  }]
+}

@@ -100,7 +100,7 @@ export function renderReceipt(input: ReceiptData): RenderedReceipt {
   const title = 'Comprobante de prueba';
   const association = 'Asociación Deportiva Belemita de Ajedrez';
   const note = 'Este documento prueba el formato del futuro comprobante numerado. El descuento es un monto manual; no se aplica ninguna regla automática entre hermanos.';
-  const replyNotice = 'Las respuestas a este correo no se atienden. Para consultas, escribinos por';
+  const replyNotice = 'Las respuestas a este correo no se atienden. Para consultas, escríbenos por';
   const whatsappUrl = 'https://wa.me/50687686102';
   return {
     subject: `[PRUEBA] Comprobante ${data.receiptNumber}`,

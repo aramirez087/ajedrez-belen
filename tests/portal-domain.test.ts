@@ -808,7 +808,7 @@ test("bank confirmation and reason for changed verified fields are required", as
 });
 test("charge adjustments cannot erase already paid balance; inactive account remains inactive", async () => {
   const { db, adapter, charges } = await setup();
-  const data = input([{ chargeId: charges[0].id, amountMinor: 1100000 }]),
+  const data = input([{ chargeId: charges[0].id, amountMinor: 800000 }]),
     paymentId = await submitPayment(db, parent, data);
   await reviewPayment(db, admin, paymentId, verification(data));
   await assert.rejects(
@@ -998,7 +998,7 @@ test("dashboard totals include old credit and charges beyond display limits, wit
   assert.equal(dashboard.pendingCount, 1);
   assert.equal(dashboard.verifiedMinor, 5010000);
   assert.equal(dashboard.creditMinor, 5010000);
-  assert.equal(dashboard.balanceMinor, 3900000 * 701);
+  assert.equal(dashboard.balanceMinor, 3900000 * 701 - 675000);
   const parentDashboard = await getParentDashboard(db, parent);
   assert.equal(parentDashboard.payments.length, 200);
   assert.equal(parentDashboard.pendingMinor, 100000);

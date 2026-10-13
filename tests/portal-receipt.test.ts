@@ -168,7 +168,7 @@ test('staging compact print and narrow-screen spacing preserve all receipt conte
 test('issued, demo and void receipts direct questions to the official WhatsApp without inviting email replies', () => {
   const variants = [renderReceipt(receiptFixture()), renderReceipt(receiptFixture({ demo: true })),
     renderReceipt(receiptFixture(), { voidedAt: '2026-10-10T15:00:00.000Z', voidReason: 'Duplicado' })];
-  const notice = 'Correo automático. Las respuestas a este correo no se atienden. Para consultas, escribinos por WhatsApp.';
+  const notice = 'Correo automático. Las respuestas a este correo no se atienden. Para consultas, escríbenos por WhatsApp.';
   for (const rendered of variants) {
     assert.ok(rendered.html.replace(/<[^>]*>/g, '').includes(notice));
     assert.ok(rendered.text.includes(notice));

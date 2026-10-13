@@ -130,7 +130,7 @@ export interface MonthlyPreview {
   period: string;
   snapshot: string;
   dueDate: string;
-  athletes: Array<Athlete & { alreadyPublished: boolean; totalMinor: number }>;
+  athletes: Array<Athlete & { alreadyPublished: boolean; totalMinor: number; siblingMinor: number; familySize: number }>;
   newCount: number;
   totalMinor: number;
 }

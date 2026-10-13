@@ -48,7 +48,7 @@ test('receipt uses Costa Rica dates and displays a manual discount without reduc
 
 test('automated prototype receipt directs questions to the official WhatsApp in HTML and plain text', () => {
   const rendered = renderReceipt(sample);
-  const notice = 'Correo automático. Las respuestas a este correo no se atienden. Para consultas, escribinos por WhatsApp.';
+  const notice = 'Correo automático. Las respuestas a este correo no se atienden. Para consultas, escríbenos por WhatsApp.';
   assert.ok(rendered.html.replace(/<[^>]*>/g, '').includes(notice));
   assert.ok(rendered.text.includes(notice));
   assert.match(rendered.html, /<a href="https:\/\/wa\.me\/50687686102"[^>]*>WhatsApp<\/a>/);
