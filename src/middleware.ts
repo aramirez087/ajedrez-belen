@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import { getAuthConfigurationStatus, isSameOriginMutation } from './lib/auth';
 import { getAuthService } from './lib/workos-runtime';
 import { isStagingSetupOwner, isStagingPortalActor, stagingParentTestConfiguration, restrictedModeRequested, stagingAuthSetupGate } from './lib/staging-auth-policy';
+import { INVITATION_TOKEN_PATTERN } from './lib/portal/invitation-entry';
 
 function isPrototypeRoute(pathname: string): boolean {
   return pathname === '/prototype' || pathname.startsWith('/prototype/') ||
@@ -93,9 +94,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   if (context.request.method === 'GET' && context.url.pathname === '/portal/invitacion' && context.url.searchParams.has('token')) {
     const token = context.url.searchParams.get('token') ?? '';
-    if (!/^[A-Za-z0-9_-]{32,128}$/.test(token)) return privateResponse(new Response('Invitación inválida', {status:400}));
+    if (!INVITATION_TOKEN_PATTERN.test(token)) return privateResponse(context.redirect('/portal/acceso?error=invitation_invalid',302));
+    // Invitations live seven days; the saved copy must live just as long, or
+    // anyone who signs up slowly loses the link they arrived with.
     context.cookies.set('pending-invitation', token, {
-      path:'/', httpOnly:true, sameSite:'lax', secure:context.url.protocol === 'https:', maxAge:3600,
+      path:'/', httpOnly:true, sameSite:'lax', secure:context.url.protocol === 'https:', maxAge:7 * 86400,
     });
     return privateResponse(context.redirect('/portal/invitacion',302));
   }

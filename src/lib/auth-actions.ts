@@ -187,7 +187,7 @@ export async function registerWithPassword(
   try {
     const created = await client.userManagement.createUser({
       email: input.email, password: input.password,
-      firstName: input.firstName, lastName: input.lastName, ...input.meta,
+      firstName: input.firstName, ...(input.lastName ? { lastName: input.lastName } : {}), ...input.meta,
     });
     userId = created.id;
   } catch (error) {

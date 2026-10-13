@@ -85,7 +85,7 @@ test('parent logout replaces a pending middleware refresh before Astro appends t
   const signOut = t.mock.method(service, 'signOut', async (...[sessionId, options]: Parameters<typeof service.signOut>) => {
     assert.equal(cookies.get(sessionCookie), undefined);
     assert.equal(sessionId, 'session_fixture');
-    assert.deepEqual(options, { returnTo: 'https://example.test/' });
+    assert.deepEqual(options, { returnTo: 'https://example.test/portal/acceso?notice=logged_out' });
     return realSignOut(sessionId, options);
   });
   const response = await POST(context);
@@ -118,7 +118,7 @@ test('parent logout without a verified session clears the local cookie without i
   const signOut = t.mock.method(service, 'signOut', async () => { throw new Error('No provider logout for an unverified session'); });
   const response = await POST(context);
   assert.equal(response.status, 303);
-  assert.equal(response.headers.get('location'), '/');
+  assert.equal(response.headers.get('location'), '/portal/acceso?notice=logged_out');
   assertOnlyExpired(serializedSessionCookies(response, cookies));
   assert.equal(signOut.mock.callCount(), 0);
   assert.equal(network.mock.callCount(), 0);

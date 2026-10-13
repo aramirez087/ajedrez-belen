@@ -1,19 +1,19 @@
 ---
 import type { Charge } from '../../lib/portal/types';
-import { money, inputMoney, monthLabel } from './format';
+import { money, plainMoney, monthLabel } from './format';
 interface Props { charges: Charge[]; values?: Record<string, number>; legend?: string; prefix?: string; }
-const { charges, values = {}, legend = 'Distribuir entre mensualidades', prefix = 'allocation' } = Astro.props;
+const { charges, values = {}, legend = '¿Qué mensualidades pagas con esta transferencia?', prefix = 'allocation' } = Astro.props;
 ---
 <fieldset class="portal-fieldset" data-allocator tabindex="-1" aria-describedby={`${prefix}-amount-check`}>
   <legend>{legend}</legend>
-  <p class="portal-help" style="margin:0 0 13px">Distribuye un monto mayor que cero en al menos una mensualidad. Deja en cero las que no vas a pagar.</p>
-  {charges.map(charge => <div class="portal-allocation-row" data-allocation-athlete-id={charge.athleteId} role="group" tabindex="-1" aria-label={`Mensualidad de ${charge.athleteName}, ${monthLabel(charge.period)}`}>
-    <label for={`${prefix}-${charge.id}`}>{charge.athleteName}<small id={`${prefix}-${charge.id}-balance`}>{monthLabel(charge.period)} · saldo {money(charge.balanceMinor)}</small></label>
+  <p class="portal-help" style="margin:0 0 13px">Escribe cuánto de tu transferencia va para cada mensualidad, o toca <strong>«Pagar todo»</strong> y lo llenamos por ti. Deja en blanco las que no pagas hoy.</p>
+  {charges.map(charge => { const cap = Math.max(charge.balanceMinor, values[charge.id] ?? 0); return <div class="portal-allocation-row" data-allocation-athlete-id={charge.athleteId} role="group" tabindex="-1" aria-label={`Mensualidad de ${charge.athleteName}, ${monthLabel(charge.period)}`}>
+    <div><label for={`${prefix}-${charge.id}`}>{charge.athleteName}<small id={`${prefix}-${charge.id}-balance`}>{monthLabel(charge.period)} · se deben {money(charge.balanceMinor)}</small></label>{cap > 0 && <button class="portal-quick-fill" type="button" data-quick-fill={`${prefix}-${charge.id}`} data-amount={plainMoney(cap)}>Pagar todo · {money(cap)}</button>}</div>
     <input type="hidden" name="allocationChargeId[]" value={charge.id} />
-    <input id={`${prefix}-${charge.id}`} name="allocationAmount[]" type="number" min="0" max={inputMoney(Math.max(charge.balanceMinor, values[charge.id] ?? 0))} step="0.01" inputmode="decimal" value={(values[charge.id] ?? 0) > 0 ? inputMoney(values[charge.id] ?? 0) : ''} placeholder="0,00…" aria-label={`Monto en colones para ${charge.athleteName}, ${monthLabel(charge.period)}`} aria-describedby={`${prefix}-${charge.id}-balance ${prefix}-amount-check`} data-allocation />
-  </div>)}
+    <input id={`${prefix}-${charge.id}`} name="allocationAmount[]" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-max-minor={cap} value={(values[charge.id] ?? 0) > 0 ? plainMoney(values[charge.id] ?? 0) : ''} placeholder="27000…" aria-label={`Monto en colones para ${charge.athleteName}, ${monthLabel(charge.period)}`} aria-describedby={`${prefix}-${charge.id}-balance ${prefix}-amount-check`} data-allocation />
+  </div>; })}
   {charges.length === 0 && <p class="portal-help">No hay mensualidades pendientes para esta cuenta.</p>}
-  <div class="portal-total"><span>Total distribuido</span><output data-allocation-total aria-live="polite">{money(Object.values(values).reduce((total, value) => total + value, 0))}</output></div>
+  <div class="portal-total"><span>Total que pagas con esta transferencia</span><output data-allocation-total aria-live="polite">{money(Object.values(values).reduce((total, value) => total + value, 0))}</output></div>
   <p id={`${prefix}-amount-check`} class="portal-help" data-allocation-status role="status" aria-live="polite" hidden></p>
 </fieldset>
 <script>
@@ -21,6 +21,7 @@ const { charges, values = {}, legend = 'Distribuir entre mensualidades', prefix 
   const formatter = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const wholeFormatter = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 });
   const formatMinor = (minor: number) => minor % 100 === 0 ? wholeFormatter.format(minor / 100) : formatter.format(minor / 100);
+  const moneyHint = 'Escribe solo el número en colones, por ejemplo 27000 o 27.000.';
   document.querySelectorAll<HTMLElement>('[data-allocator]').forEach(group => {
     const form = group.closest<HTMLFormElement>('form');
     const output = group.querySelector<HTMLOutputElement>('[data-allocation-total]');
@@ -29,33 +30,44 @@ const { charges, values = {}, legend = 'Distribuir entre mensualidades', prefix 
     const transfer = form?.querySelector<HTMLInputElement>('input[name="amount"], input[name="verifiedAmount"]');
     const submitters = Array.from(form?.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button[type="submit"], input[type="submit"]') ?? []);
     const initiallyDisabled = submitters.map(button => button.disabled);
-    if (status) {
-      status.hidden = false;
-      if (transfer) {
-        const descriptions = new Set((transfer.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean));
-        descriptions.add(status.id); transfer.setAttribute('aria-describedby', Array.from(descriptions).join(' '));
-      }
-    }
-    const update = (): boolean => {
-      const eligible = inputs.filter(input => input.max === '' || (minorAmount(input.max, true) ?? 0) > 0);
+    let interacted = inputs.some(input => input.value !== '');
+    group.querySelectorAll<HTMLButtonElement>('[data-quick-fill]').forEach(button => {
+      button.addEventListener('click', () => {
+        const target = group.querySelector<HTMLInputElement>(`#${CSS.escape(button.dataset.quickFill ?? '')}`);
+        if (!target) return;
+        target.value = button.dataset.amount ?? '';
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+        target.focus();
+      });
+    });
+    const update = (force = false): boolean => {
+      const showErrors = interacted || force;
+      const eligible = inputs.filter(input => Number(input.dataset.maxMinor ?? 0) > 0);
       submitters.forEach((button, index) => { button.disabled = initiallyDisabled[index] || eligible.length === 0; });
       transfer?.setCustomValidity(''); transfer?.removeAttribute('aria-invalid');
-      if (status) status.style.color = '';
+      if (status) { status.style.color = ''; status.hidden = !showErrors; }
       let valid = true;
       inputs.forEach(input => {
         input.setCustomValidity('');
-        if (input.value !== '' && minorAmount(input.value, true) === null) input.setCustomValidity('Escribe el monto en colones con un máximo de dos decimales, sin letras ni separadores de miles.');
-        if (!input.validity.valid) { input.setAttribute('aria-invalid', 'true'); valid = false; }
-        else input.removeAttribute('aria-invalid');
+        const minor = input.value === '' ? 0 : minorAmount(input.value, true);
+        if (minor === null) input.setCustomValidity(moneyHint);
+        else if (minor > Number(input.dataset.maxMinor ?? 0)) input.setCustomValidity(`Supera lo que se debe en esta mensualidad (${formatMinor(Number(input.dataset.maxMinor ?? 0))}).`);
+        if (showErrors && !input.validity.valid) { input.setAttribute('aria-invalid', 'true'); valid = false; }
+        else { input.removeAttribute('aria-invalid'); if (!input.validity.valid) valid = false; }
       });
       const summary = allocationSummary(inputs.map(input => input.value));
       valid = valid && summary.kind !== 'invalid';
       const total = summary.totalMinor;
       if (output) output.value = valid ? formatMinor(total) : 'Revisa los montos';
+      if (!showErrors) {
+        // Nothing typed yet: stay quiet instead of opening with a red error.
+        inputs.forEach(input => input.setCustomValidity(''));
+        return summary.kind === 'ready';
+      }
       const allocationError = eligible.length === 0
         ? 'No hay mensualidades disponibles para esta operación. Podrás continuar cuando haya una mensualidad pendiente.'
-        : !valid ? 'Revisa los montos de las mensualidades. Usa un máximo de dos decimales y respeta cada saldo.'
-        : summary.kind !== 'ready' ? 'Distribuye un monto mayor que cero en al menos una mensualidad antes de continuar.' : '';
+        : !valid ? `Revisa los montos de las mensualidades. ${moneyHint}`
+        : summary.kind !== 'ready' ? 'Toca «Pagar todo» en al menos una mensualidad, o escribe cuánto pagas de cada una.' : '';
       if (allocationError) {
         if (status) { status.textContent = allocationError; status.style.color = 'var(--red)'; }
         if (valid && eligible.length > 0) { eligible[0]!.setCustomValidity(allocationError); eligible[0]!.setAttribute('aria-invalid', 'true'); }
@@ -64,25 +76,26 @@ const { charges, values = {}, legend = 'Distribuir entre mensualidades', prefix 
       // Applying existing credit has no transfer input, but still requires a positive allocation.
       if (!transfer) { if (status) status.textContent = 'Revisa las mensualidades y los montos antes de aplicar el saldo.'; return true; }
       const amount = minorAmount(transfer.value);
-      if (transfer.value !== '' && amount === null) transfer.setCustomValidity('Escribe el monto en colones con un máximo de dos decimales, sin letras ni separadores de miles.');
-      if (amount === null || !transfer.validity.valid) { if (transfer.value !== '') transfer.setAttribute('aria-invalid', 'true'); if (status) status.textContent = 'Completa un monto válido en colones para compararlo con el total distribuido. Usa un máximo de dos decimales, sin letras ni separadores de miles.'; return false; }
+      if (transfer.value !== '' && amount === null) transfer.setCustomValidity(moneyHint);
+      if (amount === null || !transfer.validity.valid) { if (transfer.value !== '') transfer.setAttribute('aria-invalid', 'true'); if (status) status.textContent = `Escribe arriba el monto que transferiste para compararlo. ${moneyHint}`; return false; }
       if (total > amount) {
-        const message = `El total distribuido supera la transferencia por ${formatMinor(total - amount)}. Reduce la distribución o corrige el monto transferido.`;
+        const message = `El total supera tu transferencia por ${formatMinor(total - amount)}. Baja algún monto o corrige el monto transferido.`;
         if (status) { status.textContent = message; status.style.color = 'var(--red)'; }
         transfer.setCustomValidity(message); transfer.setAttribute('aria-invalid', 'true'); return false;
       }
       if (status) status.textContent = total === amount
-        ? 'El total distribuido coincide con la transferencia. El pago se aplica después de la verificación bancaria.'
-        : `${formatMinor(amount - total)} quedarán como saldo a favor después de la verificación bancaria.`;
+        ? 'El total coincide con tu transferencia. El pago se aplica cuando la Asociación confirme el ingreso en el banco.'
+        : `${formatMinor(amount - total)} quedarán guardados a tu favor para el próximo mes, después de la confirmación en el banco.`;
       return true;
     };
-    (form ?? group).addEventListener('input', update);
-    (form ?? group).addEventListener('change', update);
+    const onInteract = () => { interacted = true; update(); };
+    (form ?? group).addEventListener('input', onInteract);
+    (form ?? group).addEventListener('change', onInteract);
     form?.addEventListener('submit', event => {
-      if (!update()) { event.preventDefault(); if (!inputs.length) group.focus(); else form.reportValidity(); }
+      if (!update(true)) { event.preventDefault(); if (!inputs.length) group.focus(); else form.reportValidity(); }
     });
-    form?.addEventListener('reset', () => queueMicrotask(update));
-    window.addEventListener('pageshow', update);
+    form?.addEventListener('reset', () => queueMicrotask(() => update()));
+    window.addEventListener('pageshow', () => update());
     update();
   });
 </script>

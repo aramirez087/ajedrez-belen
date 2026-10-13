@@ -43,9 +43,9 @@ results.push({ check: 'PKCE generated in compiled workerd', status: login.status
 const callback = await read('/auth/callback?code=NEVER_EXCHANGED&state=' + encodeURIComponent(state), {
   headers: { Cookie: name + '=tampered-verifier' },
 });
-assert.equal(callback.status, 400);
+assert.equal(callback.status, 302);
+assert.ok(['/auth/login', '/portal/acceso?error=login_failed'].includes(callback.headers.get('location')), callback.headers.get('location'));
 const callbackBody = await callback.text();
-assert.match(callbackBody, /No fue posible iniciar sesión/);
 assert.doesNotMatch(callbackBody, /NEVER_EXCHANGED|tampered-verifier|sk_test|client_compatibility|stack|PKCE/i);
 assert.ok(callback.headers.getSetCookie().some(value => value.startsWith(name + '=') && /(?:Max-Age=0|Expires=Thu, 01 Jan 1970)/i.test(value)));
 results.push({ check: 'tampered callback fails safely and clears verifier', status: callback.status });
@@ -56,7 +56,7 @@ const logoutCrossOrigin = await read('/auth/logout', { method: 'POST', headers: 
 assert.equal(logoutCrossOrigin.status, 403);
 const logout = await read('/auth/logout', { method: 'POST', headers: { Origin: origin, Cookie: 'wos-session=tampered-session' } });
 assert.equal(logout.status, 303);
-assert.equal(logout.headers.get('location'), '/');
+assert.equal(logout.headers.get('location'), '/portal/acceso?notice=logged_out');
 assert.ok(logout.headers.getSetCookie().some(value => value.startsWith('wos-session=') && /(?:Max-Age=0|Expires=Thu, 01 Jan 1970)/i.test(value)));
 results.push({ check: 'logout GET denied; cross-origin denied; local session cleared', get: logoutGet.status, crossOrigin: logoutCrossOrigin.status, sameOrigin: logout.status });
 

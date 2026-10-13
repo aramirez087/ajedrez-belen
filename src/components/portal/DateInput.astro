@@ -32,4 +32,25 @@ const groupAttrs = dataOriginal ? { 'data-date-group': name, 'data-original': da
       {years.map(year => <option value={year} selected={selectedYear === year}>{year}</option>)}
     </select>
   </div>
+  <p class="portal-help" data-date-error role="status" hidden style="color:var(--red)"></p>
 </div>
+<script>
+  document.querySelectorAll<HTMLElement>('.portal-date-row-date').forEach(row => {
+    const selects = Array.from(row.querySelectorAll('select')).map(element => element as unknown as HTMLSelectElement);
+    const [daySelect, monthSelect, yearSelect] = selects;
+    const error = row.parentElement?.querySelector<HTMLElement>('[data-date-error]');
+    if (!daySelect || !monthSelect || !yearSelect) return;
+    const check = () => {
+      const day = Number(daySelect.value), month = Number(monthSelect.value), year = Number(yearSelect.value);
+      let message = '';
+      if (day && month && year) {
+        const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+        if (day > lastDay) message = `Ese mes solo tiene ${lastDay} días. Elige un día válido.`;
+      }
+      daySelect.setCustomValidity(message);
+      if (error) { error.hidden = !message; error.textContent = message; }
+    };
+    selects.forEach(select => select.addEventListener('change', check));
+    check();
+  });
+</script>

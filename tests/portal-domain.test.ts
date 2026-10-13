@@ -12,6 +12,7 @@ import {
   enrollAthlete,
   ensureUser,
   getAdminDashboard,
+  getInvitationPreview,
   getMonthlyPreview,
   getParentDashboard,
   getPaymentDetail,
@@ -720,6 +721,22 @@ test("invitation is bound to verified adult email and expiration, and grants all
   await redeemInvitation(db, second, tokenHash);
   assert.equal((await getParentDashboard(db, second)).athletes.length, 2);
   await assert.rejects(redeemInvitation(db, second, tokenHash));
+});
+test("invitation preview explains ready, used, expired and unknown links without consuming them", async () => {
+  const { adapter, db, charges } = await setup();
+  const tokenHash = "b1".repeat(32);
+  const invitationId = await createInvitation(db, admin, { email: second.email, athleteIds: charges.map((c) => c.athleteId), tokenHash });
+  const ready = await getInvitationPreview(db, tokenHash);
+  assert.equal(ready.status, "ready");
+  assert.equal(ready.email, second.email);
+  assert.equal(adapter.sqlite.prepare("SELECT redeemed_at FROM invitations WHERE id=?").get(invitationId)!.redeemed_at, null, "preview never redeems");
+  await redeemInvitation(db, second, tokenHash);
+  assert.equal((await getInvitationPreview(db, tokenHash)).status, "used");
+  const expiredHash = "b2".repeat(32);
+  const expiredId = await createInvitation(db, admin, { email: second.email, athleteIds: charges.map((c) => c.athleteId), tokenHash: expiredHash });
+  adapter.sqlite.prepare("UPDATE invitations SET expires_at=created_at WHERE id=?").run(expiredId);
+  assert.equal((await getInvitationPreview(db, expiredHash)).status, "expired");
+  assert.deepEqual(await getInvitationPreview(db, "0".repeat(64)), { status: "not_found", email: null, expiresAt: null, kind: null });
 });
 test("revoking one athlete invalidates the whole pending invitation; only a fresh invitation restores access", async () => {
   const { adapter, db, charges } = await setup();

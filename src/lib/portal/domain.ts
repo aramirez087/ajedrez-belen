@@ -886,6 +886,35 @@ export async function createGuardianInvitation(
   return invitationId;
 }
 
+export type InvitationPreview = {
+  status: "ready" | "used" | "expired" | "not_found";
+  email: string | null;
+  expiresAt: string | null;
+  kind: InvitationKind | null;
+};
+
+/** Read-only check so the invitation page can explain itself before accepting. */
+export async function getInvitationPreview(
+  db: D1Database,
+  tokenHash: string,
+): Promise<InvitationPreview> {
+  const invite = await one<{
+    email: string;
+    expiresAt: string;
+    redeemedAt: string | null;
+    kind: InvitationKind;
+  }>(
+    db,
+    "SELECT email,expires_at AS expiresAt,redeemed_at AS redeemedAt,kind FROM invitations WHERE token_hash=?",
+    [tokenHash],
+  );
+  if (!invite) return { status: "not_found", email: null, expiresAt: null, kind: null };
+  const kind = invite.kind === "register" ? "register" : "link";
+  if (invite.redeemedAt) return { status: "used", email: invite.email, expiresAt: invite.expiresAt, kind };
+  if (invite.expiresAt <= iso()) return { status: "expired", email: invite.email, expiresAt: invite.expiresAt, kind };
+  return { status: "ready", email: invite.email, expiresAt: invite.expiresAt, kind };
+}
+
 export async function redeemInvitation(
   db: D1Database,
   actor: Actor,

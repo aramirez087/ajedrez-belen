@@ -9,7 +9,28 @@ import {
   type AuthDestino, type PendingAuth,
 } from './auth-flow';
 
+import { getInvitationPreview, type InvitationPreview } from './portal/domain';
+import { INVITATION_TOKEN_PATTERN } from './portal/invitation-entry';
+import { hashInvitationToken } from './portal/routes';
+
 type Cookies = APIContext['cookies'];
+
+/**
+ * The invitation a person arrived with, resolved from the cookie the shared
+ * link left behind. Lets the sign-in screens greet them by their invited
+ * correo (prefilled, nothing to type or remember) instead of a blank form.
+ */
+export async function pendingInvitation(cookies: Cookies): Promise<InvitationPreview | null> {
+  const token = cookies.get('pending-invitation')?.value;
+  if (!token || !INVITATION_TOKEN_PATTERN.test(token) || !env.DB) return null;
+  return getInvitationPreview(env.DB, await hashInvitationToken(token)).catch(() => null);
+}
+
+/** The correo of a still-usable pending invitation, or null when there is none. */
+export async function pendingInvitationEmail(cookies: Cookies): Promise<string | null> {
+  const preview = await pendingInvitation(cookies);
+  return preview?.status === 'ready' ? preview.email : null;
+}
 
 /** The WorkOS client behind the auth service, or null when unconfigured. */
 export function workosClient() {

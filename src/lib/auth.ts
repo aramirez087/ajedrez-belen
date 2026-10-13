@@ -1,5 +1,6 @@
 import type { APIContext } from 'astro';
 import type { AuthResult } from '@workos/authkit-session';
+import { portalMessagePage } from './portal/http';
 
 declare global {
   namespace App {
@@ -106,8 +107,9 @@ export function isSameOriginMutation(request: Request): boolean {
 }
 
 export function authUnavailableResponse(): Response {
-  return new Response(
-    'El inicio de sesión todavía no está configurado. Consulte docs/WORKOS-SETUP.md.',
-    { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } },
+  return portalMessagePage(
+    'El acceso está en pausa.',
+    'En este momento no es posible iniciar sesión en el portal. Tu cuenta y tus comprobantes están guardados; vuelve a intentarlo más tarde. Si necesitas registrar un pago con urgencia, escríbenos por WhatsApp.',
+    503, '/', 'Volver al sitio',
   );
 }

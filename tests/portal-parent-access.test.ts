@@ -118,7 +118,11 @@ test('unverified, missing-token and impersonated parent sessions fail before dat
     if (!api.ok) assert.equal(api.response.status, 401);
     const page = await authorizePortal(context(identity), f.env);
     assert.equal(page.ok, false);
-    if (!page.ok) { assert.equal(page.response.status, 302); assert.equal(page.response.headers.get('Location'), '/portal/acceso'); }
+    if (!page.ok && identity.user && identity.user.emailVerified === false) {
+      // Unverified email gets an explanation page, not a silent sign-in loop.
+      assert.equal(page.response.status, 401);
+      assert.match(await page.response.text(), /Falta verificar tu correo/);
+    } else if (!page.ok) { assert.equal(page.response.status, 302); assert.equal(page.response.headers.get('Location'), '/portal/acceso'); }
   }
   assert.deepEqual(f.queries, []);
 });

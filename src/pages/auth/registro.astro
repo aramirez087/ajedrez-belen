@@ -5,9 +5,9 @@ import PasswordField from '../../components/portal/PasswordField.astro';
 import { authUnavailableResponse } from '../../lib/auth';
 import { registerWithPassword } from '../../lib/auth-actions';
 import { afterLoginPath, clientMeta, parseDestino, validAuthEmail } from '../../lib/auth-flow';
-import { applyAuthOutcome, workosClient } from '../../lib/auth-pages';
+import { applyAuthOutcome, pendingInvitationEmail, workosClient } from '../../lib/auth-pages';
 import { getPortalIdentity } from '../../lib/portal/access';
-import { safePortalReturnPath } from '../../lib/portal/invitation-entry';
+import { safePortalReturnPath, splitFullName } from '../../lib/portal/invitation-entry';
 import { portalResponse, readPortalForm } from '../../lib/portal/http';
 export const prerender = false;
 if (env.PORTAL_ENABLED !== 'true') return portalResponse('No encontrado.', 404);
@@ -18,33 +18,35 @@ const hasInvitation = Astro.cookies.has('pending-invitation');
 const identity = getPortalIdentity(Astro, env);
 if (identity) return Astro.redirect(afterLoginPath(destino, next, hasInvitation), 302);
 
+// From an invitation link the correo is already known: prefilled, not typed.
+const invitedEmail = destino === 'familia' ? await pendingInvitationEmail(Astro.cookies) : null;
+
 let error = '';
-let firstName = '';
-let lastName = '';
-let email = '';
+let fullName = '';
+let email = invitedEmail ?? '';
 if (Astro.request.method === 'POST') {
   const auth = workosClient();
   if (!auth) return authUnavailableResponse();
   try {
     const form = await readPortalForm(Astro.request);
-    firstName = String(form.get('firstName') ?? '').trim();
-    lastName = String(form.get('lastName') ?? '').trim();
+    // One "Nombre completo" field (older two-field posts still work).
+    const legacyFirst = String(form.get('firstName') ?? '').trim();
+    const legacyLast = String(form.get('lastName') ?? '').trim();
+    fullName = String(form.get('fullName') ?? '').trim() || [legacyFirst, legacyLast].filter(Boolean).join(' ');
+    const names = splitFullName(fullName);
     email = String(form.get('email') ?? '').trim().toLowerCase();
     const password = String(form.get('password') ?? '');
-    const confirmation = String(form.get('confirmation') ?? '');
-    if (!firstName || firstName.length > 80 || !lastName || lastName.length > 80) {
-      error = 'Escribe tu nombre y tus apellidos.';
+    if (!names || fullName.length > 160) {
+      error = 'Escribe tu nombre completo.';
     } else if (!validAuthEmail(email)) {
       error = 'Ese correo no se ve completo. Revísalo e inténtalo de nuevo.';
     } else if (password.length < 10) {
       error = 'La contraseña debe tener al menos 10 caracteres, mezclando letras y números.';
     } else if (password.length > 256) {
       error = 'La contraseña es demasiado larga. Usa una de menos de 256 caracteres.';
-    } else if (password !== confirmation) {
-      error = 'Las contraseñas no coinciden. Escríbelas de nuevo.';
     } else {
       const outcome = await registerWithPassword(auth.client, env, {
-        firstName, lastName, email, password, destino, next, meta: clientMeta(Astro.request),
+        firstName: names.firstName, lastName: names.lastName, email, password, destino, next, meta: clientMeta(Astro.request),
       });
       const applied = await applyAuthOutcome(Astro, outcome, { destino, next });
       if ('response' in applied) return applied.response;
@@ -56,28 +58,27 @@ if (Astro.request.method === 'POST') {
 }
 const entrarHref = `/auth/entrar?destino=${destino}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
 ---
-<AuthShell title="Crear tu cuenta" heading="Creá tu cuenta." description="Con tu cuenta consultas las mensualidades de tus atletas, registras transferencias y recibes tus comprobantes. Te enviamos un código al correo para confirmar que es tuyo." error={error}>
-  {hasInvitation
-    ? <div class="portal-guidance" style="margin-bottom:20px"><h3>Usa el correo de tu invitación</h3><p>Crea la cuenta con <strong>el mismo correo</strong> al que te enviaron la invitación; si usas otro, la invitación no se podrá aceptar.</p></div>
-    : <p class="portal-section-caption">¿Todavía no tienes invitación? Crea tu cuenta y pídele tu enlace a la Asociación por WhatsApp; sin invitación, tu cuenta aún no mostrará atletas.</p>}
+<AuthShell
+  title="Crear tu cuenta"
+  heading={invitedEmail ? 'Un minuto y entras.' : 'Creá tu cuenta.'}
+  description={invitedEmail
+    ? `Tu invitación es para ${invitedEmail}. Solo faltan tu nombre y una contraseña; te enviamos un código a ese correo para confirmar que es tuyo y quedas dentro.`
+    : 'Solo faltan tu nombre, tu correo y una contraseña. Te enviamos un código al correo para confirmar que es tuyo y quedas dentro.'}
+  error={error}
+>
+  {!invitedEmail && !hasInvitation && <p class="portal-section-caption">¿Todavía no tienes invitación? Crea tu cuenta igual y pide tu enlace por WhatsApp; al tocarlo, tus atletas aparecen en tu cuenta.</p>}
   <form class="portal-form" method="post">
-    <div class="portal-form-row">
-      <div class="portal-field">
-        <label for="firstName">Nombre</label>
-        <input id="firstName" name="firstName" type="text" autocomplete="given-name" maxlength="80" value={firstName} required />
-      </div>
-      <div class="portal-field">
-        <label for="lastName">Apellidos</label>
-        <input id="lastName" name="lastName" type="text" autocomplete="family-name" maxlength="80" value={lastName} required />
-      </div>
+    <div class="portal-field">
+      <label for="fullName">Nombre completo</label>
+      <input id="fullName" name="fullName" type="text" autocomplete="name" maxlength="160" value={fullName} placeholder="Tu nombre y apellidos…" required />
     </div>
     <div class="portal-field">
       <label for="email">Correo electrónico</label>
       <input id="email" name="email" type="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" value={email} placeholder="tucorreo@ejemplo.com" required />
+      {invitedEmail && <p class="portal-help">Ya lo pusimos por ti: es el correo de tu invitación.</p>}
     </div>
-    <PasswordField id="password" name="password" label="Contraseña" autocomplete="new-password" toggle help="Al menos 10 caracteres, mezclando letras y números. No uses una contraseña que ya tengas en otro sitio." />
-    <PasswordField id="confirmation" name="confirmation" label="Repite tu contraseña" autocomplete="new-password" />
-    <button class="portal-button portal-button-wide" type="submit">Crear mi cuenta <span aria-hidden="true">→</span></button>
+    <PasswordField id="password" name="password" label="Contraseña" autocomplete="new-password" toggle help="Al menos 10 caracteres, mezclando letras y números." />
+    <button class="portal-button portal-button-wide" type="submit">Crear mi cuenta y entrar <span aria-hidden="true">→</span></button>
   </form>
   <div class="portal-auth-links">
     <a class="portal-link" href={entrarHref}>¿Ya tienes cuenta? Inicia sesión <span aria-hidden="true">↗</span></a>

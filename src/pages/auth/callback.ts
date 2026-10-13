@@ -4,6 +4,7 @@ import { authUnavailableResponse } from '../../lib/auth';
 import { getAuthService } from '../../lib/workos-runtime';
 import { stagingCallback } from '../../lib/staging-auth';
 import { stagingAuthSetupRequested } from '../../lib/staging-auth-policy';
+import { safePortalReturnPath } from '../../lib/portal/invitation-entry';
 
 export const prerender = false;
 
@@ -19,17 +20,19 @@ export const GET: APIRoute = async (context) => {
       throw new Error('Incomplete authentication callback');
     }
     const result = await service.handleCallback(context.cookies, context.cookies, { code, state });
-    if (result.returnPathname === '/portal' && context.cookies.has('pending-invitation')) {
-      return context.redirect('/portal/invitacion',302);
+    // A pending invitation wins over the generic landing page no matter which
+    // sign-in button the person tapped; the invitation page explains the rest.
+    if (result.returnPathname !== '/prototype' && context.cookies.has('pending-invitation')) {
+      return context.redirect('/portal/invitacion', 302);
     }
+    const safeNext = safePortalReturnPath(result.returnPathname);
+    if (safeNext) return context.redirect(safeNext, 302);
     const allowed = new Set(['/prototype', '/portal', '/admin']);
     return context.redirect(allowed.has(result.returnPathname) ? result.returnPathname : '/portal', 302);
   } catch {
     // The SDK clears the verifier on failure; never expose raw provider errors.
-    const retryPath = env.PORTAL_ENABLED === 'true' ? '/portal/acceso' : '/auth/login';
-    return new Response(
-      `No fue posible iniciar sesión. Vuelva a ${retryPath} para intentarlo de nuevo.`,
-      { status: 400, headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
-    );
+    // Send people to a real page with a retry button, keeping their invitation.
+    if (env.PORTAL_ENABLED === 'true') return context.redirect('/portal/acceso?error=login_failed', 302);
+    return context.redirect('/auth/login', 302);
   }
 };

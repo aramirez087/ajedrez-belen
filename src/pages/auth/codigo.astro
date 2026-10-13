@@ -73,7 +73,7 @@ const copy = {
   <form class="portal-form" method="post">
     <div class="portal-field">
       <label for="code">{copy.label}</label>
-      <input class="portal-code-input" id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="8" placeholder="123456" required />
+      <input class="portal-code-input" id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="8" placeholder="123456" required autofocus />
       <p class="portal-help">{copy.hint}</p>
     </div>
     <button class="portal-button portal-button-wide" type="submit">Continuar <span aria-hidden="true">→</span></button>
@@ -85,3 +85,11 @@ const copy = {
     <form method="post"><input type="hidden" name="accion" value="cancelar" /><button class="portal-link portal-text-button" type="submit">Cancelar y volver <span aria-hidden="true">↗</span></button></form>
   </div>
 </AuthShell>
+<script>
+  // Six digits is the whole job: send it the moment the code is complete
+  // (typing, pasting or the phone's one-time-code autofill).
+  const codeInput = document.querySelector<HTMLInputElement>('#code');
+  codeInput?.addEventListener('input', () => {
+    if (codeInput.value.replace(/[\s-]/g, '').length === 6) codeInput.form?.requestSubmit();
+  });
+</script>

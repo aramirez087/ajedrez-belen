@@ -3,6 +3,7 @@ import { getAuthConfigurationStatus } from '../auth';
 import { allowPortalDemo, getDemoIdentity } from './demo-policy';
 import { portalMessagePage, portalResponse } from './http';
 import { ensureUser } from './domain';
+import { safePortalReturnPath } from './invitation-entry';
 import type { Actor } from './types';
 import { isStagingPortalActor, restrictedModeRequested, stagingPortalTestRequested } from '../staging-auth-policy';
 
@@ -35,8 +36,28 @@ export async function authorizePortal(context: APIContext, env: Cloudflare.Env, 
     actor = getDemoIdentity(context.cookies.get('portal-demo-role')?.value);
   }
   if (!actor) {
-    const html = context.request.method === 'GET' && !context.url.pathname.startsWith('/api/');
-    return {ok:false,response:html ? portalResponse(null,302,{Location:'/portal/acceso'}) : portalResponse('Authentication required',401)};
+    const browserNavigation = !context.url.pathname.startsWith('/api/') &&
+      (context.request.method === 'GET' || (context.request.headers.get('accept') ?? '').includes('text/html'));
+    // Signed in at WorkOS but the email is not verified yet: say so instead
+    // of bouncing to the sign-in page, which looks like an endless loop.
+    if (context.locals.auth?.user && context.locals.auth.user.emailVerified === false) {
+      return {ok:false,response:browserNavigation
+        ? portalMessagePage('Falta verificar tu correo.', 'Ya entraste, pero tu correo todavía no está verificado, así que aún no podemos mostrar tu cuenta. Revisa tu bandeja de entrada (y la carpeta de spam) y abre el mensaje de verificación. Después vuelve a intentarlo. Si el mensaje no llega, escríbenos por WhatsApp.', 401, '/portal/acceso', 'Volver a intentarlo')
+        : portalResponse('Authentication required',401)};
+    }
+    if (!browserNavigation) return {ok:false,response:portalResponse('Authentication required',401)};
+    if (context.request.method !== 'GET') {
+      return {ok:false,response:portalMessagePage('Tu sesión venció.', 'Estuviste un rato sin actividad y tu sesión se cerró por seguridad, así que lo que ibas a enviar no se guardó. Inicia sesión de nuevo y repite el envío; toma menos de un minuto.', 401, '/portal/acceso', 'Iniciar sesión de nuevo')};
+    }
+    // Arriving from an invitation link: straight to the sign-in form, which
+    // already knows their correo. No instructions page in between.
+    if (context.cookies?.has('pending-invitation')) {
+      return {ok:false,response:portalResponse(null,302,{Location:'/auth/entrar'})};
+    }
+    // Remember where the person was headed (e.g. a payment link from WhatsApp).
+    const next = safePortalReturnPath(context.url.pathname);
+    const location = next && next !== '/portal' ? `/portal/acceso?next=${encodeURIComponent(next)}` : '/portal/acceso';
+    return {ok:false,response:portalResponse(null,302,{Location:location})};
   }
   const browserPage = context.request.method === 'GET' && !context.url.pathname.startsWith('/api/');
   if (options.admin && !actor.isAdmin) return {ok:false,response:browserPage

@@ -3,13 +3,72 @@ import { env } from 'cloudflare:workers';
 import PortalLayout from '../../layouts/PortalLayout.astro';
 import PageHeader from '../../components/portal/PageHeader.astro';
 import { authorizePortal } from '../../lib/portal/access';
+import { getInvitationPreview, redeemInvitation } from '../../lib/portal/domain';
+import { hashInvitationToken } from '../../lib/portal/routes';
+import { INVITATION_TOKEN_PATTERN, invitationDestination } from '../../lib/portal/invitation-entry';
+import { dateLabel } from '../../components/portal/format';
 export const prerender = false;
 const access = await authorizePortal(Astro, env);
 if (!access.ok) return access.response;
 const { actor } = access;
-const token = Astro.cookies.get('pending-invitation')?.value;
+const savedToken = Astro.cookies.get('pending-invitation')?.value;
+const token = savedToken && INVITATION_TOKEN_PATTERN.test(savedToken) ? savedToken : null;
+const tokenHash = token ? await hashInvitationToken(token) : null;
+let preview = tokenHash ? await getInvitationPreview(env.DB, tokenHash).catch(() => null) : null;
+let emailMatches = preview?.email ? preview.email.toLowerCase() === actor.email.toLowerCase() : false;
+let autoRedeemFailed = false;
+// Tapping the link while signed in with the invited correo is the whole
+// flow: accept it right here and land inside. No button, no extra screen.
+if (preview?.status === 'ready' && emailMatches && tokenHash) {
+  try {
+    const { kind } = await redeemInvitation(env.DB, actor, tokenHash);
+    Astro.cookies.delete('pending-invitation', { path: '/' });
+    return Astro.redirect(`${invitationDestination(kind)}?notice=invitation_redeemed`, 302);
+  } catch {
+    // Lost a race (e.g. opened twice) or hit a transient failure: show the
+    // fresh state, with a manual retry only if the invitation is still live.
+    preview = await getInvitationPreview(env.DB, tokenHash).catch(() => preview);
+    emailMatches = preview?.email ? preview.email.toLowerCase() === actor.email.toLowerCase() : false;
+    autoRedeemFailed = preview?.status === 'ready' && emailMatches;
+  }
+}
+// Re-tapping an already-used link of your own also just lands inside.
+if (preview?.status === 'used' && emailMatches) {
+  Astro.cookies.delete('pending-invitation', { path: '/' });
+  return Astro.redirect(invitationDestination(preview.kind), 302);
+}
+if (preview && preview.status !== 'ready') Astro.cookies.delete('pending-invitation', { path: '/' });
+const whatsapp = 'https://wa.me/50687686102';
 ---
-<PortalLayout title="Aceptar invitación" actor={actor} hideNav>
-  <PageHeader title="Bienvenido a tu cuenta familiar." eyebrow="Invitación" description="La invitación vincula tu correo con tu familia: según el enlace, confirma atletas ya inscritos o inscribe a tus atletas aquí mismo. Cada encargado mantiene su propia sesión." />
-  <div class="portal-two-columns"><section class="portal-panel"><div class="portal-guidance portal-guidance-strong"><h2>{token ? 'Tu invitación está lista.' : 'Necesitas un enlace de invitación.'}</h2><p>Sesión iniciada con <strong>{actor.email}</strong>.</p>{token ? <form action="/api/portal/invitations/redeem" method="post"><input type="hidden" name="token" value={token} /><button class="portal-button" type="submit" style="margin-top:20px">Aceptar invitación <span aria-hidden="true">→</span></button></form> : <p>Abre el enlace que recibiste de la Asociación. Si venció, solicita uno nuevo.</p>}</div></section><aside class="portal-panel"><h2>Tu acceso es personal</h2><p class="portal-section-caption">Para asociar a otro encargado, la Asociación debe crear una invitación para su correo. No hace falta compartir tu contraseña.</p><a class="portal-link" href="/portal">Ir a mi cuenta <span aria-hidden="true">↗</span></a></aside></div>
+<PortalLayout title="Tu invitación" actor={actor} hideNav>
+  <PageHeader title="Tu invitación." eyebrow="Invitación" />
+  <section class="portal-panel"><div class="portal-guidance portal-guidance-strong">
+    {autoRedeemFailed && <>
+      <h2>Ya casi estás dentro.</h2>
+      <p>Entraste con <strong>{actor.email}</strong>. Toca el botón y aterrizas en tu cuenta.</p>
+      <form action="/api/portal/invitations/redeem" method="post"><input type="hidden" name="token" value={token} /><button class="portal-button" type="submit" style="margin-top:20px">Entrar <span aria-hidden="true">→</span></button></form>
+    </>}
+    {preview?.status === 'ready' && !emailMatches && <>
+      <h2>Esta invitación es para {preview.email}.</h2>
+      <p>Entraste con <strong>{actor.email}</strong>. Sal de esta cuenta, entra con <strong>{preview.email}</strong> y vuelve a tocar tu enlace de WhatsApp: entras directo.</p>
+      <form action="/auth/logout" method="post" style="margin-top:18px"><button class="portal-button" type="submit">Salir y entrar con otro correo <span aria-hidden="true">→</span></button></form>
+      <p>¿El correo está mal escrito? <a class="portal-link" href={whatsapp}>Pide una nueva por WhatsApp <span aria-hidden="true">↗</span></a></p>
+    </>}
+    {preview?.status === 'used' && !emailMatches && <>
+      <h2>Este enlace ya se usó.</h2>
+      <p>Cada enlace sirve una sola vez. Si todavía no ves a tus atletas, te enviamos uno nuevo.</p>
+      <div class="portal-copy-row" style="margin-top:20px"><a class="portal-button" href="/portal">Ir a mi cuenta <span aria-hidden="true">→</span></a><a class="portal-link" href={whatsapp}>Pedir un enlace nuevo por WhatsApp <span aria-hidden="true">↗</span></a></div>
+    </>}
+    {preview?.status === 'expired' && <>
+      <h2>Este enlace venció.</h2>
+      <p>Duran siete días{preview.expiresAt ? <> y este venció el <strong>{dateLabel(preview.expiresAt)}</strong></> : ''}. Te enviamos uno nuevo en un momento.</p>
+      <a class="portal-button" href={whatsapp} style="margin-top:20px">Pedir un enlace nuevo por WhatsApp <span aria-hidden="true">↗</span></a>
+    </>}
+    {(!preview || preview.status === 'not_found') && <>
+      <h2>Pega aquí tu enlace y entras.</h2>
+      <p>Si tu enlace de WhatsApp no abrió bien, pégalo completo aquí. Debe ser una invitación para <strong>{actor.email}</strong>.</p>
+      <form class="portal-form" action="/api/portal/invitations/redeem" method="post" style="margin-top:18px"><div class="portal-field"><label for="pasted-invite">Tu enlace de invitación</label><input id="pasted-invite" name="token" type="text" maxlength="2000" autocomplete="off" spellcheck="false" placeholder="Pega aquí el enlace completo…" required /></div><button class="portal-button" type="submit">Entrar <span aria-hidden="true">→</span></button></form>
+      <p>¿No tienes enlace? <a class="portal-link" href={whatsapp}>Pídelo por WhatsApp <span aria-hidden="true">↗</span></a></p>
+    </>}
+  </div></section>
 </PortalLayout>

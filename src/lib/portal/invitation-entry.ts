@@ -32,3 +32,32 @@ export function extractInvitationToken(input: string): string | null {
   const fromLink = text.match(/[?&]token=([A-Za-z0-9_-]{32,128})(?![A-Za-z0-9_-])/);
   return fromLink ? fromLink[1] : null;
 }
+
+/**
+ * The whole WhatsApp message. The link does the talking: tapping it is the
+ * only instruction anyone needs, so there are no instructions to read.
+ */
+export function invitationWhatsAppMessage(link: string): string {
+  return `♟️ Tu acceso a Ajedrez Belén (vence en 7 días): ${link}`;
+}
+
+/** Opens WhatsApp's share picker with the invitation message ready to send. */
+export function invitationWhatsAppUrl(link: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(invitationWhatsAppMessage(link))}`;
+}
+
+/** Where a person lands the moment their invitation is accepted. */
+export function invitationDestination(kind: 'link' | 'register' | null | undefined): string {
+  return kind === 'register' ? '/portal/inscribir' : '/portal';
+}
+
+/**
+ * Registration asks for one "Nombre completo" field; the identity provider
+ * wants it split. First word(s) are the given name, the rest the surnames.
+ */
+export function splitFullName(fullName: string): { firstName: string; lastName: string } | null {
+  const words = fullName.trim().replace(/\s+/g, ' ').split(' ').filter(Boolean);
+  if (words.length === 0) return null;
+  if (words.length === 1) return { firstName: words[0], lastName: '' };
+  return { firstName: words[0], lastName: words.slice(1).join(' ') };
+}

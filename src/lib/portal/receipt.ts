@@ -10,6 +10,8 @@ export interface ReceiptPresentation {
   voidReason?: string | null;
   /** Display-only environment warning; never part of the issuance snapshot. */
   stagingTest?: boolean;
+  /** Portal-only navigation back to the account; never sent by email. */
+  portalBackLink?: boolean;
 }
 
 export interface RenderedReceipt { subject: string; html: string; text: string }
@@ -139,6 +141,7 @@ ${voided ? `<p style="padding:12px;border:2px solid #8c302f;color:#8c302f;font-w
 <h2 style="font-size:18px;margin-top:28px;font-family:Manrope,'DM Sans',Arial,sans-serif">Aplicación del pago</h2><table style="border-collapse:collapse;width:100%"><thead><tr><th scope="col" style="text-align:left;padding:8px 4px">Atleta</th><th scope="col" style="text-align:left;padding:8px 4px">Mensualidad</th><th scope="col" style="text-align:right;padding:8px 4px">Monto aplicado</th></tr></thead><tbody>${allocations.map((line) => `<tr><td style="padding:9px 4px;border-top:1px solid #ddd6c3;overflow-wrap:anywhere">${escapeHtml(line.athlete)}</td><td style="padding:9px 4px;border-top:1px solid #ddd6c3">${escapeHtml(line.period)}</td><td style="padding:9px 4px;border-top:1px solid #ddd6c3;text-align:right">${escapeHtml(line.amount)}</td></tr>`).join('')}</tbody></table>
 ${credit ? `<p style="font-weight:bold">${escapeHtml(credit)}</p>` : ''}<p style="margin-top:28px;font-size:13px;color:#5d6152">${escapeHtml(note)}</p>
 <p style="margin-top:20px;padding-top:16px;border-top:1px solid #ddd6c3;font-size:13px;color:#5d6152"><strong>Correo automático.</strong> ${escapeHtml(replyNotice)} <a href="${whatsappUrl}" style="color:#8c302f;text-decoration:underline">WhatsApp</a>.</p>
+${presentation.portalBackLink ? `<p class="print-button" style="margin-top:24px;font-size:14px"><a href="/portal" style="color:#8c302f;font-weight:bold">← Volver a mi cuenta</a></p><p class="print-button" style="font-size:13px;color:#5d6152">Para guardarlo: usa Compartir → Imprimir (o «Guardar como PDF») en tu navegador. Este comprobante queda siempre disponible en tu cuenta.</p>` : ''}
 </main></body></html>`,
   };
 }

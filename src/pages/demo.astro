@@ -3,9 +3,9 @@ import { env } from 'cloudflare:workers';
 import PortalLayout from '../layouts/PortalLayout.astro';
 import PageHeader from '../components/portal/PageHeader.astro';
 import { allowPortalDemo } from '../lib/portal/demo-policy';
-import { portalResponse } from '../lib/portal/http';
+import { portalMessagePage } from '../lib/portal/http';
 export const prerender = false;
-if (!allowPortalDemo(Astro.url, import.meta.env.DEV, env)) return portalResponse('No encontrado.', 404);
+if (!allowPortalDemo(Astro.url, import.meta.env.DEV, env)) return portalMessagePage('Esta demostración no está disponible aquí.', 'La demostración solo funciona en el equipo de desarrollo de la Asociación. Si eres una familia, entra a tu cuenta desde el acceso del portal; si necesitas tu enlace de invitación, pídelo por WhatsApp.', 404, '/portal/acceso', 'Ir al acceso del portal');
 const roles = [
   { key: 'parent-a', name: 'Ana · Encargada', description: 'Registra pagos y consulta dos atletas de la misma familia.' },
   { key: 'parent-b', name: 'Diego · Segundo encargado', description: 'Consulta las mensualidades compartidas y los pagos a los que tiene acceso.' },

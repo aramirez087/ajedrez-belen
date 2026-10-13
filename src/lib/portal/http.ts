@@ -1,5 +1,6 @@
 import type { APIContext } from 'astro';
 import { readBoundedBody, MAX_SLIP_BYTES, detectSlipType } from '../prototype-policy';
+import { moneyMinor } from './money-input';
 
 export function portalResponse(body: BodyInit | null, status = 200, extra: HeadersInit = {}) {
   const headers = new Headers(extra);
@@ -55,12 +56,10 @@ export function formText(form: FormData, key: string, max = 160, optional = fals
   return entry.trim();
 }
 
-/** Decimal input is converted using digits, never binary floating-point money. */
+/** Shared grammar with the browser: see money-input.ts. */
 export function parseMoney(value: FormDataEntryValue | null, allowZero = false): number {
-  if (typeof value !== 'string' || !/^\d{1,8}(?:\.\d{1,2})?$/.test(value)) throw new InputError('invalid_amount');
-  const [whole, fraction = ''] = value.split('.');
-  const amount = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
-  if (!Number.isSafeInteger(amount) || amount < (allowZero ? 0 : 1) || amount > 1_000_000_000) throw new InputError('invalid_amount');
+  const amount = moneyMinor(value, allowZero);
+  if (amount === null) throw new InputError('invalid_amount');
   return amount;
 }
 

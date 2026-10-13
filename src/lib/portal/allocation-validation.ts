@@ -1,9 +1,8 @@
-/** Match the server's decimal grammar without rounding fractional colones. */
+import { moneyMinor } from './money-input';
+
+/** Same grammar as the server (money-input.ts): CR and banking-app formats. */
 export function minorAmount(value: string, allowZero = false): number | null {
-  if (!/^\d{1,8}(?:\.\d{1,2})?$/.test(value)) return null;
-  const [whole, fraction = ''] = value.split('.');
-  const amount = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
-  return Number.isSafeInteger(amount) && amount >= (allowZero ? 0 : 1) && amount <= 1_000_000_000 ? amount : null;
+  return moneyMinor(value, allowZero);
 }
 
 export function allocationSummary(values: readonly string[]): {
