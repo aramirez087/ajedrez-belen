@@ -225,10 +225,10 @@ await checked('family-name candidate lists stay within the current parent or sel
     ['unrelated', '/portal/pagos/nuevo', ['demo-athlete-3']],
     ['parent-a', '/portal/pagos/nuevo?adult=demo-unrelated', ['demo-athlete-1', 'demo-athlete-2']],
     ['admin', '/portal/pagos/nuevo', []],
-    ['admin', '/portal/pagos/nuevo?adult=demo-parent-a', ['demo-athlete-1', 'demo-athlete-2']],
-    ['admin', '/portal/pagos/nuevo?adult=demo-parent-b', ['demo-athlete-1']],
-    ['admin', '/portal/pagos/nuevo?adult=demo-unrelated', ['demo-athlete-3']],
-    ['admin', '/portal/pagos/nuevo?adult=unknown-user', []],
+    ['admin', '/admin/pagos/nuevo?adult=demo-parent-a', ['demo-athlete-1', 'demo-athlete-2']],
+    ['admin', '/admin/pagos/nuevo?adult=demo-parent-b', ['demo-athlete-1']],
+    ['admin', '/admin/pagos/nuevo?adult=demo-unrelated', ['demo-athlete-3']],
+    ['admin', '/admin/pagos/nuevo?adult=unknown-user', []],
   ];
   for (const [role, path, ids] of cases) {
     const response = await request(path, role);

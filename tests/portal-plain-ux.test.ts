@@ -96,6 +96,19 @@ test('every comprobante-flow success notice has a plain-language message', () =>
   }
 });
 
+test('family payment registration is own-family only; other-family registration lives in administration', () => {
+  const family = readFileSync(new URL('../src/pages/portal/pagos/nuevo.astro', import.meta.url), 'utf8');
+  assert.ok(!family.includes('modo=familia') && !family.includes("get('adult')") && !family.includes('staffMode'),
+    'the family page must not read another-family selectors or switch modes');
+  assert.ok(!family.includes('Registrar para otra familia') && !family.includes('designatedAdultId" value={selectedAdult'),
+    'the family page must not offer or submit another household');
+  const admin = readFileSync(new URL('../src/pages/admin/pagos/nuevo.astro', import.meta.url), 'utf8');
+  assert.ok(/authorizePortal\(Astro,\s*env,\s*\{\s*admin:\s*true\s*\}\)/.test(admin), 'the assisted page requires an administrator session');
+  assert.ok(admin.includes('name="auditReason"'), 'assisted registrations keep their mandatory reason');
+  const layout = readFileSync(new URL('../src/layouts/PortalLayout.astro', import.meta.url), 'utf8');
+  assert.ok(layout.includes('/admin/pagos/nuevo'), 'administrators can reach assisted registration from their nav');
+});
+
 test('the receipt document page can actually display its crest and print button', () => {
   const page = readFileSync(new URL('../src/pages/portal/comprobantes/[id].astro', import.meta.url), 'utf8');
   assert.ok(page.includes("img-src 'self'"), 'CSP must allow the same-origin crest or the logo silently never renders');

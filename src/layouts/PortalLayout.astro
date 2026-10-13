@@ -32,7 +32,7 @@ const inFamily = Astro.url.pathname === '/portal' || Astro.url.pathname.startsWi
 const familyContext = !admin || inFamily;
 const pendingInvitation = Boolean(actor) && Astro.cookies.has('pending-invitation') && Astro.url.pathname !== '/portal/invitacion';
 const nav = admin && !familyContext
-  ? [['/admin', 'Resumen', 'overview'], ['/admin/familias', 'Familias', 'families'], ['/admin/mensualidades', 'Mensualidades', 'charges'], ['/admin/comprobantes', 'Comprobantes', 'receipts'], ['/admin/eventos', 'Eventos', 'events']]
+  ? [['/admin', 'Resumen', 'overview'], ['/admin/familias', 'Familias', 'families'], ['/admin/mensualidades', 'Mensualidades', 'charges'], ['/admin/comprobantes', 'Comprobantes', 'receipts'], ['/admin/pagos/nuevo', 'Registrar pago', 'new-payment'], ['/admin/eventos', 'Eventos', 'events']]
   : [['/portal', 'Mi cuenta', 'overview'], ['/portal/eventos', 'Eventos', 'events'], ['/portal/pagos/nuevo', 'Registrar pago', 'new-payment'], ['/portal/inscribir', 'Mis atletas', 'my-athletes']];
 ---
 <!doctype html>
