@@ -1,0 +1,49 @@
+---
+import { crDateKey, type EventOccurrence } from "../../lib/portal/events";
+import { MONTHS_ES } from "./format";
+interface Props { yearMonth: string; occurrences: EventOccurrence[]; todayKey: string; admin?: boolean; }
+const { yearMonth, occurrences, todayKey, admin = false } = Astro.props;
+const [y, m] = yearMonth.split("-").map(Number);
+const firstWeekday = new Date(Date.UTC(y, m - 1, 1, 12)).getUTCDay();
+const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+// Multi-day events appear on every CR day they touch, not only the start day.
+const byDay = new Map<string, EventOccurrence[]>();
+for (const occ of occurrences) {
+  let cursor = new Date(occ.startsAt).getTime();
+  const end = new Date(occ.endsAt).getTime();
+  for (let guard = 0; guard < 32 && cursor < end; guard++) {
+    const key = crDateKey(new Date(cursor).toISOString());
+    if (key.startsWith(yearMonth)) byDay.set(key, [...(byDay.get(key) ?? []), occ]);
+    cursor += 86_400_000;
+  }
+}
+const cells: Array<{ day: number; key: string } | null> = [
+  ...Array.from({ length: firstWeekday }, () => null),
+  ...Array.from({ length: daysInMonth }, (_, i) => ({ day: i + 1, key: `${yearMonth}-${String(i + 1).padStart(2, "0")}` })),
+];
+while (cells.length % 7 !== 0) cells.push(null);
+const weeks: Array<Array<{ day: number; key: string } | null>> = [];
+for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+const weekdays = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+const monthName = MONTHS_ES[m - 1];
+const chipHref = (occ: EventOccurrence) => admin ? `/admin/eventos/${occ.event.id}` : `/portal/eventos/${occ.event.id}?occurrence=${encodeURIComponent(occ.startsAt)}`;
+---
+<table class="portal-calendar">
+  <caption>Calendario de {monthName} {y}. La misma información está en la lista de este mes, más fácil de leer en el teléfono.</caption>
+  <thead><tr>{weekdays.map((d) => <th scope="col"><span aria-hidden="true">{d.slice(0, 3)}</span><span class="visually-hidden">{d}</span></th>)}</tr></thead>
+  <tbody>
+    {weeks.map((week) => (
+      <tr>
+        {week.map((cell) => cell === null ? <td class="portal-calendar-cell is-empty" aria-hidden="true"></td> : (
+          <td class:list={["portal-calendar-cell", { "is-today": cell.key === todayKey }]}>
+            <time class="portal-calendar-day" datetime={cell.key} aria-current={cell.key === todayKey ? "date" : undefined}>{cell.day}{cell.key === todayKey && <span class="visually-hidden"> (hoy)</span>}{cell.key === todayKey && <span class="portal-calendar-today" aria-hidden="true">hoy</span>}</time>
+            {(byDay.get(cell.key) ?? []).slice(0, 2).map((occ) => (
+              <a class:list={["portal-calendar-event", { "is-cancelled": occ.cancelled }]} href={chipHref(occ)} aria-label={`${occ.event.title}, ${cell.day} de ${monthName}${occ.cancelled ? ", fecha cancelada" : ""}`}><span class="portal-calendar-dot" aria-hidden="true"></span><span class="portal-calendar-event-title">{occ.event.title}</span></a>
+            ))}
+            {(byDay.get(cell.key) ?? []).length > 2 && <a class="portal-calendar-more" href={`#dia-${cell.key}`}>+{(byDay.get(cell.key) ?? []).length - 2} más</a>}
+          </td>
+        ))}
+      </tr>
+    ))}
+  </tbody>
+</table>

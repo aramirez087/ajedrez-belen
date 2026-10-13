@@ -103,6 +103,7 @@ const errorCodes = new Set([
   'invalid_request','limit','invitation_invalid','bank_unconfirmed','allocation_exceeds_balance',
   'draft_not_found','draft_expired','draft_limit','ocr_disabled','ocr_busy','ocr_limit',
   'ocr_pdf_preview_required','invalid_image','original_missing','draft_mismatch',
+  'invalid_event','invalid_recurrence','invalid_location','invalid_event_image',
 ]);
 
 export function mutationError(context: APIContext, error: unknown, back: string): Response {

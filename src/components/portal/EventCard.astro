@@ -1,0 +1,34 @@
+---
+import { crRangeLabel, crDateLabel, crWallParts, occurrenceState, relativeBadge, recurrenceLabel, type EventOccurrence } from "../../lib/portal/events";
+interface Props { occurrence: EventOccurrence; admin?: boolean; nowIso?: string; }
+const { occurrence, admin = false, nowIso = new Date().toISOString() } = Astro.props;
+const { event } = occurrence;
+const p = crWallParts(occurrence.startsAt);
+const months = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const locLabel = event.locationType === "online" ? "En línea" : event.locationType === "hybrid" ? "Híbrido" : "Presencial";
+const href = admin ? `/admin/eventos/${event.id}` : `/portal/eventos/${event.id}?occurrence=${encodeURIComponent(occurrence.startsAt)}`;
+const state = occurrence.cancelled ? "past" : occurrenceState(occurrence, nowIso);
+const badge = occurrence.cancelled ? "Fecha cancelada" : relativeBadge(state);
+const startsSoon = new Date(occurrence.startsAt).getTime() - new Date(nowIso).getTime() <= 2 * 3600_000;
+const showJoin = !admin && !occurrence.cancelled && !!event.locationUrl && state !== "past" && (state === "live" || state === "today" || startsSoon);
+const isZoom = /zoom\.us/i.test(event.locationUrl ?? "");
+---
+<article class:list={["portal-event-card", { "is-past": state === "past", "is-cancelled": occurrence.cancelled, "is-live": state === "live" }]}>
+  {event.image && <img class="portal-event-thumb" src={`/api/portal/events/${event.id}/image`} alt={event.imageAlt ?? ""} loading="lazy" width="120" height="84" />}
+  <div class="portal-event-date" aria-hidden="true"><strong>{p.day}</strong><span>{months[p.month - 1]}</span></div>
+  <div class="portal-event-body">
+    <div class="portal-event-meta">
+      {badge && <span class:list={["portal-event-badge", { "portal-event-badge-live": state === "live" && !occurrence.cancelled, "portal-event-badge-muted": occurrence.cancelled || state === "past" }]}>{badge}</span>}
+      <span class="portal-event-badge portal-event-badge-plain">{locLabel}</span>
+      {occurrence.isRecurring && <span class="portal-event-recurrence">{recurrenceLabel(event)}</span>}
+      {event.status !== "published" && <span class="portal-event-badge portal-event-badge-muted">{event.status === "draft" ? "Borrador" : "Cancelado"}</span>}
+    </div>
+    <h3><a class="portal-event-title-link" href={href}>{event.title}</a></h3>
+    <p class="portal-event-when">
+      <time datetime={occurrence.startsAt}>{crDateLabel(occurrence.startsAt)}</time> · {crRangeLabel(occurrence.startsAt, occurrence.endsAt, event.allDay)}
+      {event.locationLabel ? ` · ${event.locationLabel}` : event.locationAddress ? ` · ${event.locationAddress}` : ""}
+    </p>
+    {event.description && <p class="portal-event-desc">{event.description}</p>}
+    {showJoin && <p class="portal-event-card-join"><a class="portal-button portal-event-join-button" href={event.locationUrl} target="_blank" rel="noopener noreferrer">{state === "live" ? (isZoom ? "Ya empezó: entrar por Zoom" : "Ya empezó: entrar ahora") : (isZoom ? "Entrar por Zoom" : "Entrar al evento")} <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a></p>}
+  </div>
+</article>

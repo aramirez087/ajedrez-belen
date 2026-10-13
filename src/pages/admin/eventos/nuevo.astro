@@ -1,0 +1,19 @@
+---
+import { env } from "cloudflare:workers";
+import PortalLayout from "../../../layouts/PortalLayout.astro";
+import PageHeader from "../../../components/portal/PageHeader.astro";
+import EventForm from "../../../components/portal/EventForm.astro";
+import { authorizePortal } from "../../../lib/portal/access";
+import { getEvent } from "../../../lib/portal/events";
+export const prerender = false;
+const access = await authorizePortal(Astro, env, { admin: true });
+if (!access.ok) return access.response;
+const { actor } = access;
+const fromId = Astro.url.searchParams.get("from") ?? "";
+const template = fromId ? await getEvent(env.DB, fromId, actor).catch(() => null) : null;
+const errorCode = Astro.url.searchParams.get("error") ?? "";
+---
+<PortalLayout title={template ? "Duplicar evento" : "Nuevo evento"} actor={actor} active="events">
+  <PageHeader title={template ? "Copia del evento." : "Nuevo evento."} eyebrow="Administración · Eventos" description={template ? "Trajimos los datos del evento original. Ajusta la fecha y publica: es una serie nueva, no toca la anterior." : "Para la llamada semanal: elige En línea, pega el enlace de Zoom y marca «Cada semana». Revisa la vista previa de fechas antes de publicar."} backHref="/admin/eventos" backLabel="Volver a eventos" />
+  <section class="portal-section"><EventForm action="/api/admin/events" event={template ?? undefined} duplicate={!!template} errorCode={errorCode} /></section>
+</PortalLayout>

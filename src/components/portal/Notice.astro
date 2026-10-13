@@ -45,6 +45,10 @@ const errors: Record<string, string> = {
   ocr_busy: 'Hay otra lectura en curso. Espera unos segundos o completa los datos a mano.',
   ocr_limit: 'Se llegó al límite de lecturas automáticas. Completa los datos a mano para continuar.',
   ocr_pdf_preview_required: 'No pudimos preparar la primera página del PDF para leerla. Completa los datos a mano; tu PDF igual se guarda completo.',
+  invalid_event: 'Revisa el título, la fecha y las horas del evento.',
+  invalid_recurrence: 'Revisa la recurrencia: intervalo, fecha de fin o cantidad de repeticiones.',
+  invalid_location: 'Revisa la ubicación: los eventos en línea necesitan un enlace válido y los presenciales una dirección.',
+  invalid_event_image: 'La imagen debe ser JPG, PNG o WebP de hasta 3 MB.',
   login_failed: 'No se pudo iniciar sesión. Puede que el intento haya vencido o se haya cancelado. Vuelve a tocar «Iniciar sesión» y completa los pasos sin cerrar la ventana.',
   conflict: 'El registro cambió mientras lo revisabas. Actualiza la página para ver su estado actual.',
   forbidden: 'Tu cuenta no tiene permiso para esta acción. Si crees que es un error, escríbenos por WhatsApp.',
@@ -91,6 +95,11 @@ const notices: Record<string, string> = {
   athlete_reactivated: 'Atleta reactivado. Volverá a generar mensualidades.',
   logged_out: 'Sesión cerrada. Gracias por tu visita; tu cuenta quedó protegida en este equipo.',
   contrasena_actualizada: 'Tu contraseña se actualizó. Inicia sesión con la contraseña nueva.',
+  event_created: 'Evento creado. Ya aparece en el calendario del portal.',
+  event_updated: 'Evento actualizado.',
+  event_cancelled: 'Evento cancelado. Ya no aparece para las familias.',
+  event_deleted: 'Evento eliminado.',
+  event_occurrence_cancelled: 'Esa fecha quedó cancelada. El resto de la serie sigue igual.',
   invitation_pending: 'Recibimos tu invitación. Inicia sesión con el correo indicado para aceptarla.',
 };
 const error = Astro.url.searchParams.get('error');

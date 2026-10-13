@@ -1,0 +1,50 @@
+---
+import { env } from "cloudflare:workers";
+import PortalLayout from "../../../layouts/PortalLayout.astro";
+import PageHeader from "../../../components/portal/PageHeader.astro";
+import EventCard from "../../../components/portal/EventCard.astro";
+import { authorizePortal } from "../../../lib/portal/access";
+import { listEvents, nextOccurrence } from "../../../lib/portal/events";
+export const prerender = false;
+const access = await authorizePortal(Astro, env, { admin: true });
+if (!access.ok) return access.response;
+const { actor } = access;
+const events = await listEvents(env.DB, actor);
+const nowIso = new Date().toISOString();
+const withNext = events.map((event) => ({ event, next: nextOccurrence(event, nowIso) }));
+const filter = Astro.url.searchParams.get("estado") ?? "todos";
+const matches = (status: string, hasNext: boolean) =>
+  filter === "todos" ? true : filter === "terminados" ? !hasNext : status === filter;
+const shown = withNext
+  .filter(({ event, next }) => matches(event.status, !!next))
+  // What happens next first; ended series sink to the bottom.
+  .sort((a, b) => (a.next?.startsAt ?? "9999").localeCompare(b.next?.startsAt ?? "9999"));
+const counts = {
+  todos: withNext.length,
+  published: withNext.filter((w) => w.event.status === "published").length,
+  draft: withNext.filter((w) => w.event.status === "draft").length,
+  cancelled: withNext.filter((w) => w.event.status === "cancelled").length,
+  terminados: withNext.filter((w) => !w.next).length,
+};
+const filters = [["todos", "Todos"], ["published", "Publicados"], ["draft", "Borradores"], ["cancelled", "Cancelados"], ["terminados", "Terminados"]] as const;
+---
+<PortalLayout title="Eventos" actor={actor} active="events">
+  <PageHeader title="Calendario de eventos." eyebrow="Administración" description="Publica actividades, torneos y la llamada semanal por Zoom. Las familias los ven en su portal; no hay confirmación de asistencia. Ordenados por lo que viene primero."><a class="portal-button" href="/admin/eventos/nuevo">Nuevo evento <span aria-hidden="true">→</span></a></PageHeader>
+  <p class="portal-section-caption"><a class="portal-link" href="/portal/eventos">Ver cómo lo ven las familias <span aria-hidden="true">→</span></a></p>
+  <nav class="portal-subnav" aria-label="Filtrar eventos por estado">
+    {filters.map(([key, label]) => <a href={key === "todos" ? "/admin/eventos" : `/admin/eventos?estado=${key}`} aria-current={filter === key ? "page" : undefined}>{label} · {counts[key]}</a>)}
+  </nav>
+  <section class="portal-section">
+    <div class="portal-section-heading"><h2>Eventos creados</h2><p>{shown.length} {shown.length === 1 ? "serie" : "series"}</p></div>
+    {events.length === 0
+      ? <div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3>Todavía no hay eventos.</h3><p>Crea el primero: puede ser la llamada semanal por Zoom con su enlace.</p><p><a class="portal-button" href="/admin/eventos/nuevo">Crear el primero <span aria-hidden="true">→</span></a></p></div></div>
+      : shown.length === 0
+        ? <p class="portal-section-caption">No hay eventos con este filtro. <a class="portal-link" href="/admin/eventos">Ver todos <span aria-hidden="true">→</span></a></p>
+        : <div class="portal-event-list">{shown.map(({ event, next }) => (
+            <div class="portal-event-row-actions">
+              <EventCard occurrence={next ?? { event, startsAt: event.startsAt, endsAt: event.endsAt, isRecurring: event.recurrenceFreq !== "none" }} admin nowIso={nowIso} />
+              <p class="portal-event-card-actions">{!next && event.status === "published" && <span class="portal-event-badge portal-event-badge-muted">Terminó</span>}<a class="portal-link" href={`/admin/eventos/nuevo?from=${event.id}`}>Duplicar</a>{event.status === "published" && next && <a class="portal-link" href={`/portal/eventos/${event.id}?occurrence=${encodeURIComponent(next.startsAt)}`}>Ver como familia</a>}</p>
+            </div>
+          ))}</div>}
+  </section>
+</PortalLayout>

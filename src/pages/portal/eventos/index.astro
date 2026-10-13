@@ -1,0 +1,66 @@
+---
+import { env } from "cloudflare:workers";
+import PortalLayout from "../../../layouts/PortalLayout.astro";
+import PageHeader from "../../../components/portal/PageHeader.astro";
+import EventCard from "../../../components/portal/EventCard.astro";
+import EventCalendar from "../../../components/portal/EventCalendar.astro";
+import { MONTHS_ES } from "../../../components/portal/format";
+import { authorizePortal } from "../../../lib/portal/access";
+import { crDateKey, crWallToUtcIso, listOccurrences, upcomingOccurrences } from "../../../lib/portal/events";
+export const prerender = false;
+const access = await authorizePortal(Astro, env);
+if (!access.ok) return access.response;
+const { actor } = access;
+const nowIso = new Date().toISOString();
+const todayKey = crDateKey(nowIso);
+const rawMonth = Astro.url.searchParams.get("month") ?? "";
+const validMonth = /^(202[4-9]|203\d)-(0[1-9]|1[0-2])$/.test(rawMonth);
+const monthAdjusted = rawMonth !== "" && !validMonth;
+const yearMonth = validMonth ? rawMonth : todayKey.slice(0, 7);
+const [yy, mm] = yearMonth.split("-").map(Number);
+const monthStart = crWallToUtcIso(yy, mm, 1, 0, 0);
+const nextY = mm === 12 ? yy + 1 : yy, nextM = mm === 12 ? 1 : mm + 1;
+const prevY = mm === 1 ? yy - 1 : yy, prevM = mm === 1 ? 12 : mm - 1;
+const monthEnd = crWallToUtcIso(nextY, nextM, 1, 0, 0);
+const pad = (n: number) => String(n).padStart(2, "0");
+const prevMonth = `${prevY}-${pad(prevM)}`, nextMonth = `${nextY}-${pad(nextM)}`;
+const viewingCurrentMonth = yearMonth === todayKey.slice(0, 7);
+const [occurrences, upcoming] = await Promise.all([
+  listOccurrences(env.DB, actor, monthStart, monthEnd),
+  upcomingOccurrences(env.DB, actor, 5, nowIso),
+]);
+// Never show the same occurrence twice on this page: the month list skips
+// what "Lo que viene" already showed (relevant when viewing this month).
+const shownKeys = new Set(upcoming.map((o) => `${o.event.id}|${o.startsAt}`));
+const monthList = occurrences.filter((o) => !shownKeys.has(`${o.event.id}|${o.startsAt}`));
+const monthListDeduped = monthList.length !== occurrences.length;
+---
+<PortalLayout title="Eventos" actor={actor} active="events">
+  <PageHeader title="Eventos y actividades." eyebrow="Calendario" description="Clases, torneos y la llamada semanal por Zoom. Las horas son de Costa Rica. Toca un evento para entrar o ver la dirección."><a class="portal-button portal-button-secondary" href="/portal">Mi cuenta <span aria-hidden="true">→</span></a></PageHeader>
+  {monthAdjusted && <div class="portal-notice" role="status"><p>Ese mes no se pudo leer, así que te mostramos <strong>este mes</strong>.</p></div>}
+  {actor.isAdmin && <p class="portal-section-caption">Eres administración: <a class="portal-link" href="/admin/eventos">crear y editar eventos <span aria-hidden="true">→</span></a></p>}
+  <section class="portal-section" aria-labelledby="upcoming-title">
+    <div class="portal-section-heading"><h2 id="upcoming-title">Lo que viene</h2><p>Próximos eventos primero</p></div>
+    {upcoming.length ? <div class="portal-event-list">{upcoming.map((o) => <EventCard occurrence={o} nowIso={nowIso} />)}</div> : <div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3>No hay eventos próximos.</h3><p>Cuando la Asociación publique actividades, aparecerán aquí. Mientras tanto, puedes revisar otros meses abajo.</p></div></div>}
+  </section>
+  <section class="portal-section" aria-labelledby="month-title">
+    <div class="portal-section-heading"><h2 id="month-title">{MONTHS_ES[mm - 1]} {yy}</h2>
+      <nav class="portal-event-monthnav" aria-label="Cambiar de mes">
+        <a class="portal-link" href={`/portal/eventos?month=${prevMonth}`}><span aria-hidden="true">←</span> Mes anterior</a>
+        {!viewingCurrentMonth && <a class="portal-link" href="/portal/eventos">Ir a hoy</a>}
+        <a class="portal-link" href={`/portal/eventos?month=${nextMonth}`}>Mes siguiente <span aria-hidden="true">→</span></a>
+      </nav>
+    </div>
+    {occurrences.length ? (<>
+      {monthListDeduped && <p class="portal-section-caption">Los eventos de arriba («Lo que viene») no se repiten en esta lista.</p>}
+      {monthList.length ? <div class="portal-event-list">{monthList.map((o) => <div id={`dia-${crDateKey(o.startsAt)}`}><EventCard occurrence={o} nowIso={nowIso} /></div>)}</div>
+        : <p class="portal-section-caption">Todo lo de este mes ya está arriba, en «Lo que viene».</p>}
+      <details class="portal-calendar-details">
+        <summary>Ver {MONTHS_ES[mm - 1]} en calendario</summary>
+        <EventCalendar yearMonth={yearMonth} occurrences={occurrences} todayKey={todayKey} />
+      </details>
+    </>) : (
+      <div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3>No hay eventos en {MONTHS_ES[mm - 1]}.</h3><p><a class="portal-link" href={`/portal/eventos?month=${nextMonth}`}>Ver el mes siguiente <span aria-hidden="true">→</span></a></p></div></div>
+    )}
+  </section>
+</PortalLayout>

@@ -1,0 +1,205 @@
+---
+import { crWallParts, type PortalEvent } from "../../lib/portal/events";
+interface Props { event?: PortalEvent; action: string; errorCode?: string; duplicate?: boolean; }
+const { event, action, errorCode = "", duplicate = false } = Astro.props;
+const editing = !!event && !duplicate;
+const p = event ? crWallParts(event.startsAt) : null;
+const e = event ? crWallParts(event.endsAt) : null;
+const pad = (n: number) => String(n).padStart(2, "0");
+const dateValue = p ? `${p.year}-${pad(p.month)}-${pad(p.day)}` : "";
+const startValue = p ? `${pad(p.hour)}:${pad(p.minute)}` : "19:00";
+const endValue = e ? `${pad(e.hour)}:${pad(e.minute)}` : "20:00";
+const endsMode = event?.recurrenceCount ? "veces" : event?.recurrenceUntil ? "hasta" : "nunca";
+const submissionId = crypto.randomUUID();
+const draftKey = editing ? `event-${event!.id}` : "event-nuevo";
+const fieldErrors: Record<string, string> = {
+  invalid_location: "location", invalid_recurrence: "recurrence", invalid_event_image: "image",
+  invalid_event: "when", invalid_fields: "title",
+};
+const errField = fieldErrors[errorCode] ?? "";
+const invalid = (field: string) => errField === field ? true : undefined;
+---
+{errorCode && <div class="portal-notice portal-notice-error portal-event-error-summary" role="alert"><strong>No se guardó. Revisa el campo marcado.</strong><p>Tus datos se quedaron en el formulario (excepto la imagen, que hay que elegirla de nuevo). Corrige y vuelve a enviar.</p>{errField && <p><a class="portal-link" href={`#ev-${errField === "when" ? "date" : errField === "location" ? "url" : errField === "recurrence" ? "freq" : errField === "image" ? "image" : "title"}`}>Ir al campo <span aria-hidden="true">↓</span></a></p>}</div>}
+<form class="portal-form portal-event-form" action={action} method="post" enctype="multipart/form-data" data-event-form data-draft-key={draftKey} data-unsaved-guard>
+  {editing && <input type="hidden" name="action" value="update" />}
+  {!editing && <input type="hidden" name="submissionId" value={submissionId} />}
+  <div class="portal-field"><label for="ev-title">Título</label><input id="ev-title" name="title" type="text" maxlength="120" required aria-invalid={invalid("title")} value={event?.title ?? ""} placeholder="Clase por Zoom, torneo interno…" /></div>
+  <div class="portal-field"><label for="ev-desc">Detalles <span class="portal-help">(opcional)</span></label><textarea id="ev-desc" name="description" maxlength="4000" rows="4" placeholder="Qué va a pasar, qué deben traer, quiénes pueden participar…">{event?.description ?? ""}</textarea></div>
+  <fieldset class="portal-fieldset"><legend>¿Cuándo es?</legend>
+    <div class="portal-form-row">
+      <div class="portal-field"><label for="ev-date">Fecha{event && event.recurrenceFreq !== "none" ? " de la primera vez" : ""}</label><input id="ev-date" name="date" type="date" required aria-invalid={invalid("when")} aria-describedby="ev-date-help" value={dateValue} /><p class="portal-help" id="ev-date-help" data-date-help>Elige el día. Si se repite, este día manda: «cada semana» cae el mismo día de la semana.</p></div>
+      <div class="portal-field portal-event-allday"><label class="portal-checkbox"><input type="checkbox" name="allDay" checked={event?.allDay} data-all-day /><span>Todo el día (sin hora)</span></label></div>
+    </div>
+    <div class="portal-form-row" data-time-row hidden={event?.allDay}>
+      <div class="portal-field"><label for="ev-start">Hora de inicio</label><input id="ev-start" name="startTime" type="time" value={startValue} /></div>
+      <div class="portal-field"><label for="ev-end">Hora de fin</label><input id="ev-end" name="endTime" type="time" value={endValue} aria-describedby="ev-duration" /></div>
+    </div>
+    <p class="portal-help" id="ev-duration" data-duration role="status">Las horas son de Costa Rica.</p>
+  </fieldset>
+  <fieldset class="portal-fieldset"><legend>¿Dónde es?</legend>
+    <div class="portal-event-loc-types">
+      <label class="portal-checkbox portal-event-choice"><input type="radio" name="locationType" value="online" checked={!event || event.locationType === "online"} data-loc-type /><span><strong>En línea</strong> — Zoom, Meet…</span></label>
+      <label class="portal-checkbox portal-event-choice"><input type="radio" name="locationType" value="in_person" checked={event?.locationType === "in_person"} data-loc-type /><span><strong>Presencial</strong> — una dirección</span></label>
+      <label class="portal-checkbox portal-event-choice"><input type="radio" name="locationType" value="hybrid" checked={event?.locationType === "hybrid"} data-loc-type /><span><strong>Híbrido</strong> — dirección y enlace</span></label>
+    </div>
+  </fieldset>
+  <div class="portal-field"><label for="ev-loc-label">Nombre del lugar <span class="portal-help">(opcional)</span></label><input id="ev-loc-label" name="locationLabel" type="text" maxlength="120" value={event?.locationLabel ?? ""} placeholder="Zoom semanal, sede de Belén…" /></div>
+  <div class="portal-field" data-loc-url><label for="ev-url">Enlace (URL) <span class="portal-help">(obligatorio)</span></label><input id="ev-url" name="locationUrl" type="url" maxlength="2048" aria-invalid={invalid("location")} aria-describedby="ev-url-help" value={event?.locationUrl ?? ""} placeholder="https://zoom.us/j/…" /><p class="portal-help" id="ev-url-help">Se muestra como el botón grande «Entrar por Zoom».</p></div>
+  <div class="portal-field" data-loc-address><label for="ev-address">Dirección <span class="portal-help">(obligatorio)</span></label><input id="ev-address" name="locationAddress" type="text" maxlength="300" aria-invalid={invalid("location")} aria-describedby="ev-address-help" value={event?.locationAddress ?? ""} placeholder="Calle, cantón, provincia…" /><p class="portal-help" id="ev-address-help">Se muestra con un enlace «Cómo llegar» a Google Maps.</p></div>
+  <div class="portal-field"><label for="ev-image">Imagen <span class="portal-help">(opcional)</span></label>
+    <p class="portal-help" id="ev-image-help">Horizontal, con el texto grande y centrado: en las tarjetas se ve pequeña. JPG, PNG o WebP hasta 3 MB. Si tu teléfono guarda HEIC, haz una captura de pantalla y sube esa.</p>
+    {event?.image && !duplicate && <p class="portal-event-current-image"><img src={`/api/portal/events/${event.id}/image`} alt={event.imageAlt ?? ""} width="120" /> Imagen actual</p>}
+    <input id="ev-image" name="image" type="file" accept="image/png,image/jpeg,image/webp" aria-invalid={invalid("image")} aria-describedby="ev-image-help ev-image-status" data-image-input />
+    <p class="portal-event-image-preview" data-image-preview hidden><img alt="" width="160" /><span>Así se va a ver (recortada en las tarjetas).</span></p>
+    <p class="portal-help" id="ev-image-status" data-image-status role="status"></p>
+    {event?.image && !duplicate && <label class="portal-checkbox portal-event-choice"><input type="checkbox" name="removeImage" /><span>Quitar la imagen actual</span></label>}
+    <div class="portal-field" style="margin-top:10px"><label for="ev-image-alt">Descripción de la imagen <span class="portal-help">(opcional, para lectores de pantalla: si el afiche trae texto importante, escríbelo aquí)</span></label><input id="ev-image-alt" name="imageAlt" type="text" maxlength="200" value={event?.imageAlt ?? ""} placeholder="Afiche: Torneo interno, sábado 9 a. m.…" /></div>
+  </div>
+  <fieldset class="portal-fieldset"><legend>¿Se repite?</legend>
+    <div class="portal-form-row">
+      <div class="portal-field"><label for="ev-freq">Repetición</label><select id="ev-freq" name="recurrenceFreq" data-freq aria-invalid={invalid("recurrence")} aria-describedby="ev-preview"><option value="none" selected={!event || event.recurrenceFreq === "none"}>No se repite</option><option value="weekly" selected={event?.recurrenceFreq === "weekly"}>Cada semana</option><option value="monthly" selected={event?.recurrenceFreq === "monthly"}>Cada mes</option><option value="yearly" selected={event?.recurrenceFreq === "yearly"}>Cada año</option></select></div>
+      <div class="portal-field" data-recurrence hidden={!event || event.recurrenceFreq === "none"}><label for="ev-interval" data-interval-label>Cada cuántas semanas</label><input id="ev-interval" name="recurrenceInterval" type="number" min="1" max="12" value={event?.recurrenceInterval ?? 1} /></div>
+    </div>
+    <div data-recurrence hidden={!event || event.recurrenceFreq === "none"}>
+      <p class="portal-label" id="ev-ends-label">Termina</p>
+      <div class="portal-event-loc-types" role="group" aria-labelledby="ev-ends-label">
+        <label class="portal-checkbox portal-event-choice"><input type="radio" name="recurrenceEnds" value="nunca" checked={endsMode === "nunca"} data-ends /><span><strong>Nunca</strong> — sigue hasta que lo canceles</span></label>
+        <label class="portal-checkbox portal-event-choice"><input type="radio" name="recurrenceEnds" value="hasta" checked={endsMode === "hasta"} data-ends /><span><strong>El día…</strong></span></label>
+        <label class="portal-checkbox portal-event-choice"><input type="radio" name="recurrenceEnds" value="veces" checked={endsMode === "veces"} data-ends /><span><strong>Después de tantas veces…</strong></span></label>
+      </div>
+      <div class="portal-form-row" style="margin-top:12px">
+        <div class="portal-field" data-ends-until><label for="ev-until">Último día (incluido)</label><input id="ev-until" name="recurrenceUntil" type="date" value={event?.recurrenceUntil ?? ""} /></div>
+        <div class="portal-field" data-ends-count><label for="ev-count">Cantidad de veces</label><input id="ev-count" name="recurrenceCount" type="number" min="1" max="104" value={event?.recurrenceCount ?? ""} placeholder="8" /></div>
+      </div>
+    </div>
+    <p class="portal-event-preview" id="ev-preview" data-preview role="status"></p>
+    {editing && event.recurrenceFreq !== "none" && <p class="portal-help">Guardar cambia <strong>toda la serie</strong>. Para saltar una sola fecha (un feriado), usa «Cancelar esta fecha» en la lista de abajo.</p>}
+  </fieldset>
+  {editing && <div class="portal-field"><label for="ev-status">Estado</label><select id="ev-status" name="status"><option value="published" selected={event.status === "published"}>Publicado (las familias lo ven)</option><option value="draft" selected={event.status === "draft"}>Borrador (solo administración)</option><option value="cancelled" selected={event.status === "cancelled"}>Cancelado</option></select></div>}
+  <div class="portal-form-actions">
+    {editing
+      ? <button class="portal-button" type="submit">Guardar cambios <span aria-hidden="true">→</span></button>
+      : (<><button class="portal-button" type="submit" name="statusIntent" value="published">{duplicate ? "Crear copia publicada" : "Publicar evento"} <span aria-hidden="true">→</span></button>
+         <button class="portal-button portal-button-secondary" type="submit" name="statusIntent" value="draft">Guardar borrador</button></>)}
+    <a class="portal-link" href="/admin/eventos">Volver sin guardar</a>
+  </div>
+</form>
+<script>
+  document.querySelectorAll<HTMLFormElement>("[data-event-form]").forEach((form) => {
+    const q = <T extends Element>(sel: string) => form.querySelector(sel) as T | null;
+    const qa = <T extends Element>(sel: string) => Array.from(form.querySelectorAll(sel)) as T[];
+    const setEnabled = (wrap: HTMLElement | null, enabled: boolean) => {
+      if (!wrap) return;
+      wrap.hidden = !enabled;
+      wrap.querySelectorAll("input, select, textarea").forEach((el) => { (el as HTMLInputElement).disabled = !enabled; });
+    };
+    const fmt = new Intl.DateTimeFormat("es-CR", { timeZone: "America/Costa_Rica", weekday: "short", day: "numeric", month: "short" });
+    const fmtLong = new Intl.DateTimeFormat("es-CR", { timeZone: "America/Costa_Rica", weekday: "long", day: "numeric", month: "long" });
+    function previewDates(): string {
+      const date = q<HTMLInputElement>('#ev-date')?.value ?? "";
+      const freq = (form.querySelector("[data-freq]") as HTMLSelectElement | null)?.value ?? "none";
+      const start = q<HTMLInputElement>('#ev-start')?.value ?? "19:00";
+      if (!date) return "";
+      const [Y, M, D] = date.split("-").map(Number);
+      const [h, mi] = start.split(":").map(Number);
+      const first = new Date(Date.UTC(Y, M - 1, D, (h || 0) + 6, mi || 0));
+      if (freq === "none") return `Una sola vez: ${fmtLong.format(first)}.`;
+      const interval = Math.min(12, Math.max(1, Number(q<HTMLInputElement>('#ev-interval')?.value || 1)));
+      const ends = form.querySelector<HTMLInputElement>('input[name="recurrenceEnds"]:checked')?.value ?? "nunca";
+      const until = q<HTMLInputElement>('#ev-until')?.value ?? "";
+      const count = Number(q<HTMLInputElement>('#ev-count')?.value || 0);
+      const dates: Date[] = [];
+      for (let i = 0; i < 104; i++) {
+        let d: Date;
+        if (freq === "weekly") d = new Date(first.getTime() + i * interval * 7 * 86400000);
+        else {
+          const months = i * interval * (freq === "yearly" ? 12 : 1);
+          const t = new Date(Date.UTC(Y, M - 1 + months, 1, (h || 0) + 6, mi || 0));
+          const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate();
+          t.setUTCDate(Math.min(D, last)); d = t;
+        }
+        const key = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Costa_Rica" }).format(d);
+        if (ends === "hasta" && until && key > until) break;
+        if (ends === "veces" && count > 0 && dates.length >= count) break;
+        dates.push(d);
+        if (ends === "nunca" && dates.length >= 4) break;
+      }
+      const shown = dates.slice(0, 4).map((d) => fmt.format(d)).join(", ");
+      const total = ends === "nunca" ? "sin fecha de fin" : `${dates.length} ${dates.length === 1 ? "vez" : "veces"} en total`;
+      const anchor = freq === "weekly" ? `Los ${new Intl.DateTimeFormat("es-CR", { timeZone: "America/Costa_Rica", weekday: "long" }).format(first)}` : freq === "monthly" ? `El día ${D} de cada mes${D > 28 ? " (en meses cortos cae el último día)" : ""}` : "Cada año en esta fecha";
+      return `${anchor}: ${shown}${dates.length > 4 || ends === "nunca" ? "…" : ""} (${total}). Revísalo antes de publicar.`;
+    }
+    function durationText(): string {
+      const allDay = q<HTMLInputElement>("[data-all-day]")?.checked;
+      if (allDay) return "Todo el día, sin hora. Las familias ven solo la fecha.";
+      const s = q<HTMLInputElement>('#ev-start')?.value, e2 = q<HTMLInputElement>('#ev-end')?.value;
+      if (!s || !e2) return "Las horas son de Costa Rica.";
+      const [sh, sm] = s.split(":").map(Number), [eh, em] = e2.split(":").map(Number);
+      let mins = (eh * 60 + em) - (sh * 60 + sm);
+      const overnight = mins <= 0;
+      if (overnight) mins += 1440;
+      const hrs = Math.floor(mins / 60), rest = mins % 60;
+      const label = hrs ? `${hrs} h${rest ? ` ${rest} min` : ""}` : `${rest} min`;
+      return `Dura ${label}${overnight ? " y termina después de medianoche" : ""}. Horas de Costa Rica.`;
+    }
+    const refresh = () => {
+      const type = form.querySelector<HTMLInputElement>('input[name="locationType"]:checked')?.value ?? "online";
+      setEnabled(q("[data-loc-url]"), type !== "in_person");
+      setEnabled(q("[data-loc-address]"), type !== "online");
+      const urlInput = q<HTMLInputElement>('#ev-url'), addrInput = q<HTMLInputElement>('#ev-address');
+      if (urlInput) urlInput.required = type !== "in_person";
+      if (addrInput) addrInput.required = type !== "online";
+      const allDay = !!q<HTMLInputElement>("[data-all-day]")?.checked;
+      setEnabled(q("[data-time-row]"), !allDay);
+      const freq = (form.querySelector("[data-freq]") as HTMLSelectElement | null)?.value ?? "none";
+      qa<HTMLElement>("[data-recurrence]").forEach((el) => setEnabled(el, freq !== "none"));
+      const unit = { weekly: "semanas", monthly: "meses", yearly: "años" }[freq as string] ?? "semanas";
+      const il = q<HTMLElement>("[data-interval-label]"); if (il) il.textContent = `Cada cuántas ${unit}`;
+      const ends = form.querySelector<HTMLInputElement>('input[name="recurrenceEnds"]:checked')?.value ?? "nunca";
+      setEnabled(q("[data-ends-until]"), freq !== "none" && ends === "hasta");
+      setEnabled(q("[data-ends-count]"), freq !== "none" && ends === "veces");
+      const untilInput = q<HTMLInputElement>('#ev-until'), countInput = q<HTMLInputElement>('#ev-count');
+      if (untilInput) untilInput.required = freq !== "none" && ends === "hasta";
+      if (countInput) countInput.required = freq !== "none" && ends === "veces";
+      const prev = q<HTMLElement>("[data-preview]"); if (prev) prev.textContent = previewDates();
+      const dur = q<HTMLElement>("[data-duration]"); if (dur) dur.textContent = durationText();
+    };
+    form.addEventListener("change", refresh);
+    form.addEventListener("input", refresh);
+    // Image: instant preview + size/type feedback before submit.
+    const imageInput = q<HTMLInputElement>("[data-image-input]");
+    imageInput?.addEventListener("change", () => {
+      const status = q<HTMLElement>("[data-image-status]");
+      const preview = q<HTMLElement>("[data-image-preview]");
+      const img = preview?.querySelector("img");
+      const file = imageInput.files?.[0];
+      if (preview) preview.hidden = true;
+      if (!file || !status) return;
+      if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) { status.textContent = "Ese archivo no sirve: debe ser JPG, PNG o WebP. Si es HEIC, haz una captura de pantalla."; return; }
+      if (file.size > 3 * 1024 * 1024) { status.textContent = "La imagen pesa más de 3 MB. Haz una captura de pantalla y sube esa."; return; }
+      status.textContent = `Imagen lista (${Math.max(1, Math.round(file.size / 1024))} KB).`;
+      if (img && preview) { img.src = URL.createObjectURL(file); preview.hidden = false; }
+    });
+    form.addEventListener("submit", (ev) => {
+      const file = imageInput?.files?.[0];
+      if (file && ((file.size > 3 * 1024 * 1024) || !["image/png", "image/jpeg", "image/webp"].includes(file.type))) {
+        ev.preventDefault(); imageInput.focus(); return;
+      }
+      // Confirm long or past events: the two easiest typos to publish live.
+      const s = q<HTMLInputElement>('#ev-start')?.value, e2 = q<HTMLInputElement>('#ev-end')?.value;
+      const allDay = !!q<HTMLInputElement>("[data-all-day]")?.checked;
+      if (!allDay && s && e2) {
+        const [sh, sm] = s.split(":").map(Number), [eh, em] = e2.split(":").map(Number);
+        let mins = (eh * 60 + em) - (sh * 60 + sm); if (mins <= 0) mins += 1440;
+        if (mins > 720 && !window.confirm(`Este evento dura más de 12 horas (${durationText()}). ¿Seguro que las horas están bien?`)) { ev.preventDefault(); return; }
+      }
+      const date = q<HTMLInputElement>('#ev-date')?.value ?? "";
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Costa_Rica" }).format(new Date());
+      const freq2 = (form.querySelector("[data-freq]") as HTMLSelectElement | null)?.value ?? "none";
+      if (freq2 === "none" && date && date < today && !window.confirm("La fecha ya pasó. ¿Guardar de todos modos? (Un evento que se repite sí puede empezar en el pasado.)")) ev.preventDefault();
+    });
+    refresh();
+    const bad = form.querySelector<HTMLElement>("[aria-invalid='true']");
+    if (bad && new URLSearchParams(window.location.search).has("error")) bad.focus();
+  });
+</script>

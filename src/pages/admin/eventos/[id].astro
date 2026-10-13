@@ -1,0 +1,55 @@
+---
+import { env } from "cloudflare:workers";
+import PortalLayout from "../../../layouts/PortalLayout.astro";
+import PageHeader from "../../../components/portal/PageHeader.astro";
+import EventForm from "../../../components/portal/EventForm.astro";
+import EventCard from "../../../components/portal/EventCard.astro";
+import { authorizePortal } from "../../../lib/portal/access";
+import { crDateTimeLabel, getEvent, nextOccurrence, expandOccurrences } from "../../../lib/portal/events";
+export const prerender = false;
+const access = await authorizePortal(Astro, env, { admin: true });
+if (!access.ok) return access.response;
+const { actor } = access;
+const event = await getEvent(env.DB, Astro.params.id!, actor).catch(() => null);
+const errorCode = Astro.url.searchParams.get("error") ?? "";
+const nowIso = new Date().toISOString();
+const next = event ? nextOccurrence(event, nowIso) : null;
+const previewTo = new Date(new Date(nowIso).getTime() + 90 * 86_400_000).toISOString();
+const upcomingAll = event ? expandOccurrences(event, nowIso, previewTo, { includeCancelled: true }).filter((o) => o.endsAt > nowIso).slice(0, 8) : [];
+if (!event) Astro.response.status = 404;
+---
+{event ? (
+<PortalLayout title={event.title} actor={actor} active="events">
+  <PageHeader title={event.title} eyebrow="Administración · Eventos" description="Editar afecta a toda la serie si el evento se repite. Para saltar una fecha, usa la lista de fechas de abajo." backHref="/admin/eventos" backLabel="Volver a eventos"><a class="portal-button portal-button-secondary" href={`/admin/eventos/nuevo?from=${event.id}`}>Duplicar <span aria-hidden="true">→</span></a></PageHeader>
+  {next && <section class="portal-section"><div class="portal-section-heading"><h2>Próxima fecha</h2><a class="portal-link" href={`/portal/eventos/${event.id}?occurrence=${encodeURIComponent(next.startsAt)}`}>Ver como familia <span aria-hidden="true">→</span></a></div><div class="portal-event-list"><EventCard occurrence={next} admin nowIso={nowIso} /></div></section>}
+  {!next && <div class="portal-notice" role="status"><p><strong>Esta serie ya terminó.</strong> No quedan fechas futuras. Puedes duplicarla para crear una nueva.</p></div>}
+  {upcomingAll.length > 0 && (
+    <section class="portal-section"><div class="portal-section-heading"><h2>Fechas de la serie</h2><p>Próximos 90 días · cancela una fecha sin tocar las demás</p></div>
+      <div class="portal-event-list">{upcomingAll.map((o) => (
+        <div class="portal-event-row-actions">
+          <EventCard occurrence={o} admin nowIso={nowIso} />
+          {event.recurrenceFreq !== "none" && (o.cancelled
+            ? <form action={`/api/admin/events/${event.id}`} method="post"><input type="hidden" name="action" value="restore_occurrence" /><input type="hidden" name="occurrenceStart" value={o.startsAt} /><button class="portal-link portal-text-button" type="submit">Restaurar esta fecha</button></form>
+            : <form action={`/api/admin/events/${event.id}`} method="post" data-confirm={`¿Cancelar solo la fecha del ${crDateTimeLabel(o.startsAt)}? Las demás fechas quedan igual.`}><input type="hidden" name="action" value="cancel_occurrence" /><input type="hidden" name="occurrenceStart" value={o.startsAt} /><button class="portal-link portal-text-button" type="submit">Cancelar esta fecha</button></form>)}
+        </div>
+      ))}</div>
+    </section>
+  )}
+  <section class="portal-section"><h2 class="portal-event-edit-title">Editar</h2><EventForm event={event} action={`/api/admin/events/${event.id}`} errorCode={errorCode} /></section>
+  <section class="portal-section portal-event-danger">
+    <h2>Cancelar o eliminar</h2>
+    <p class="portal-section-caption">Cancelar conserva el registro: quien abra un enlace guardado verá «Este evento fue cancelado». Eliminar lo borra por completo, incluida la imagen.</p>
+    <div class="portal-form-actions">
+      {event.status !== "cancelled"
+        ? <form action={`/api/admin/events/${event.id}`} method="post" data-confirm="¿Cancelar este evento? Dejará de verse en el portal."><input type="hidden" name="action" value="status" /><input type="hidden" name="status" value="cancelled" /><button class="portal-button portal-button-secondary" type="submit">Cancelar evento</button></form>
+        : <form action={`/api/admin/events/${event.id}`} method="post"><input type="hidden" name="action" value="status" /><input type="hidden" name="status" value="published" /><button class="portal-button portal-button-secondary" type="submit">Volver a publicar</button></form>}
+      <form action={`/api/admin/events/${event.id}`} method="post" data-confirm="¿Eliminar este evento por completo? No se puede deshacer."><input type="hidden" name="action" value="delete" /><button class="portal-button portal-button-danger" type="submit">Eliminar</button></form>
+    </div>
+  </section>
+</PortalLayout>
+) : (
+<PortalLayout title="Evento no encontrado" actor={actor} active="events">
+  <PageHeader title="No encontramos ese evento." eyebrow="Administración · Eventos" backHref="/admin/eventos" backLabel="Volver a eventos" />
+  <section class="portal-section"><p>Puede que se haya eliminado. <a class="portal-link" href="/admin/eventos">Volver a la lista <span aria-hidden="true">→</span></a></p></section>
+</PortalLayout>
+)}
