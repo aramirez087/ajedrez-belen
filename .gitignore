@@ -2,7 +2,9 @@ node_modules/
 dist/
 dist-staging/
 dist-staging.incoming-*/
+dist-production/
 .vite-staging/
+.vite-production/
 .astro/
 output/
 public/portal-pdf/
