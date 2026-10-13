@@ -125,13 +125,18 @@ export async function sendOutboxReceipt(
   const timer = setTimeout(() => controller.abort(), Number(env.EMAIL_TIMEOUT_MS ?? 10_000));
   try {
     const response = await fetcher('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST', redirect: 'error', signal: controller.signal,
+      // Manual redirects are workerd-compatible and never forward receipt credentials.
+      method: 'POST', redirect: 'manual', signal: controller.signal,
       headers: { accept: 'application/json', 'content-type': 'application/json', 'api-key': env.BREVO_API_KEY! },
       body: JSON.stringify({ sender: { email: env.EMAIL_FROM, name: env.EMAIL_FROM_NAME },
         to: [{ email: message.recipientEmail, name: message.recipientName }], subject: rendered.subject,
         htmlContent: rendered.html, textContent: rendered.text,
         headers: { idempotencyKey: message.idempotencyKey }, tags: ['association-receipt'] }),
     });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      return { status: 'unknown', code: 'provider_error', retryable: false };
+    }
     const body = await boundedProviderJson(response);
     if (response.status === 201) {
       if (typeof body.messageId !== 'string' || !body.messageId || body.messageId.length > 512 ||

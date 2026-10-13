@@ -182,8 +182,29 @@ async function requireActor(db: D1Database, actor: Actor) {
 
 const athleteSql =
   "SELECT id,name,category,fee_minor AS feeMinor,discount_minor AS discountMinor,discount_reason AS discountReason,active,start_period AS startPeriod FROM athletes";
+const athleteSnapshotSql = "json_array(name,category,fee_minor,discount_minor,discount_reason,active,start_period)";
+/** Compare the values actually shown, including active status; timestamps can collide. */
+export function athleteFeeSnapshot(athlete: Athlete): string {
+  return JSON.stringify([athlete.name, athlete.category, athlete.feeMinor, athlete.discountMinor,
+    athlete.discountReason, athlete.active ? 1 : 0, athlete.startPeriod]);
+}
+function monthlySnapshot(period: string, athletes: Athlete[]): string {
+  return JSON.stringify([period, [...athletes].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    .map(athlete => [athlete.id, ...JSON.parse(athleteFeeSnapshot(athlete))])]);
+}
+async function snapshotDigest(snapshot: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(snapshot));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+// This roster deliberately excludes publication state, so an unchanged replay is
+// idempotent. Fee/profile/eligibility changes and newly eligible athletes invalidate it.
+const monthlySnapshotSql = `(SELECT json_array(?,json_group_array(json_array(id,name,category,fee_minor,discount_minor,discount_reason,active,start_period))) FROM (SELECT id,name,category,fee_minor,discount_minor,discount_reason,active,start_period FROM athletes WHERE active=1 AND start_period<=? ORDER BY id))`;
 const chargeSql = `SELECT c.id,c.athlete_id AS athleteId,s.name AS athleteName,c.period,c.due_date AS dueDate,c.base_minor AS baseMinor,c.discount_minor AS discountMinor,c.discount_reason AS discountReason,c.base_minor-c.discount_minor+COALESCE((SELECT sum(amount_minor) FROM charge_adjustments WHERE charge_id=c.id),0) AS totalMinor,COALESCE((SELECT sum(a.amount_minor) FROM payment_allocations a JOIN payments p ON p.id=a.payment_id WHERE a.charge_id=c.id AND p.status='verified'),0) AS paidMinor FROM charges c JOIN athletes s ON s.id=c.athlete_id`;
-const paymentSql = `SELECT p.id,p.designated_user_id AS designatedAdultId,p.submitted_by AS submitterId,p.payer_name AS payerName,p.amount_minor AS amountMinor,p.transfer_date AS transferDate,p.bank_reference AS bankReference,p.status,p.review_note AS reviewNote,p.submitted_at AS submittedAt,p.revision,p.verified_amount_minor AS verifiedAmountMinor,CASE WHEN p.status='verified' THEN p.verified_amount_minor-COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0) ELSE 0 END AS unallocatedMinor,r.id AS receiptId,r.number AS receiptNumber FROM payments p LEFT JOIN receipts r ON r.payment_id=p.id`;
+const paymentFields = `p.id,p.designated_user_id AS designatedAdultId,p.submitted_by AS submitterId,p.payer_name AS payerName,p.amount_minor AS amountMinor,p.transfer_date AS transferDate,p.bank_reference AS bankReference,p.status,p.review_note AS reviewNote,p.submitted_at AS submittedAt,p.revision,p.verified_amount_minor AS verifiedAmountMinor,CASE WHEN p.status='verified' THEN p.verified_amount_minor-COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0) ELSE 0 END AS unallocatedMinor,r.id AS receiptId,r.number AS receiptNumber`;
+const paymentFrom = `FROM payments p LEFT JOIN receipts r ON r.payment_id=p.id`;
+const paymentSql = `SELECT ${paymentFields} ${paymentFrom}`;
+// Dashboard affordances and detail authorization must use the same current-link rule.
+const paymentDetailAccess = `(?=1 OR ((p.designated_user_id=? OR p.submitted_by=?) AND NOT EXISTS(SELECT 1 FROM payment_requested_allocations a JOIN charges c ON c.id=a.charge_id WHERE a.payment_id=p.id AND NOT EXISTS(SELECT 1 FROM guardian_links l WHERE l.user_id=? AND l.athlete_id=c.athlete_id AND l.active=1))))`;
 function chargeMap(charges: Omit<Charge, "balanceMinor">[]): Charge[] {
   return charges.map((c) => ({
     ...c,
@@ -236,10 +257,10 @@ export async function getParentDashboard(
       [actor.id],
     ),
     listParentCharges(db, actor),
-    rows<Payment>(
+    rows<Payment & { canOpenDetail: number }>(
       db,
-      `${paymentSql} WHERE p.designated_user_id=? OR p.submitted_by=? ORDER BY CASE WHEN p.status IN ('pending','needs_info') THEN 0 WHEN p.status='verified' AND p.verified_amount_minor>COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0) THEN 1 ELSE 2 END,p.submitted_at DESC LIMIT 200`,
-      [actor.id, actor.id],
+      `SELECT ${paymentFields},${paymentDetailAccess} AS canOpenDetail ${paymentFrom} WHERE p.designated_user_id=? OR p.submitted_by=? ORDER BY CASE WHEN p.status IN ('pending','needs_info') THEN 0 WHEN p.status='verified' AND p.verified_amount_minor>COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0) THEN 1 ELSE 2 END,p.submitted_at DESC LIMIT 200`,
+      [actor.isAdmin ? 1 : 0, actor.id, actor.id, actor.id, actor.id, actor.id],
     ),
     listReceipts(db, actor),
     one<{ pendingMinor: number; creditMinor: number }>(
@@ -251,7 +272,7 @@ export async function getParentDashboard(
   return {
     athletes: athleteMap(athletes),
     charges,
-    payments,
+    payments: payments.map(payment => ({ ...payment, canOpenDetail: payment.canOpenDetail === 1 })),
     receipts,
     balanceMinor: charges.reduce((s, c) => s + c.balanceMinor, 0),
     pendingMinor: totals?.pendingMinor || 0,
@@ -350,6 +371,7 @@ export async function getMonthlyPreview(
   }));
   return {
     period,
+    snapshot: await snapshotDigest(monthlySnapshot(period, athletes)),
     dueDate: `${period}-08`,
     athletes,
     newCount: athletes.filter((a) => !a.alreadyPublished).length,
@@ -417,7 +439,7 @@ async function authorizedPayment(
   await requireActor(db, actor);
   const payment = await one<Payment>(
     db,
-    `${paymentSql} WHERE p.id=? AND (?=1 OR ((p.designated_user_id=? OR p.submitted_by=?) AND NOT EXISTS(SELECT 1 FROM payment_requested_allocations a JOIN charges c ON c.id=a.charge_id WHERE a.payment_id=p.id AND NOT EXISTS(SELECT 1 FROM guardian_links l WHERE l.user_id=? AND l.athlete_id=c.athlete_id AND l.active=1))))`,
+    `${paymentSql} WHERE p.id=? AND ${paymentDetailAccess}`,
     [paymentId, actor.isAdmin ? 1 : 0, actor.id, actor.id, actor.id],
   );
   if (!payment) fail("Pago no disponible.", 404, "not_found");
@@ -541,17 +563,22 @@ export async function setAthleteFee(
   actor: Actor,
   athleteId: string,
   input: AthleteInput,
+  expectedSnapshot: string,
 ): Promise<void> {
   admin(actor);
   await requireActor(db, actor);
   athleteInput(input);
+  const expected = text(expectedSnapshot, 2048);
   if (!(await one(db, "SELECT id FROM athletes WHERE id=?", [athleteId])))
     fail("Atleta no disponible.", 404, "not_found");
   const now = iso();
-  await batch(db, [
+  const result = await batch(db, [
+    bindings(db,
+      `INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) SELECT ?,?,'athlete',id,'update',?,? FROM athletes WHERE id=? AND ${athleteSnapshotSql}=?`,
+      [id(), actor.id, JSON.stringify(input), now, athleteId, expected]),
     bindings(
       db,
-      "UPDATE athletes SET name=?,category=?,fee_minor=?,discount_minor=?,discount_reason=?,active=?,start_period=?,updated_at=? WHERE id=?",
+      `UPDATE athletes SET name=?,category=?,fee_minor=?,discount_minor=?,discount_reason=?,active=?,start_period=?,updated_at=? WHERE id=? AND ${athleteSnapshotSql}=?`,
       [
         input.name.trim(),
         input.category.trim(),
@@ -562,10 +589,12 @@ export async function setAthleteFee(
         input.startPeriod,
         now,
         athleteId,
+        expected,
       ],
     ),
-    audit(db, actor, "athlete", athleteId, "update", input, now),
   ]);
+  if (!result[1].meta.changes)
+    fail("Los datos o la cuota cambiaron. Actualiza la página antes de guardar.", 409, "conflict");
 }
 export async function linkGuardian(
   db: D1Database,
@@ -615,6 +644,17 @@ export async function revokeGuardian(
       db,
       "UPDATE guardian_links SET active=0,receipt_opt_in=0,updated_at=? WHERE user_id=? AND athlete_id=?",
       [now, input.userId, input.athleteId],
+    ),
+    // A pending multi-athlete invitation is one grant: revoke the entire old
+    // token, then require a fresh deliberate invitation for any restored access.
+    // Expiring at creation also defeats a redemption that read it before this
+    // batch, even when both operations have the same millisecond timestamp.
+    bindings(
+      db,
+      `UPDATE invitations SET expires_at=created_at WHERE redeemed_at IS NULL
+        AND email=(SELECT email FROM users WHERE id=?) COLLATE NOCASE
+        AND EXISTS(SELECT 1 FROM json_each(athlete_ids_json) WHERE value=?)`,
+      [input.userId, input.athleteId],
     ),
     audit(db, actor, "athlete", input.athleteId, "revoke_guardian", input, now),
   ]);
@@ -732,8 +772,10 @@ export async function redeemInvitation(
   const statements = [
     bindings(
       db,
-      "UPDATE invitations SET redeemed_by=?,redeemed_at=?,redemption_token=? WHERE id=? AND redeemed_at IS NULL AND expires_at>?",
-      [actor.id, now, token, invite.id, now],
+      `UPDATE invitations SET redeemed_by=?,redeemed_at=?,redemption_token=?
+        WHERE id=? AND redeemed_at IS NULL AND expires_at>? AND email=? COLLATE NOCASE
+        AND EXISTS(SELECT 1 FROM users WHERE id=? AND active=1 AND email=invitations.email COLLATE NOCASE)`,
+      [actor.id, now, token, invite.id, now, actor.email, actor.id],
     ),
   ];
   for (const athleteId of athleteIds)
@@ -753,6 +795,13 @@ export async function redeemInvitation(
         ],
       ),
     );
+  statements.push(bindings(
+    db,
+    `INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at)
+      SELECT ?,?,'invitation',id,'redeem',?,? FROM invitations
+      WHERE id=? AND redeemed_by=? AND redemption_token=?`,
+    [id(), actor.id, JSON.stringify({ athleteIds }), now, invite.id, actor.id, token],
+  ));
   const result = await batch(db, statements);
   if (!result[0].meta.changes)
     fail("Invitación ya utilizada.", 409, "invitation_invalid");
@@ -761,20 +810,33 @@ export async function publishMonth(
   db: D1Database,
   actor: Actor,
   period: string,
+  expectedSnapshot: string,
 ): Promise<number> {
   admin(actor);
   await requireActor(db, actor);
   validatePeriod(period);
+  if (typeof expectedSnapshot !== "string" || !/^[a-f0-9]{64}$/.test(expectedSnapshot))
+    fail("Revisa la vista previa antes de publicar.", 400, "invalid_fields");
+  const preview = await getMonthlyPreview(db, period);
+  if (preview.snapshot !== expectedSnapshot)
+    fail("Las cuotas o las inscripciones cambiaron. Actualiza la vista previa.", 409, "conflict");
+  const reviewed = monthlySnapshot(period, preview.athletes);
   const now = iso();
   const result = await batch(db, [
+    // The guarded audit is also the transaction's successful snapshot claim.
+    // A stale roster writes neither an audit nor charges; any later insert error rolls both back.
+    bindings(db,
+      `INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) SELECT ?,?,'month',?,'publish',?,? WHERE ${monthlySnapshotSql}=?`,
+      [id(), actor.id, period, JSON.stringify({ snapshot: expectedSnapshot }), now, period, period, reviewed]),
     bindings(
       db,
-      "INSERT OR IGNORE INTO charges(id,athlete_id,period,due_date,base_minor,discount_minor,discount_reason,published_by,created_at) SELECT lower(hex(randomblob(16))),id,?,?,fee_minor,discount_minor,discount_reason,?,? FROM athletes WHERE active=1 AND start_period<=?",
-      [period, `${period}-08`, actor.id, now, period],
+      `INSERT OR IGNORE INTO charges(id,athlete_id,period,due_date,base_minor,discount_minor,discount_reason,published_by,created_at) SELECT lower(hex(randomblob(16))),id,?,?,fee_minor,discount_minor,discount_reason,?,? FROM athletes WHERE active=1 AND start_period<=? AND ${monthlySnapshotSql}=?`,
+      [period, `${period}-08`, actor.id, now, period, period, period, reviewed],
     ),
-    audit(db, actor, "month", period, "publish", {}, now),
   ]);
-  return result[0].meta.changes || 0;
+  if (!result[0].meta.changes)
+    fail("Las cuotas o las inscripciones cambiaron. Actualiza la vista previa.", 409, "conflict");
+  return result[1].meta.changes || 0;
 }
 type FinancialOperation = {
   actorId: string;
@@ -898,13 +960,89 @@ function validateSlip(file: SubmitPaymentInput["file"]) {
   )
     fail("Archivo inválido.");
 }
-function submitFields(input: SubmitPaymentInput) {
-  text(input.payerName);
-  amount(input.amountMinor);
-  date(input.transferDate);
-  text(input.bankReference, 128);
-  validateSlip(input.file);
-  if (input.note) text(input.note, 500);
+type SubmissionRequest = Omit<SubmitPaymentInput, "file"> & {
+  file: Omit<SubmitPaymentInput["file"], "key">;
+};
+
+function canonicalSubmission(actor: Actor, input: SubmissionRequest) {
+  if (typeof input.submissionId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(input.submissionId))
+    fail("El formulario venció. Vuelve a abrir el registro de pago.", 400, "invalid_fields");
+  const designatedAdultId = input.designatedAdultId || actor.id;
+  if (!actor.isAdmin && designatedAdultId !== actor.id)
+    fail("Acceso denegado.", 403, "forbidden");
+  if (actor.isAdmin && !input.designatedAdultId) fail("Seleccione al adulto responsable.");
+  const auditReason = actor.isAdmin ? text(input.auditReason, 500)
+    : input.auditReason ? text(input.auditReason, 500) : null;
+  validateSlip({ ...input.file, key: "submission-original" });
+  const amountMinor = amount(input.amountMinor);
+  if (!Array.isArray(input.allocations) || !input.allocations.length || input.allocations.length > 36)
+    fail("Seleccione las mensualidades.", 400);
+  const allocations = input.allocations.map(allocation => ({
+    chargeId: text(allocation.chargeId, 80), amountMinor: amount(allocation.amountMinor),
+  })).sort((a, b) => a.chargeId.localeCompare(b.chargeId));
+  if (new Set(allocations.map(allocation => allocation.chargeId)).size !== allocations.length ||
+      allocations.reduce((sum, allocation) => sum + allocation.amountMinor, 0) > amountMinor)
+    fail("Distribución inválida.", 400);
+  return {
+    payerName: text(input.payerName), amountMinor, transferDate: date(input.transferDate),
+    bankReference: text(input.bankReference, 128), allocations,
+    designatedAdultId, shareEvidence: actor.isAdmin ? Boolean(input.shareEvidence) : true,
+    auditReason, note: input.note ? text(input.note, 500) : null,
+    file: { type: input.file.type, size: input.file.size, sha256: input.file.sha256 },
+  };
+}
+
+function submissionConflict(): never {
+  fail("Este formulario ya se utilizó. Revisa tus pagos o abre un formulario nuevo.", 409, "conflict");
+}
+
+/** Recover the original operation, never the payment's later editable state. No writes or R2 calls. */
+export async function recoverPaymentSubmission(
+  db: D1Database, actor: Actor, input: SubmissionRequest,
+): Promise<string | null> {
+  await requireActor(db, actor);
+  const expected = canonicalSubmission(actor, input);
+  const payment = await one<{ submittedBy: string }>(db,
+    "SELECT submitted_by AS submittedBy FROM payments WHERE id=?", [input.submissionId]);
+  if (!payment) return null;
+  // Do not reveal any details, even to another administrator, on a guessed/colliding operation ID.
+  if (payment.submittedBy !== actor.id) submissionConflict();
+  const original = await one<{
+    payerName: string; amountMinor: number; transferDate: string; bankReference: string;
+    allocationsJson: string; note: string | null; recordedBy: string;
+    type: string; size: number; sha256: string;
+  }>(db, `SELECT r.payer_name AS payerName,r.amount_minor AS amountMinor,r.transfer_date AS transferDate,
+    r.bank_reference AS bankReference,r.requested_allocations_json AS allocationsJson,r.note,r.recorded_by AS recordedBy,
+    f.file_type AS type,f.file_size AS size,f.file_sha256 AS sha256
+    FROM payment_revisions r JOIN payment_files f ON f.payment_id=r.payment_id AND f.revision=r.revision
+    WHERE r.payment_id=? AND r.revision=1`, [input.submissionId]);
+  const events = await rows<{ detail: string; actorId: string }>(db,
+    "SELECT detail_json AS detail,actor_id AS actorId FROM audit_events WHERE entity_type='payment' AND entity_id=? AND action='submit' LIMIT 2",
+    [input.submissionId]);
+  if (!original || original.recordedBy !== actor.id || events.length !== 1 || events[0].actorId !== actor.id)
+    submissionConflict();
+  let matches = false;
+  try {
+    const detail = JSON.parse(events[0].detail);
+    // Legacy rows have no original sharing-policy snapshot and cannot be claimed as new operations.
+    if (detail.submission?.version !== 1 || typeof detail.submission.shareEvidence !== "boolean") submissionConflict();
+    const allocations = JSON.parse(original.allocationsJson) as RequestedAllocation[];
+    const actual = {
+      payerName: original.payerName, amountMinor: original.amountMinor, transferDate: original.transferDate,
+      bankReference: original.bankReference, allocations: allocations.sort((a, b) => a.chargeId.localeCompare(b.chargeId)),
+      designatedAdultId: detail.designatedAdultId, shareEvidence: detail.submission.shareEvidence,
+      auditReason: detail.auditReason, note: original.note,
+      file: { type: original.type, size: original.size, sha256: original.sha256 },
+    };
+    matches = JSON.stringify(actual) === JSON.stringify(expected);
+  } catch { submissionConflict(); }
+  if (!matches) submissionConflict();
+  // A replay does not bypass a revoked account or family link.
+  await activeUser(db, expected.designatedAdultId);
+  await authorizedPayment(db, actor, input.submissionId);
+  await validateAllocations(db, expected.designatedAdultId, expected.allocations, expected.amountMinor, false);
+  return input.submissionId;
 }
 export async function submitPayment(
   db: D1Database,
@@ -912,14 +1050,11 @@ export async function submitPayment(
   input: SubmitPaymentInput,
 ): Promise<string> {
   await requireActor(db, actor);
-  submitFields(input);
-  const designated = input.designatedAdultId || actor.id;
-  if (!actor.isAdmin && designated !== actor.id)
-    fail("Acceso denegado.", 403, "forbidden");
-  if (actor.isAdmin) {
-    if (!input.designatedAdultId) fail("Seleccione al adulto responsable.");
-    text(input.auditReason, 500);
-  }
+  validateSlip(input.file);
+  const canonical = canonicalSubmission(actor, input);
+  const recovered = await recoverPaymentSubmission(db, actor, input);
+  if (recovered) return recovered;
+  const designated = canonical.designatedAdultId;
   await activeUser(db, designated);
   await validateAllocations(
     db,
@@ -928,7 +1063,7 @@ export async function submitPayment(
     input.amountMinor,
     false,
   );
-  const paymentId = id(),
+  const paymentId = input.submissionId,
     now = iso();
   const statements = [
     bindings(
@@ -938,11 +1073,11 @@ export async function submitPayment(
         paymentId,
         designated,
         actor.id,
-        actor.isAdmin ? (input.shareEvidence ? 1 : 0) : 1,
-        input.payerName.trim(),
+        canonical.shareEvidence ? 1 : 0,
+        canonical.payerName,
         input.amountMinor,
         input.transferDate,
-        input.bankReference.trim(),
+        canonical.bankReference,
         now,
         now,
       ],
@@ -953,12 +1088,12 @@ export async function submitPayment(
       [
         id(),
         paymentId,
-        input.payerName.trim(),
+        canonical.payerName,
         input.amountMinor,
         input.transferDate,
-        input.bankReference.trim(),
-        JSON.stringify(input.allocations),
-        input.note || null,
+        canonical.bankReference,
+        JSON.stringify(canonical.allocations),
+        canonical.note,
         actor.id,
         now,
       ],
@@ -992,11 +1127,18 @@ export async function submitPayment(
       "payment",
       paymentId,
       "submit",
-      { designatedAdultId: designated, auditReason: input.auditReason || null },
+      { designatedAdultId: designated, auditReason: canonical.auditReason,
+        submission: { version: 1, shareEvidence: canonical.shareEvidence } },
       now,
     ),
   );
-  await batch(db, statements);
+  try { await batch(db, statements); }
+  catch (error) {
+    // D1 rolls the whole batch back on a competing primary-key insert. Recover only an exact owned replay.
+    const raced = await recoverPaymentSubmission(db, actor, input);
+    if (raced) return raced;
+    throw error;
+  }
   return paymentId;
 }
 
@@ -1004,7 +1146,7 @@ export async function revisePayment(
   db: D1Database,
   actor: Actor,
   paymentId: string,
-  input: Omit<SubmitPaymentInput, "file"> & PaymentReviewSnapshot & {
+  input: Omit<SubmitPaymentInput, "file" | "submissionId"> & PaymentReviewSnapshot & {
     file?: SubmitPaymentInput["file"];
   },
 ): Promise<void> {
@@ -1217,9 +1359,7 @@ export async function reviewPayment(
   const snapshot: ReceiptSnapshot = {
     version: 1,
     receiptNumber: "PENDING",
-    associationName: input.associationName
-      ? text(input.associationName, 200)
-      : "Asociación Deportiva Belemita de Ajedrez",
+    associationName: text(input.associationName, 200),
     payerName: payment.payerName,
     paymentDate: input.paymentDate,
     issuedAt: now,
@@ -1413,5 +1553,5 @@ export async function seedDemo(db: D1Database): Promise<void> {
       "INSERT OR IGNORE INTO guardian_links(user_id,athlete_id,active,receipt_opt_in,linked_by,created_at,updated_at) VALUES(?,?,1,0,?,?,?)",
       [userId, athleteId, adminActor.id, now, now],
     ).run();
-  await publishMonth(db, adminActor, currentPeriod);
+  await publishMonth(db, adminActor, currentPeriod, (await getMonthlyPreview(db, currentPeriod)).snapshot);
 }

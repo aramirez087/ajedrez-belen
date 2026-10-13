@@ -15,6 +15,13 @@ export class InputError extends Error {
   constructor(public code: string, public status = 400) { super(code); }
 }
 
+/** A setup hold is temporary and must not expose configured account details. */
+export function businessConfigurationUnavailable(request: Request): Response {
+  return request.headers.get('accept')?.includes('application/json')
+    ? portalResponse(JSON.stringify({ error: 'business_setup_required' }), 503, { 'Content-Type': 'application/json; charset=utf-8' })
+    : portalResponse('El registro y la confirmación de nuevos pagos no están disponibles. Contacta a la Asociación para confirmar la configuración de cobro.', 503, { 'Content-Type': 'text/plain; charset=utf-8' });
+}
+
 export async function readPortalForm(request: Request, upload = false): Promise<FormData> {
   try {
     const bytes = await readBoundedBody(request, upload ? MAX_SLIP_BYTES + 65_536 : 32_768);

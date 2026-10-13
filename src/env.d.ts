@@ -7,11 +7,17 @@ declare namespace Cloudflare {
     PROTOTYPE_LOCAL?: string;
     PORTAL_ENABLED?: string;
     PORTAL_DEMO?: string;
+    STAGING_AUTH_SETUP?: string;
+    STAGING_PORTAL_TEST?: string;
+    STAGING_PARENT_TEST?: string;
+    STAGING_PARENT_EMAIL?: string;
+    STAGING_PARENT_USER_ID?: string;
     OCR_MODE?: string;
     GROQ_API_KEY?: string;
     GROQ_VISION_MODEL?: string;
     GROQ_TIMEOUT_MS?: string;
     PAYMENT_BANK_NAME?: string;
+    PORTAL_BUSINESS_CONFIG_APPROVED?: string;
     PAYMENT_ACCOUNT_ID?: string;
     PAYMENT_DESTINATION?: string;
     ASSOCIATION_RECEIPT_NAME?: string;

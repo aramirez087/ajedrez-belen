@@ -102,7 +102,7 @@ export interface Receipt {
 export interface ParentDashboard {
   athletes: Athlete[];
   charges: Charge[];
-  payments: Payment[];
+  payments: Array<Payment & { canOpenDetail: boolean }>;
   receipts: Receipt[];
   balanceMinor: number;
   pendingMinor: number;
@@ -128,6 +128,7 @@ export interface AdminDashboard {
 }
 export interface MonthlyPreview {
   period: string;
+  snapshot: string;
   dueDate: string;
   athletes: Array<Athlete & { alreadyPublished: boolean; totalMinor: number }>;
   newCount: number;
@@ -163,6 +164,7 @@ export interface SlipMetadata {
   sha256: string;
 }
 export interface SubmitPaymentInput {
+  submissionId: string;
   payerName: string;
   amountMinor: number;
   transferDate: string;
@@ -177,7 +179,7 @@ export interface SubmitPaymentInput {
 export interface VerifyPaymentInput {
   action: "verify";
   bankChecked: boolean;
-  associationName?: string;
+  associationName: string;
   bankName: string;
   receivingAccount: string;
   bankReference: string;

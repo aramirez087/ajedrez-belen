@@ -1,0 +1,307 @@
+{
+  "kind": "nondeployable_production_release_decision_template",
+  "schemaVersion": 1,
+  "preparedDate": "2026-10-11",
+  "status": "blocked_pending_decisions_and_separate_action_approvals",
+  "executable": false,
+  "sourceEvidence": {
+    "decisionRecord": "Task-private: portal-work/output/production-preparation/production-decisions.json",
+    "decisionRecordSha256AtRead": "a616daeed9e133c2fd804e2b93e7ebb5376618ff2de7f9a8ebad5d14df9ff5e5",
+    "decisionRecordIncludesLaterSinpeClarificationAtRead": true,
+    "laterOwnerClarification": "Sentinel_a209f8d4b96c8191b9d77cdc7144c6b2",
+    "sourceRepository": "/Users/aramirez/Code/ajedrez-belen",
+    "configurationCandidate": "Task-private: portal-work/output/production-config-candidate",
+    "candidateIsProductionBuildOrDeploymentEvidence": false,
+    "productionActionsPerformedByThisPreparation": [],
+    "integrationStatusAtRead": "Converged and deployed to restricted staging as 428d0d13-f1ce-4f59-901e-58c23f0fed34; production not deployed",
+    "finalGuardIntegrationReportedByParent": {
+      "filesIntegrated": 17,
+      "actualRepository": "/Users/aramirez/Code/ajedrez-belen",
+      "aggregateTestsPassed": 261,
+      "aggregateTestsTotal": 261,
+      "astroFiles": 126,
+      "astroErrors": 0,
+      "astroWarnings": 0,
+      "astroHints": 0,
+      "buildInputs": 111,
+      "buildArtifacts": 288,
+      "preflightExitCode": 0,
+      "independentFocusedTestsPassed": 30,
+      "independentFocusedTestsTotal": 30,
+      "deployed": false,
+      "evidenceOrigin": "Verified clean source snapshot: portal-work/output/guard-integration/final-source-verification.json;342 source hashes match checkout"
+    },
+    "completeProductionSourceReconciliationRequired": false,
+    "actualRepositoryContainsLatestHostedParentSource": true,
+    "actualRepositoryExactlyEqualsHostedSource": true,
+    "intentionalHostedDifferences": "None in current application/build source; prior 694d source remains historical evidence",
+    "convergedSourceVerification": {
+      "evidence": "Task-private: portal-work/output/source-convergence/completed.json",
+      "mergeFiles": 22,
+      "deployedBaselineFilesAccountedFor": 333,
+      "testsPassed": 302,
+      "applicationTests": 297,
+      "diagnosticTests": 5,
+      "astroFiles": 132,
+      "astroErrors": 0,
+      "astroWarnings": 0,
+      "astroHints": 0,
+      "buildInputs": 111,
+      "buildArtifacts": 288,
+      "preflightPassed": true,
+      "independentFocusedTests": 54,
+      "deployed": true,
+      "deploymentEnvironment": "restricted_staging",
+      "stagingVersion": "428d0d13-f1ce-4f59-901e-58c23f0fed34"
+    },
+    "hostedComparisonScope": "338 non-document source files and full build-input inventory; documentation is a post-release update",
+    "stagingReleaseVerification": {
+      "evidence": "Task-private: portal-work/output/converged-staging-release",
+      "version": "428d0d13-f1ce-4f59-901e-58c23f0fed34",
+      "trafficPercent": 100,
+      "readbackAt": "2026-10-12T00:00:42.135Z",
+      "anonymousChecksPassed": 18,
+      "authenticatedRecheckRequests": 0,
+      "newAuthenticatedPassClaimed": false,
+      "productionDeployed": false
+    }
+  },
+  "proposedTarget": {
+    "cloudflareAccountId": "7d3e79129c4f0b3619a419cabbfa021e",
+    "existingPublicWorkerName": "ajedrez-belen",
+    "publicOriginsToPreserve": [
+      "https://ajedrezbelen.com",
+      "https://www.ajedrezbelen.com"
+    ],
+    "publicRootBehavior": "Both independently serve HTTPS 200 without a new root redirect",
+    "authenticatedOrigin": "https://ajedrezbelen.com",
+    "workosRedirectUri": "https://ajedrezbelen.com/auth/callback",
+    "workosLogoutUri": "https://ajedrezbelen.com/",
+    "protectedWwwPolicy": "Canonicalize protected GET/HEAD before PKCE; reject cross-origin mutation requests without redirect or replay",
+    "d1Name": "ajedrez-belen-portal-production",
+    "r2BucketName": "ajedrez-belen-portal-production-slips",
+    "r2StorageClass": "Standard",
+    "r2PublicAccess": false,
+    "paidPlanAllowed": false
+  },
+  "approvedTarget": {
+    "cloudflareAccountId": null,
+    "workerName": null,
+    "currentWorkerImmutableIdOrVerifiedProviderReference": null,
+    "currentFullRollbackVersionId": null,
+    "currentRouteAndCustomDomainSnapshot": null,
+    "authenticatedOrigin": null,
+    "workosRedirectUri": null,
+    "workosLogoutUri": null,
+    "protectedWwwPolicy": null,
+    "workosProductionClientId": null,
+    "workosProductionOrganizationId": null,
+    "adminUserIds": [],
+    "staffMfaPolicy": null,
+    "d1": {
+      "binding": "DB",
+      "databaseName": null,
+      "databaseId": null,
+      "emptyOrExistingClassification": null
+    },
+    "r2": {
+      "binding": "SLIPS",
+      "accountId": null,
+      "bucketName": null,
+      "privateAccessVerifiedAt": null
+    },
+    "identityReadbackEvidence": null
+  },
+  "disabledReleaseDefaults": {
+    "PORTAL_ENABLED": "false",
+    "PORTAL_BUSINESS_CONFIG_APPROVED": "false",
+    "PORTAL_DEMO": "false",
+    "PROTOTYPE_ENABLED": "false",
+    "PROTOTYPE_LOCAL": "false",
+    "EMAIL_MODE": "dry_run",
+    "OCR_MODE": "off"
+  },
+  "businessDecisions": {
+    "paymentRailConfirmed": "SINPE M\u00f3vil",
+    "receivingIdentifierConfirmed": "87686102",
+    "receivingIdentifierDisplay": "8768-6102",
+    "ibanRequiredForSinpeOnly": false,
+    "accountHolderName": null,
+    "accountHolderApprovalEvidence": null,
+    "approvedRuntimeBindings": {
+      "PAYMENT_BANK_NAME": "SINPE M\u00f3vil",
+      "PAYMENT_ACCOUNT_ID": "87686102",
+      "PAYMENT_DESTINATION": "SINPE M\u00f3vil: 8768-6102",
+      "ASSOCIATION_RECEIPT_NAME": null
+    },
+    "receiptLegalIdentifierAndWording": null,
+    "receiptFormatSufficiencyApproved": false,
+    "paymentReferenceInstructions": null,
+    "allExplicitlyAuthorizedAdminsMayConfirmWithActorAudit": true,
+    "intendedTreasurerOperatorDisplayNameOnly": "Walter",
+    "walterImmutableIdentityApproved": null,
+    "fullAdministratorFamilyPowersAccepted": null,
+    "openingLedgerDatasetAndCutoff": null,
+    "openingLedgerApprovalEvidence": null,
+    "monthlyFeesColonesConfirmed": {
+      "Iniciaci\u00f3n": 12000,
+      "Cadetes": 15000,
+      "Intermedios": 15000,
+      "Avanzados": 15000
+    },
+    "dueDayConfirmed": 8,
+    "siblingDiscountRule": null,
+    "siblingDiscountHandlingUntilDecided": "No automatic or retroactive discount; obtain an explicit rule or an explicit launch decision with the discount deferred",
+    "receiptUploadMeansBankConfirmation": false,
+    "bankAccessOrMoneyMovementAuthorized": false,
+    "businessReadinessApproval": false,
+    "confirmedPublicPaymentBindings": {
+      "PAYMENT_BANK_NAME": "SINPE M\u00f3vil",
+      "PAYMENT_ACCOUNT_ID": "87686102",
+      "PAYMENT_DESTINATION": "SINPE M\u00f3vil: 8768-6102"
+    },
+    "requiredOrganizationalDecisionsBeforeBusinessApproval": [
+      "accountHolderName and explicit holder approval evidence",
+      "ASSOCIATION_RECEIPT_NAME and receipt legal wording/format sufficiency",
+      "Any additional payment reference instructions",
+      "Approved administrator immutable identities and full administrative scope",
+      "Opening ledger dataset/cutoff or explicit no-import launch decision",
+      "Sibling discount rule or explicit deferral decision"
+    ]
+  },
+  "credentials": {
+    "privateBindingNamesOnly": [
+      "WORKOS_API_KEY",
+      "WORKOS_COOKIE_PASSWORD",
+      "BREVO_API_KEY"
+    ],
+    "privateProductionInstallationAuthorized": false,
+    "privateProductionPresenceVerified": false,
+    "secretValuesAllowedInThisFile": false,
+    "instruction": "Use a separately approved owner-controlled private handoff; never copy staging values, print values, or put them in repository files or command arguments"
+  },
+  "receiptEmail": {
+    "senderAddressPreviouslyVerified": "no-reply@ajedrezbelen.com",
+    "controlledDeliveryTestComplete": true,
+    "anotherDiagnosticSendRequired": false,
+    "approvedProductionFrom": null,
+    "approvedProductionDisplayName": null,
+    "privacyTrackingAndRetentionDecision": null,
+    "liveActivationApproved": false,
+    "queuedBatchApproval": null,
+    "recipientPolicy": "Self-service original uploader; staff-assisted selected verified adult; guardian link alone is not a receipt subscription",
+    "liveModeEffects": [
+      "Future payment approval attempts receipt delivery",
+      "Receipt void attempts its notification"
+    ],
+    "neverReplayAttemptStates": [
+      "dry_run",
+      "cancelled",
+      "unknown"
+    ],
+    "testRecipientBindingRestrictsPortalReceipts": false
+  },
+  "resourceAndBuildBoundaries": {
+    "provisioningMode": "No provisioning from this template; later explicit resource-specific approval only",
+    "autoProvisioningAllowed": false,
+    "copyStagingDataAllowed": false,
+    "productionConfigPath": null,
+    "productionArtifactDigest": null,
+    "reviewedSourceRevisionAndDirtyFileManifest": null,
+    "reviewedBuildAndDeploymentCommands": null,
+    "originHandlingImplementedAndVerified": false,
+    "businessGuardIntegratedAndVerified": true,
+    "assetsOnlyPublicCandidateCanServePortal": false,
+    "workersDevAllowed": false,
+    "previewUrlsAllowed": false,
+    "forbiddenBindingPrefixes": [
+      "STAGING_"
+    ],
+    "additionalBindingsToOmit": [
+      "EMAIL_TEST_RECIPIENT",
+      "GROQ_API_KEY",
+      "GROQ_VISION_MODEL",
+      "GROQ_TIMEOUT_MS"
+    ],
+    "doNotUseConfigFiles": [
+      "wrangler.jsonc (prototype base)",
+      "wrangler.staging.jsonc",
+      "public-pipeline/wrangler.public.json (assets-only)"
+    ],
+    "portalSourceConvergenceComplete": true
+  },
+  "migrationPlan": {
+    "targetAccountId": null,
+    "targetDatabaseName": null,
+    "targetDatabaseId": null,
+    "approvedClassification": null,
+    "migrationHistoryReadback": null,
+    "preMigrationRecoveryReference": null,
+    "orderedFiles": [
+      {
+        "file": "0001_prototype.sql",
+        "sha256": "6708992e2f4a6e92580391db7ced974c91971178bade4d9ad4ffb914b8b39c19",
+        "addsTables": 1,
+        "addsExplicitIndexes": 1,
+        "addsTriggers": 0
+      },
+      {
+        "file": "0002_portal.sql",
+        "sha256": "f5cfbbc6a87eda2764c17269da2dabc6da7015a5d3af6d9ff3a14c0c98111148",
+        "addsTables": 16,
+        "addsExplicitIndexes": 9,
+        "addsTriggers": 20
+      },
+      {
+        "file": "0003_ocr.sql",
+        "sha256": "a9dd14c3f7c694b6d6c563184bc3bdcb38b32623d4911122da31b5ba7edda4ec",
+        "addsTables": 4,
+        "addsExplicitIndexes": 5,
+        "addsTriggers": 7
+      },
+      {
+        "file": "0004_financial_operations.sql",
+        "sha256": "c118f2f3bef8ce0689cdec64ece11f710d83571faa29c71407abea2e89f246c4",
+        "addsTables": 1,
+        "addsExplicitIndexes": 0,
+        "addsTriggers": 2
+      }
+    ],
+    "expectedApplicationTables": 22,
+    "expectedTablesIncludingMigrationMetadata": 23,
+    "expectedExplicitIndexes": 15,
+    "expectedTriggers": 29,
+    "countsAloneEstablishCompatibility": false,
+    "newCandidateSchemaChange": false,
+    "downMigrationsProvided": false,
+    "executionApproved": false
+  },
+  "recoveryAndCapacity": {
+    "recoveryOwner": null,
+    "recoveryDeputy": null,
+    "encryptedOffHostDestination": null,
+    "retentionPolicy": null,
+    "acceptableDataLossAndDowntime": null,
+    "freshR2RetrievalVerified": false,
+    "approvedNextR2RetrievalAction": null,
+    "matchedProductionD1R2RestoreEvidence": null,
+    "freeTierRepresentativeCapacityEvidence": null,
+    "paidUpgradeAllowed": false,
+    "verifiedHardSpendCap": false,
+    "workerRollbackRevertsDatabaseOrObjects": false
+  },
+  "separateActionApprovals": {
+    "publicGitPipelineChange": null,
+    "workosProductionConfigurationAndSpecificIdentities": null,
+    "productionD1Creation": null,
+    "productionPrivateR2Creation": null,
+    "privateSecretInstallation": null,
+    "exactProductionMigrationExecution": null,
+    "exactDisabledShellDeployment": null,
+    "portalAndBusinessActivation": null,
+    "openingLedgerImport": null,
+    "liveReceiptEmailActivation": null,
+    "specificQueuedEmailBatch": null,
+    "sourcePush": null
+  }
+}

@@ -81,6 +81,7 @@ function fileForm(bytes, type, field = 'slip') {
 }
 function paymentForm(draft, version, { bytes, type, note, expectedRevision, expectedReviewNote } = {}) {
   const form = new FormData();
+  if (!expectedRevision) form.set('submissionId', randomUUID());
   for (const [name, value] of Object.entries(financialFields)) form.set(name, value);
   form.set('bankReference', reference(version));
   if (draft) form.set('draftId', draft.id);
@@ -238,7 +239,11 @@ await checked('family-name candidate lists stay within the current parent or sel
 });
 
 await checked('original PNG is saved before OCR; ownership, origin and hashes are enforced', async () => {
-  redirect(await post('/api/admin/charges', 'admin', new URLSearchParams({ action: 'publish', month: period })), 'month_published');
+  const monthlyPage = await request(`/admin/mensualidades?month=${period}`, 'admin');
+  assert.equal(monthlyPage.status, 200);
+  const expectedSnapshot = (await monthlyPage.text()).match(/name="expectedSnapshot"[^>]*value="([a-f0-9]{64})"/)?.[1];
+  assert.ok(expectedSnapshot, 'Monthly publication requires the displayed fee and roster snapshot');
+  redirect(await post('/api/admin/charges', 'admin', new URLSearchParams({ action: 'publish', month: period, expectedSnapshot })), 'month_published');
   const all = (await exported('charges')).filter(charge => charge.period === period);
   const html = await (await request('/portal/pagos/nuevo', 'parent-a')).text();
   const allowed = new Set(Array.from(html.matchAll(/name="allocationChargeId\[\]"[^>]*value="([^"]+)"/g), match => match[1]));

@@ -12,7 +12,18 @@ export const SOURCE_PATHS = [
   'scripts/build-staging.mjs', 'scripts/preflight-staging.mjs',
 ];
 const VARS = {
-  PROTOTYPE_ENABLED: 'false', PROTOTYPE_LOCAL: 'false', PORTAL_ENABLED: 'false', PORTAL_DEMO: 'false',
+  STAGING_AUTH_SETUP: 'true',
+  STAGING_PORTAL_TEST: 'true',
+  // Owner-reported WorkOS Staging metadata; runtime still requires the exact
+  // verified email, immutable ID and an organization-free, non-admin session.
+  STAGING_PARENT_TEST: 'true',
+  STAGING_PARENT_EMAIL: 'alexramirez_cr@yahoo.com',
+  STAGING_PARENT_USER_ID: 'user_01M4P8D7B09WZD8A27CB7MG72P',
+  WORKOS_CLIENT_ID: 'client_01M4M8D1P0W2N2WANHTC4SF921',
+  WORKOS_REDIRECT_URI: 'https://ajedrez-belen-portal-staging.alexramirez-cr.workers.dev/auth/callback',
+  WORKOS_ORGANIZATION_ID: 'org_01M4MK3YVA8B4WC0F659G28MCJ',
+  ADMIN_USER_IDS: 'user_01M4MJY2GGNK2GTTH9AYRDTP78',
+  PROTOTYPE_ENABLED: 'false', PROTOTYPE_LOCAL: 'false', PORTAL_ENABLED: 'true', PORTAL_DEMO: 'false',
   OCR_MODE: 'off', EMAIL_MODE: 'dry_run', PAYMENT_BANK_NAME: 'PRUEBA — no transferir',
   PAYMENT_ACCOUNT_ID: 'staging-synthetic-only', PAYMENT_DESTINATION: 'ENTORNO DE PRUEBA — no realizar transferencias',
   ASSOCIATION_RECEIPT_NAME: 'PRUEBAS — Ajedrez Belén (datos ficticios)',
@@ -45,10 +56,11 @@ export function validateConfig(config, { generated = false, root, artifactRoot }
   requireValue(config.name === STAGING_NAME && config.account_id === STAGING_ACCOUNT, 'Staging Worker/account identity does not match the reviewed target.');
   requireValue(config.compatibility_date === '2026-10-10' && equal(config.compatibility_flags, ['nodejs_compat']), 'Unexpected runtime compatibility settings.');
   requireValue(config.workers_dev === true && config.preview_urls === false, 'Staging requires only its named workers.dev host; version preview URLs must stay disabled.');
-  requireValue(equal(config.vars, VARS), 'Staging variables must contain only the reviewed disabled/synthetic settings; secrets and activation are not allowed here.');
+  requireValue(equal(config.vars, VARS), 'Staging variables must exactly match the reviewed controlled-test candidate; secrets and public activation are forbidden.');
   const database = config.d1_databases?.[0];
   requireValue(config.d1_databases?.length === 1 && database?.binding === 'DB' && database.database_name === STAGING_NAME, 'Unexpected D1 binding or name.');
   requireValue(typeof database.database_id === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(database.database_id), 'D1 ID must be the reviewed UUID or the local placeholder.');
+  requireValue([PLACEHOLDER_DATABASE, '5b80cc9e-48e1-43c5-8cdd-a3e785604e73'].includes(database.database_id), 'D1 must be the exact approved staging database.');
   requireValue(equal(Object.keys(database).sort(), ['binding', 'database_id', 'database_name', 'migrations_dir']), 'Unexpected D1 options.');
   requireValue(equal(config.r2_buckets, [{ binding: 'SLIPS', bucket_name: `${STAGING_NAME}-slips` }]), 'Unexpected R2 binding or bucket.');
   if (!generated) {
@@ -100,6 +112,7 @@ export function validateArtifact(root, { requireDatabase = true } = {}) {
   requireValue(equal(manifest.sourceFiles, fileInventory(root, SOURCE_PATHS)), 'Staging source changed after this build. Rebuild before any deployment.');
   requireValue(equal(manifest.artifactFiles, fileInventory(artifactRoot, ['server', 'client'], { artifact: true })), 'Staging output changed after this build. Rebuild before any deployment.');
   requireValue(manifest.artifactFiles.some(file => file.path === 'server/entry.mjs') && manifest.artifactFiles.some(file => file.path === 'client/index.html'), 'Staging Worker or static landing assets are missing.');
+  requireValue(!manifest.artifactFiles.some(file => /^client\/(auth|login|portal|admin|api|demo|prototype)([/.]|$)/.test(file.path)), 'Protected routes must not be emitted as public static assets.');
   if (requireDatabase) requireValue(source.d1_databases[0].database_id !== PLACEHOLDER_DATABASE, 'STOP: D1 is still the local placeholder. No deployment or remote migration is ready.');
   return { placeholder: source.d1_databases[0].database_id === PLACEHOLDER_DATABASE, sourceCount: manifest.sourceFiles.length, artifactCount: manifest.artifactFiles.length };
 }

@@ -8,11 +8,14 @@ export type FrozenReceiptSnapshot = Readonly<Omit<ReceiptSnapshot, 'lines' | 'de
 export interface ReceiptPresentation {
   voidedAt?: string | null;
   voidReason?: string | null;
+  /** Display-only environment warning; never part of the issuance snapshot. */
+  stagingTest?: boolean;
 }
 
 export interface RenderedReceipt { subject: string; html: string; text: string }
 
 export const DEMO_RECEIPT_NOTICE = 'DEMOSTRACIÓN — Datos ficticios. Este documento no acredita un pago real.';
+export const STAGING_RECEIPT_NOTICE = 'PRUEBA — Datos ficticios. Este documento no acredita un pago real.';
 
 function text(value: unknown, max: number): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= max &&
@@ -94,6 +97,7 @@ const month = new Intl.DateTimeFormat('es-CR', { month: 'long', year: 'numeric',
 /** Association receipt, independent of a mail provider; bank evidence is never embedded. */
 export function renderReceipt(input: ReceiptSnapshot, presentation: ReceiptPresentation = {}): RenderedReceipt {
   const data = createReceiptSnapshot(input);
+  const stagingTest = presentation.stagingTest === true;
   const voided = !!presentation.voidedAt;
   if ((voided && (!validTimestamp(presentation.voidedAt) || !text(presentation.voidReason, 500))) ||
       (!voided && presentation.voidReason)) throw new Error('Invalid receipt void notice.');
@@ -109,22 +113,26 @@ export function renderReceipt(input: ReceiptSnapshot, presentation: ReceiptPrese
     period: month.format(new Date(`${line.period}-01T12:00:00.000Z`)), amount: money.format(line.amountMinor / 100) }));
   const voidReason = presentation.voidReason?.trim() ?? '';
   const voidNotice = voided ? `ANULADO — ${voidReason}${/[.!?…]$/.test(voidReason) ? '' : '.'} Fecha de anulación: ${date.format(new Date(presentation.voidedAt!))}.` : '';
-  const note = 'Comprobante numerado emitido por la Asociación después de verificar el ingreso en la cuenta bancaria.';
+  const note = stagingTest
+    ? 'Comprobante ficticio emitido durante una verificación simulada. No se recibieron fondos reales.'
+    : 'Comprobante numerado emitido por la Asociación después de verificar el ingreso en la cuenta bancaria.';
   const credit = data.unallocatedMinor > 0 ? `Saldo a favor sin aplicar: ${money.format(data.unallocatedMinor / 100)}.` : '';
   const replyNotice = 'Las respuestas a este correo no se atienden. Para consultas, escribinos por';
   const whatsappUrl = 'https://wa.me/50687686102';
   return {
     subject: `${data.demo ? '[DEMOSTRACIÓN] ' : ''}${voided ? '[ANULADO] ' : ''}Comprobante ${data.receiptNumber}`,
-    text: [data.demo ? DEMO_RECEIPT_NOTICE : '', voidNotice, data.associationName, title, '',
+    text: [...(stagingTest ? [STAGING_RECEIPT_NOTICE] : []), data.demo ? DEMO_RECEIPT_NOTICE : '', voidNotice, data.associationName, title, '',
       ...rows.map(([label, value]) => `${label}: ${value}`), '', 'Aplicación del pago:',
       ...allocations.map((line) => `${line.athlete} — ${line.period}: ${line.amount}`), credit, '', note, '',
       `Correo automático. ${replyNotice} WhatsApp.`, whatsappUrl]
       .filter((line, index, all) => line !== '' || (index > 0 && all[index - 1] !== '')).join('\n'),
     html: `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} ${escapeHtml(data.receiptNumber)}</title>
-<style>@media print{body{background:white!important;padding:0!important}main{border:0!important;max-width:none!important}.print-button{display:none!important}}</style></head>
+<style>@media print{body{background:white!important;padding:0!important}main{border:0!important;max-width:none!important}.print-button{display:none!important}}${stagingTest ? `
+@media screen and (max-width:480px){body{padding:12px!important}main{padding:16px!important}table{table-layout:fixed}th,td{padding:6px 4px!important;font-size:13px;overflow-wrap:anywhere}h1{font-size:24px!important}}
+@media print{@page{margin:12mm}body{font-size:12px;line-height:1.3!important}main{padding:12px!important}main>p{margin:8px 0!important;break-inside:avoid}main>p:first-child{padding:10px!important;font-size:14px!important}main>p:last-child{padding-top:8px!important;break-before:avoid}h1{font-size:22px!important}h2{font-size:16px!important;margin:14px 0 6px!important;break-after:avoid}th,td{padding:5px 4px!important}tr{break-inside:avoid}}` : ''}</style></head>
 <body style="margin:0;padding:24px;background:#f8f6f2;color:#202220;font-family:Arial,sans-serif;line-height:1.5"><main style="max-width:720px;margin:auto;background:white;border:1px solid #d9d5cc;padding:32px">
-${data.demo ? `<p style="padding:12px;border:2px solid #ad7c14;background:#fff8df;font-weight:bold">${escapeHtml(DEMO_RECEIPT_NOTICE)}</p>` : ''}
+${stagingTest ? `<p style="margin:0 0 24px;padding:16px;border:3px solid #921b19;background:#fff5ef;color:#921b19;font-size:18px;font-weight:bold;overflow-wrap:anywhere">${escapeHtml(STAGING_RECEIPT_NOTICE)}</p>\n` : ''}${data.demo ? `<p style="padding:12px;border:2px solid #ad7c14;background:#fff8df;font-weight:bold">${escapeHtml(DEMO_RECEIPT_NOTICE)}</p>` : ''}
 ${voided ? `<p style="padding:12px;border:2px solid #bc312e;color:#921b19;font-weight:bold">${escapeHtml(voidNotice)}</p>` : ''}
 <p style="font-size:14px;font-weight:bold">${escapeHtml(data.associationName)}</p><h1 style="font-size:28px;margin:8px 0">${escapeHtml(title)}</h1><p style="font-size:18px;color:#bc312e;font-weight:bold">${escapeHtml(data.receiptNumber)}</p>
 <table style="border-collapse:collapse;width:100%"><tbody>${rows.map(([label, value]) => `<tr><th scope="row" style="text-align:left;vertical-align:top;padding:9px 12px 9px 0;border-bottom:1px solid #e4e0d7">${escapeHtml(label)}</th><td style="padding:9px 0;border-bottom:1px solid #e4e0d7;overflow-wrap:anywhere">${escapeHtml(value)}</td></tr>`).join('')}</tbody></table>

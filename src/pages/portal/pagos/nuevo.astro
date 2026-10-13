@@ -8,10 +8,14 @@ import { authorizePortal } from '../../../lib/portal/access';
 import { getParentDashboard, getChargesForAdult, listFamilies } from '../../../lib/portal/domain';
 import { getOcrAvailability } from '../../../lib/portal/ocr-policy';
 import { allowPortalDemo } from '../../../lib/portal/demo-policy';
+import { resolveBusinessConfiguration } from '../../../lib/portal/business-config';
+import { businessConfigurationUnavailable } from '../../../lib/portal/http';
 export const prerender = false;
 const access = await authorizePortal(Astro, env);
 if (!access.ok) return access.response;
 const { actor } = access;
+const business = resolveBusinessConfiguration(Astro.request, env);
+if (!business) return businessConfigurationUnavailable(Astro.request);
 const ocr = getOcrAvailability(actor,env,{demoAllowed:allowPortalDemo(Astro.url,import.meta.env.DEV,env)});
 const families = actor.isAdmin ? await listFamilies(env.DB) : [];
 const selectedAdultId = actor.isAdmin ? Astro.url.searchParams.get('adult') : null;
@@ -28,6 +32,7 @@ const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',ye
   {actor.isAdmin && <form class="portal-month-form" action="/portal/pagos/nuevo" method="get"><div class="portal-field"><label for="adult">Registrar para una cuenta familiar</label><select id="adult" name="adult" required><option value="">Selecciona una persona</option>{families.filter(family => family.active).map(family => <option value={family.adultId} selected={selectedAdult?.adultId === family.adultId}>{family.adultName} · {family.email}</option>)}</select></div><button class="portal-button portal-button-secondary" type="submit">Elegir cuenta <span aria-hidden="true">→</span></button></form>}
   <div class="portal-two-columns">
     <section class="portal-panel"><form class="portal-form" action="/api/portal/payments" method="post" enctype="multipart/form-data">
+      <input type="hidden" name="submissionId" value={crypto.randomUUID()} />
       {selectedAdult && <input type="hidden" name="designatedAdultId" value={selectedAdult.adultId} />}
       <SlipUploader mode={ocr.mode} available={ocr.available} athletes={athletes} />
       <div class="portal-form-step"><span aria-hidden="true">02</span><div><h2>Revisa los datos del pago.</h2><p>Completa la información o corrige las sugerencias de la lectura.</p></div></div>
@@ -41,8 +46,8 @@ const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',ye
       {staffAssisted && <div class="portal-guidance"><h3>Correo para la familia seleccionada</h3>{selectedAdult ? <p>Después de verificar el ingreso en el banco, el comprobante se prepara para el correo verificado de <strong>{selectedAdult.adultName}</strong>: <strong>{selectedAdult.email}</strong>.</p> : <p>Elige arriba una cuenta familiar existente. Su persona adulta responsable será la destinataria del comprobante después de la verificación bancaria.</p>}<p>Se usa el correo registrado en esa cuenta familiar. Si no hay un correo válido y habilitado, la entrega queda retenida. La Asociación debe revisar los datos de la cuenta antes de preparar el envío.</p></div>}
       {!staffAssisted && <p class="portal-help">Después de verificar el ingreso en el banco, el comprobante se prepara únicamente para el correo verificado de la cuenta con la que registras este pago: <strong>{actor.email}</strong>.</p>}
       {actor.isAdmin && <div class="portal-field"><label for="audit-reason">Motivo del registro por administración</label><textarea id="audit-reason" name="auditReason" maxlength="500" required></textarea></div>}
-      <button class="portal-button portal-button-wide" type="submit" disabled={actor.isAdmin && !selectedAdult}>Enviar para revisión <span aria-hidden="true">→</span></button><p class="portal-help">Enviar este formulario registra el pago como pendiente. El comprobante de la Asociación se emite después de confirmarlo en el banco.</p>
+      <button class="portal-button portal-button-wide" type="submit" disabled={charges.length === 0 || (actor.isAdmin && !selectedAdult)}>Enviar para revisión <span aria-hidden="true">→</span></button><p class="portal-help">Enviar este formulario registra el pago como pendiente. El comprobante de la Asociación se emite después de confirmarlo en el banco.</p>
     </form></section>
-    <aside class="portal-panel"><div class="portal-guidance"><p class="portal-eyebrow">Antes de transferir</p><h3 style="margin-top:13px">Incluye el nombre del atleta.</h3><p>Escribe en el detalle de SINPE el nombre completo del atleta. Si pagas varias mensualidades, indica los nombres y el mes.</p><p><strong>Cuenta receptora</strong></p><p class="portal-number">{env.PAYMENT_DESTINATION ?? 'SINPE Móvil · 8768 6102'}</p><p>Asociación Deportiva Belemita de Ajedrez.</p></div><div class="portal-guidance"><h3>De la transferencia al comprobante</h3><p>1. Realizas la transferencia y adjuntas el archivo.</p><p>2. La Asociación comprueba el ingreso en la cuenta.</p><p>3. El comprobante numerado queda disponible en el portal y el saldo se actualiza.</p></div><div class="portal-guidance"><h3>Consultas por WhatsApp</h3><p>Las respuestas a los correos automáticos del portal no se atienden. Para consultas sobre un pago, escribe a la Asociación.</p><a class="portal-link" href="https://wa.me/50687686102">Consultar por WhatsApp <span aria-hidden="true">↗</span></a></div><a class="portal-link" href={actor.isAdmin ? '/admin' : '/portal'}>Volver a la cuenta <span aria-hidden="true">↗</span></a></aside>
+    <aside class="portal-panel"><div class="portal-guidance"><p class="portal-eyebrow">Antes de transferir</p><h3 style="margin-top:13px">Incluye el nombre del atleta.</h3><p>Escribe en el detalle de SINPE el nombre completo del atleta. Si pagas varias mensualidades, indica los nombres y el mes.</p><p><strong>Cuenta receptora</strong></p><p class="portal-number">{business.paymentDestination}</p><p>{business.associationName}</p></div><div class="portal-guidance"><h3>De la transferencia al comprobante</h3><p>1. Realizas la transferencia y adjuntas el archivo.</p><p>2. La Asociación comprueba el ingreso en la cuenta.</p><p>3. El comprobante numerado queda disponible en el portal y el saldo se actualiza.</p></div><div class="portal-guidance"><h3>Consultas por WhatsApp</h3><p>Las respuestas a los correos automáticos del portal no se atienden. Para consultas sobre un pago, escribe a la Asociación.</p><a class="portal-link" href="https://wa.me/50687686102">Consultar por WhatsApp <span aria-hidden="true">↗</span></a></div><a class="portal-link" href={actor.isAdmin ? '/admin' : '/portal'}>Volver a la cuenta <span aria-hidden="true">↗</span></a></aside>
   </div>
 </PortalLayout>

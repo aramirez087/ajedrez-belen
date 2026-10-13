@@ -12,10 +12,7 @@
     "PORTAL_ENABLED": "false",
     "PORTAL_DEMO": "false",
     "OCR_MODE": "off",
-    "PAYMENT_BANK_NAME": "BAC / SINPE Móvil",
-    "PAYMENT_ACCOUNT_ID": "sinpe-87686102",
-    "PAYMENT_DESTINATION": "SINPE Móvil · 8768 6102",
-    "ASSOCIATION_RECEIPT_NAME": "Asociación Deportiva Belemita de Ajedrez",
+    "PORTAL_BUSINESS_CONFIG_APPROVED": "false",
     "EMAIL_MODE": "dry_run"
   },
   "d1_databases": [{

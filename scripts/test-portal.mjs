@@ -62,6 +62,36 @@ async function post(path, role, data, extraHeaders = {}) {
 function urlForm(values) {
   return new URLSearchParams(values);
 }
+function decodeAttribute(value) {
+  return value.replace(/&(?:quot|apos|amp|lt|gt);|&#(?:x[0-9a-f]+|\d+);/gi, entity => {
+    if (entity.startsWith("&#")) return String.fromCodePoint(entity[2].toLowerCase() === "x"
+      ? parseInt(entity.slice(3, -1), 16) : Number(entity.slice(2, -1)));
+    return { "&quot;": '"', "&apos;": "'", "&amp;": "&", "&lt;": "<", "&gt;": ">" }[entity.toLowerCase()];
+  });
+}
+async function athleteEditForm(path) {
+  const response = await request("/admin/familias", "admin");
+  assert.equal(response.status, 200);
+  const nativeForm = Array.from((await response.text()).matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/g), match => match[0])
+    .find(form => path ? form.includes(`action="${path}"`) : /action="\/api\/admin\/athletes\/[^"/]+"/.test(form));
+  assert.ok(nativeForm, "Synthetic athlete has a native edit form");
+  const action = nativeForm.match(/action="([^"]+)"/)?.[1];
+  const rawSnapshot = nativeForm.match(/name="expectedSnapshot"[^>]*value="([^"]+)"/)?.[1];
+  assert.ok(rawSnapshot, "Fee edits must include the displayed record snapshot");
+  const snapshot = decodeAttribute(rawSnapshot);
+  const [name, category, fee, discount, reason, active, startPeriod] = JSON.parse(snapshot);
+  const form = urlForm({ name, category, monthlyFee: String(fee / 100), manualDiscount: String(discount / 100),
+    discountReason: reason ?? "", startPeriod, expectedSnapshot: snapshot });
+  if (active) form.set("active", "on");
+  return { path: action, form };
+}
+async function monthlySnapshot(period) {
+  const response = await request(`/admin/mensualidades?month=${period}`, "admin");
+  assert.equal(response.status, 200);
+  const snapshot = (await response.text()).match(/name="expectedSnapshot"[^>]*value="([a-f0-9]{64})"/)?.[1];
+  assert.ok(snapshot, "Publication must use the reviewed monthly snapshot");
+  return snapshot;
+}
 function allocations(form, claims) {
   for (const [chargeId, colones] of claims) {
     form.append("allocationChargeId[]", chargeId);
@@ -75,6 +105,7 @@ function paymentForm(
   { revision = false, bytes = fixture, fileType = "image/png", expectedReviewNote = null } = {},
 ) {
   const form = new FormData();
+  if (!revision) form.set("submissionId", crypto.randomUUID());
   form.set("payerName", payerName);
   form.set("amount", "3000.00");
   form.set("transferDate", transferDate);
@@ -195,13 +226,47 @@ await checked(
 );
 
 await checked(
+  "stale native fee and publication forms preserve newer changes",
+  async () => {
+    const original = await athleteEditForm();
+    const missing = new URLSearchParams(original.form); missing.delete("expectedSnapshot");
+    const missingResponse = await post(original.path, "admin", missing);
+    assert.equal(missingResponse.status, 400);
+    await missingResponse.text();
+    const expectedSnapshot = await monthlySnapshot(period);
+    const before = (await jsonExport("charges")).filter(charge => charge.period === period);
+    const updated = new URLSearchParams(original.form);
+    updated.delete("active");
+    updated.set("monthlyFee", original.form.get("monthlyFee") === "12000" ? "15000" : "12000");
+    redirect(await post(original.path, "admin", updated), "athlete_updated");
+    const stale = new URLSearchParams(original.form); stale.set("name", "Nombre desde pestaña anterior");
+    const staleFee = await post(original.path, "admin", stale);
+    assert.equal(staleFee.status, 409);
+    assert.equal((await staleFee.json()).error, "conflict");
+    const staleMonth = await post("/api/admin/charges", "admin", urlForm({ action: "publish", month: period, expectedSnapshot }));
+    assert.equal(staleMonth.status, 409);
+    assert.equal((await staleMonth.json()).error, "conflict");
+    assert.deepEqual((await jsonExport("charges")).filter(charge => charge.period === period), before);
+    const saved = await athleteEditForm(original.path);
+    assert.equal(saved.form.has("active"), false);
+    assert.equal(saved.form.get("name"), original.form.get("name"));
+    assert.equal(saved.form.get("monthlyFee"), updated.get("monthlyFee"));
+    // Restore only this synthetic record with its freshly displayed snapshot.
+    const restore = new URLSearchParams(original.form);
+    restore.set("expectedSnapshot", saved.form.get("expectedSnapshot"));
+    redirect(await post(original.path, "admin", restore), "athlete_updated");
+  },
+);
+
+await checked(
   "next Costa Rica month publication is idempotent and charges remain private",
   async () => {
+    const snapshot = await monthlySnapshot(period);
     const publish = () =>
       post(
         "/api/admin/charges",
         "admin",
-        urlForm({ action: "publish", month: period }),
+        urlForm({ action: "publish", month: period, expectedSnapshot: snapshot }),
       );
     redirect(await publish(), "month_published");
     const first = (await jsonExport("charges")).filter(
@@ -331,6 +396,11 @@ await checked(
   "pending submission stores private evidence without changing balances",
   async () => {
     const submission = paymentForm(originalReference, claims);
+    const formPage = await request('/portal/pagos/nuevo', 'parent-a');
+    assert.equal(formPage.status, 200);
+    const submissionId = (await formPage.text()).match(/name="submissionId"[^>]*value="([0-9a-f-]{36})"/)?.[1];
+    assert.ok(submissionId, 'Native form carries a stable submission UUID');
+    submission.set('submissionId', submissionId);
     submission.set("recipientEmail", "editable-recipient@example.invalid");
     submission.set("studentEmail", "student@example.invalid");
     const response = await post(
@@ -340,6 +410,17 @@ await checked(
     );
     const location = redirect(response, "submitted");
     paymentId = new URL(location, base).pathname.split("/").at(-1);
+    assert.equal(paymentId, submissionId);
+    const replayResponses = await Promise.all([
+      post('/api/portal/payments', 'parent-a', submission),
+      post('/api/portal/payments', 'parent-a', submission),
+    ]);
+    for (const replay of replayResponses) assert.equal(redirect(replay, 'submitted'), location);
+    assert.equal((await jsonExport('payments')).filter(row => row.id === paymentId).length, 1);
+    assert.equal((await jsonExport('audit')).filter(row => row.entity_id === paymentId && row.action === 'submit').length, 1);
+    const altered = paymentForm(`${originalReference}-changed`, claims);
+    altered.set('submissionId', submissionId);
+    assert.equal((await post('/api/portal/payments', 'parent-a', altered)).status, 409);
     assert.match(paymentId, /^[0-9a-f-]{36}$/);
     const row = await paymentRow(paymentId);
     assert.equal(row.status, "pending");

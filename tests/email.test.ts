@@ -45,7 +45,7 @@ test('HTTPS request includes escaped receipt, one exact recipient and persisted 
     calls++;
     assert.equal(url, 'https://api.brevo.com/v3/smtp/email');
     assert.equal(init?.method, 'POST');
-    assert.equal(init?.redirect, 'error');
+    assert.equal(init?.redirect, 'manual');
     assert.ok(init?.signal instanceof AbortSignal);
     assert.equal(new Headers(init?.headers).get('api-key'), config.BREVO_API_KEY);
     const body = JSON.parse(init!.body as string);
@@ -75,6 +75,21 @@ test('provider auth failures are redacted and rate limits are deferred without a
     assert.equal(calls, 1);
     assert.ok(!JSON.stringify(result).includes(config.BREVO_API_KEY!));
     assert.ok(!JSON.stringify(result).includes(message.to));
+  }
+});
+
+test('every 3xx response stays uncertain without following Location or retrying', async () => {
+  for (let status = 300; status < 400; status++) {
+    let calls = 0;
+    const result = await sendReceiptEmail(config, message, async (url, init) => {
+      calls++;
+      assert.equal(url, 'https://api.brevo.com/v3/smtp/email');
+      assert.equal(init?.redirect, 'manual');
+      return new Response(null, { status, headers: { Location: 'https://untrusted.example.invalid/collect', 'Retry-After': '1' } });
+    });
+    assert.deepEqual(result, { status: 'unknown', code: 'provider_error', retryable: false, httpStatus: status });
+    assert.equal(calls, 1);
+    assert.ok(!JSON.stringify(result).includes('untrusted'));
   }
 });
 

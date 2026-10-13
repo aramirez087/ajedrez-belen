@@ -1,10 +1,26 @@
 ---
 import '@fontsource-variable/dm-sans';
+import { env } from 'cloudflare:workers';
 import '../styles/global.css';
 import '../styles/portal.css';
 import Notice from '../components/portal/Notice.astro';
 interface Props { title: string; actor?: { id: string; email: string; name: string; isAdmin: boolean; mode: 'demo' | 'workos' }; active?: string; hideNav?: boolean; }
 const { title, actor, active = '', hideNav = false } = Astro.props;
+const stagingTest = env.STAGING_PORTAL_TEST === 'true';
+const stagingNotices = new Map([
+  ['athlete_created', 'Atleta ficticio inscrito. Ya puedes vincularlo a la cuenta de prueba.'],
+  ['month_published', 'Mensualidades de prueba publicadas. Solo la cuenta autorizada puede consultarlas.'],
+  ['published', 'Mensualidades de prueba publicadas. Solo la cuenta autorizada puede consultarlas.'],
+  ['submitted', 'Recibimos la información de la transferencia ficticia. La prueba queda pendiente de revisión simulada; no se recibieron fondos reales.'],
+  ['verified', 'Prueba confirmada y comprobante ficticio emitido. No se envían correos en esta prueba.'],
+  ['verified_email_pending', 'Prueba confirmada y comprobante ficticio emitido. No se envían correos en esta prueba.'],
+  ['approved', 'Prueba confirmada y comprobante ficticio emitido. No se envían correos en esta prueba.'],
+  ['needs_info', 'Se solicitó información adicional en el registro ficticio. Solo la cuenta autorizada puede consultar el motivo.'],
+  ['reject', 'Pago ficticio rechazado. El motivo quedó en el historial.'],
+  ['void', 'Pago ficticio anulado. Se revirtió su aplicación y se conservó el comprobante con su historial.'],
+]);
+const stagingNotice = stagingTest && !Astro.url.searchParams.has('error')
+  ? stagingNotices.get(Astro.url.searchParams.get('notice') ?? '') : undefined;
 const admin = actor?.isAdmin ?? false;
 const nav = admin
   ? [['/admin', 'Resumen', 'overview'], ['/admin/familias', 'Familias', 'families'], ['/admin/mensualidades', 'Mensualidades', 'charges'], ['/admin/comprobantes', 'Comprobantes', 'receipts']]
@@ -12,17 +28,18 @@ const nav = admin
 ---
 <!doctype html>
 <html lang="es">
-  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="robots" content="noindex,nofollow" /><meta name="referrer" content="same-origin" /><title>{title} · Ajedrez Belén</title></head>
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="robots" content="noindex,nofollow" /><meta name="referrer" content="same-origin" /><link rel="icon" type="image/png" href="/media/favicon.png" /><title>{title} · Ajedrez Belén</title></head>
   <body class="portal-page">
     <a class="skip-link" href="#portal-main">Saltar al contenido</a>
+    {stagingTest && <aside class="portal-test-banner" aria-label="Entorno de prueba"><div class="portal-shell"><strong>Entorno de prueba</strong><span>Solo registros ficticios. No realicés transferencias. Correos simulados · OCR desactivado.</span></div></aside>}
     {actor?.mode === 'demo' && <div class="portal-demo-banner"><span class="checker-mark" aria-hidden="true"></span>Demostración local · datos ficticios<a href="/demo">Cambiar cuenta</a></div>}
     <div class="portal-shell">
       <header class="portal-header">
-        <a class="portal-brand" href={admin ? '/admin' : '/portal'}><img src="/media/crest-provisional.webp" alt="" width="35" height="44" /><span>Ajedrez Belén<small>Portal de pagos</small></span></a>
+        <a class="portal-brand" href={admin ? '/admin' : '/portal'}><img src="/media/crest-provisional.webp" alt="" width="35" height="44" /><span>Ajedrez Belén<small>Portal de pagos{stagingTest && <span class="portal-test-badge">Prueba</span>}</small></span></a>
         <div class="portal-session">{actor ? <><span>{actor.name || actor.email}<small>{admin ? 'Administración' : 'Cuenta familiar'}</small></span>{actor.mode === 'workos' && <form action="/auth/logout" method="post"><button class="portal-link portal-text-button" type="submit">Salir <span aria-hidden="true">↗</span></button></form>}</> : <a class="portal-link" href="/auth/parent">Iniciar sesión <span aria-hidden="true">↗</span></a>}</div>
       </header>
       {!hideNav && <nav class="portal-navigation" aria-label={admin ? 'Administración de pagos' : 'Mi cuenta'}>{nav.map(([href, label, key]) => <a href={href} aria-current={active === key ? 'page' : undefined}>{label}</a>)}{admin && <a class="portal-family-view" href="/portal">Ver cuenta familiar <span aria-hidden="true">↗</span></a>}</nav>}
-      <main id="portal-main" tabindex="-1"><Notice /><slot /></main>
+      <main id="portal-main" tabindex="-1">{stagingNotice ? <div class="portal-notice" role="status"><p>{stagingNotice}</p></div> : <Notice />}<slot /></main>
       <footer class="portal-footer"><span>Ajedrez Belén · Belén, Heredia</span><a href="/">Volver al sitio <span aria-hidden="true">↗</span></a></footer>
     </div>
   </body>

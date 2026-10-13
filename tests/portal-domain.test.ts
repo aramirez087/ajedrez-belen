@@ -4,10 +4,12 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import {
   adjustCharge,
+  athleteFeeSnapshot,
   applyPaymentCredit,
   billingPeriod,
   billingYear,
   createInvitation,
+  enrollAthlete,
   ensureUser,
   getAdminDashboard,
   getMonthlyPreview,
@@ -22,6 +24,7 @@ import {
   revokeGuardian,
   revisePayment,
   seedDemo,
+  setAthleteFee,
   setReceiptConsent,
   submitPayment,
 } from "../src/lib/portal/domain";
@@ -38,7 +41,7 @@ import type {
 /** The adapter executes real SQLite constraints and the same atomic batch as D1. */
 class SQLiteD1 {
   readonly sqlite = new DatabaseSync(":memory:");
-  beforeBatch?: () => void;
+  beforeBatch?: () => unknown;
   constructor() {
     this.sqlite.exec(
       readFileSync(
@@ -89,7 +92,7 @@ class SQLiteD1 {
   async batch(statements: Array<ReturnType<SQLiteD1["prepare"]>>) {
     const before = this.beforeBatch;
     this.beforeBatch = undefined;
-    before?.();
+    await before?.();
     this.sqlite.exec("BEGIN IMMEDIATE");
     try {
       const results = statements.map((s) => s.execute());
@@ -147,6 +150,7 @@ function input(
   amountMinor = allocations.reduce((s, a) => s + a.amountMinor, 0),
 ): SubmitPaymentInput {
   return {
+    submissionId: crypto.randomUUID(),
     payerName: "Persona de prueba",
     amountMinor,
     transferDate: "2026-10-10",
@@ -170,6 +174,7 @@ function verification(
     expectedRevision,
     expectedStatus: "pending", expectedReviewNote: null,
     bankChecked: true,
+    associationName: "Asociación de prueba",
     bankName: "Banco de prueba",
     receivingAccount: "CR-TEST-00001",
     bankReference: reference,
@@ -182,17 +187,238 @@ function verification(
       : {}),
   };
 }
+test("bank confirmation requires an explicit valid receipt identity before any financial or evidence mutation", async (t) => {
+  const cases: Array<[string, unknown]> = [
+    ["missing", undefined],
+    ["null", null],
+    ["empty", ""],
+    ["whitespace", "   "],
+    ["control character", "Asociación\nno válida"],
+    ["oversize", "A".repeat(201)],
+  ];
+  for (const [label, associationName] of cases) await t.test(label, async () => {
+    const { db, adapter, charges } = await setup();
+    const data = input([{ chargeId: charges[0].id, amountMinor: 100000 }]);
+    const paymentId = await submitPayment(db, parent, data);
+    const tables = [
+      "charges", "charge_adjustments", "payments", "payment_revisions",
+      "payment_files", "payment_requested_allocations", "payment_allocations",
+      "receipt_counters", "receipts", "email_outbox", "portal_email_daily_budget",
+      "audit_events", "financial_operations",
+    ];
+    const snapshot = () => Object.fromEntries(tables.map(table => [
+      table, adapter.sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+    ]));
+    const before = snapshot();
+    const invalid: Omit<VerifyPaymentInput & PaymentReviewSnapshot, "associationName"> & { associationName?: unknown } = { ...verification(data), associationName };
+    if (label === "missing") delete invalid.associationName;
+    await assert.rejects(
+      reviewPayment(db, admin, paymentId, invalid as VerifyPaymentInput & PaymentReviewSnapshot),
+      { status: 400, code: "invalid_request" },
+    );
+    assert.deepEqual(snapshot(), before, "Invalid identity must not change money, evidence, receipt sequence, email or audit records");
+  });
+});
+
+test("an explicit receipt identity is frozen and remains readable after a later void", async () => {
+  const { db, charges } = await setup();
+  const data = input([{ chargeId: charges[0].id, amountMinor: 100000 }]);
+  const paymentId = await submitPayment(db, parent, data);
+  const approval = { ...verification(data), associationName: "  Asociación sintética aprobada  " };
+  const receiptId = await reviewPayment(db, admin, paymentId, approval);
+  const issued = await getReceipt(db, parent, receiptId!);
+  assert.equal(issued.snapshot.associationName, "Asociación sintética aprobada");
+  approval.associationName = "Una configuración posterior";
+  assert.equal((await getReceipt(db, parent, receiptId!)).snapshot.associationName, issued.snapshot.associationName);
+  assert.ok(renderReceipt(issued.snapshot).text.includes("Asociación sintética aprobada"));
+  await reviewPayment(db, admin, paymentId, {
+    action: "void", reason: "Anulación sintética sin nueva identidad de recibo.",
+    expectedRevision: 1, expectedStatus: "verified", expectedReviewNote: null,
+  });
+  const voided = await getReceipt(db, parent, receiptId!);
+  assert.equal(voided.status, "void");
+  assert.deepEqual(voided.snapshot, issued.snapshot);
+});
+
+test("a blocked confirmation still allows requesting a correction and rejecting the corrected proof", async () => {
+  const { db, charges } = await setup();
+  const data = input([{ chargeId: charges[0].id, amountMinor: 100000 }]);
+  const paymentId = await submitPayment(db, parent, data);
+  await assert.rejects(
+    reviewPayment(db, admin, paymentId, { ...verification(data), associationName: "" }),
+    { status: 400, code: "invalid_request" },
+  );
+  const reason = "Aclarar la referencia del comprobante.";
+  await reviewPayment(db, admin, paymentId, {
+    action: "needs_info", reason,
+    expectedRevision: 1, expectedStatus: "pending", expectedReviewNote: null,
+  });
+  await revisePayment(db, parent, paymentId, {
+    ...input(data.allocations), bankReference: "REF-CORREGIDA-SINTETICA", note: "Referencia corregida.",
+    expectedRevision: 1, expectedStatus: "needs_info", expectedReviewNote: reason,
+  });
+  await reviewPayment(db, admin, paymentId, {
+    action: "reject", reason: "Respaldo sintético rechazado.",
+    expectedRevision: 2, expectedStatus: "pending", expectedReviewNote: null,
+  });
+  assert.equal((await getPaymentDetail(db, parent, paymentId)).payment.status, "rejected");
+  assert.equal((await getParentDashboard(db, parent)).charges.find(c => c.id === charges[0].id)!.paidMinor, 0);
+});
 test("monthly publication is idempotent, due on eighth and snapshots manual discounts", async () => {
   const { db, charges } = await setup();
   const preview = await getMonthlyPreview(db, charges[0].period);
   assert.equal(preview.newCount, 0);
   assert.equal(preview.dueDate, `${charges[0].period}-08`);
+  const reviewed = await getMonthlyPreview(db, "2027-01");
   const results = await Promise.all([
-    publishMonth(db, admin, "2027-01"),
-    publishMonth(db, admin, "2027-01"),
+    publishMonth(db, admin, "2027-01", reviewed.snapshot),
+    publishMonth(db, admin, "2027-01", reviewed.snapshot),
   ]);
   assert.deepEqual(results.sort(), [0, 3]);
   assert.equal((await getMonthlyPreview(db, "2027-01")).newCount, 0);
+});
+
+test("a stale athlete form cannot reactivate an athlete or replace a newer fee and discount", async () => {
+  const { db, adapter } = await setup();
+  const athlete = (await getAdminDashboard(db)).athletes[0];
+  const original = { ...athlete, discountReason: athlete.discountReason ?? undefined };
+  const expected = athleteFeeSnapshot(athlete);
+  await setAthleteFee(db, admin, athlete.id, {
+    ...original, active: false, feeMinor: 1500000, discountMinor: 10000, discountReason: "Descuento revisado",
+  }, expected);
+  await assert.rejects(setAthleteFee(db, admin, athlete.id, { ...original, name: "Nombre desde pestaña anterior" }, expected),
+    (error: unknown) => (error as { code: string }).code === "conflict");
+  const saved = (await getAdminDashboard(db)).athletes.find(a => a.id === athlete.id)!;
+  assert.equal(saved.active, false);
+  assert.equal(saved.feeMinor, 1500000);
+  assert.equal(saved.discountMinor, 10000);
+  assert.equal(saved.name, athlete.name);
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM audit_events WHERE entity_id=? AND action='update'").get(athlete.id)!.n, 1);
+});
+
+test("competing fee edits use an atomic snapshot comparison and only the winner is audited", async () => {
+  const { db, adapter } = await setup();
+  const athlete = (await getAdminDashboard(db)).athletes[0];
+  const original = { ...athlete, discountReason: athlete.discountReason ?? undefined };
+  const expected = athleteFeeSnapshot(athlete);
+  const results = await Promise.allSettled([
+    setAthleteFee(db, admin, athlete.id, { ...original, active: false }, expected),
+    setAthleteFee(db, admin, athlete.id, { ...original, name: "Otra edición" }, expected),
+  ]);
+  assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
+  assert.equal(results.filter(result => result.status === "rejected" && result.reason.code === "conflict").length, 1);
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM audit_events WHERE entity_id=? AND action='update'").get(athlete.id)!.n, 1);
+});
+
+test("a fee change during processing cannot be overwritten and an aborted update leaves no audit", async () => {
+  const { db, adapter } = await setup();
+  const athlete = (await getAdminDashboard(db)).athletes[0];
+  const input = { ...athlete, name: "Cambio revisado", discountReason: athlete.discountReason ?? undefined };
+  adapter.beforeBatch = () => adapter.sqlite.prepare("UPDATE athletes SET active=0 WHERE id=?").run(athlete.id);
+  await assert.rejects(setAthleteFee(db, admin, athlete.id, input, athleteFeeSnapshot(athlete)),
+    (error: unknown) => (error as { code: string }).code === "conflict");
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM audit_events WHERE entity_id=? AND action='update'").get(athlete.id)!.n, 0);
+  const fresh = (await getAdminDashboard(db)).athletes.find(a => a.id === athlete.id)!;
+  adapter.sqlite.exec("CREATE TRIGGER fail_fee_update BEFORE UPDATE ON athletes BEGIN SELECT RAISE(ABORT,'synthetic_update_failure'); END;");
+  await assert.rejects(setAthleteFee(db, admin, athlete.id, input, athleteFeeSnapshot(fresh)), /synthetic_update_failure/);
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM audit_events WHERE entity_id=? AND action='update'").get(athlete.id)!.n, 0);
+  assert.equal(adapter.sqlite.prepare("SELECT name FROM athletes WHERE id=?").get(athlete.id)!.name, athlete.name);
+});
+
+test("fee and month mutations require the displayed snapshot, including for administrators", async () => {
+  const { db } = await setup();
+  const athlete = (await getAdminDashboard(db)).athletes[0];
+  const input = { ...athlete, discountReason: athlete.discountReason ?? undefined };
+  await assert.rejects(setAthleteFee(db, admin, athlete.id, input, undefined as unknown as string));
+  await assert.rejects(setAthleteFee(db, admin, athlete.id, input, "[]"),
+    (error: unknown) => (error as { code: string }).code === "conflict");
+  await assert.rejects(publishMonth(db, admin, "2027-02", undefined as unknown as string),
+    (error: unknown) => (error as { code: string }).code === "invalid_fields");
+  await assert.rejects(publishMonth(db, admin, "2027-02", "0".repeat(64)),
+    (error: unknown) => (error as { code: string }).code === "conflict");
+});
+
+test("a monthly preview becomes stale when fees, discounts, eligibility or its roster change", async () => {
+  for (const change of ["fee", "discount", "active", "start", "enroll"] as const) {
+    const { db, adapter } = await setup();
+    const period = "2027-02";
+    const preview = await getMonthlyPreview(db, period);
+    const athlete = preview.athletes[0];
+    const input = { ...athlete, discountReason: athlete.discountReason ?? undefined };
+    if (change === "enroll") await enrollAthlete(db, admin, { ...input, name: "Inscripción nueva" });
+    else await setAthleteFee(db, admin, athlete.id, {
+      ...input,
+      ...(change === "fee" ? { feeMinor: athlete.feeMinor === 1200000 ? 1500000 : 1200000 } : {}),
+      ...(change === "discount" ? { discountMinor: 10000, discountReason: "Descuento aprobado" } : {}),
+      ...(change === "active" ? { active: false } : {}),
+      ...(change === "start" ? { startPeriod: "2027-03" } : {}),
+    }, athleteFeeSnapshot(athlete));
+    await assert.rejects(publishMonth(db, admin, period, preview.snapshot),
+      (error: unknown) => (error as { code: string }).code === "conflict", change);
+    assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM charges WHERE period=?").get(period)!.n, 0, change);
+    assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM audit_events WHERE entity_type='month' AND entity_id=?").get(period)!.n, 0, change);
+    const fresh = await getMonthlyPreview(db, period);
+    assert.equal(await publishMonth(db, admin, period, fresh.snapshot), fresh.newCount);
+    assert.equal(adapter.sqlite.prepare("SELECT sum(base_minor-discount_minor) total FROM charges WHERE period=?").get(period)!.total, fresh.totalMinor);
+  }
+});
+
+test("monthly publication rechecks its roster inside the transaction after preflight", async () => {
+  const { db, adapter } = await setup();
+  const period = "2027-02";
+  const preview = await getMonthlyPreview(db, period);
+  adapter.beforeBatch = () => adapter.sqlite.prepare("UPDATE athletes SET active=0 WHERE id=?").run(preview.athletes[0].id);
+  await assert.rejects(publishMonth(db, admin, period, preview.snapshot),
+    (error: unknown) => (error as { code: string }).code === "conflict");
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM charges WHERE period=?").get(period)!.n, 0);
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM audit_events WHERE entity_type='month' AND entity_id=?").get(period)!.n, 0);
+});
+
+test("failed monthly insertion rolls back the snapshot claim and retry publishes exactly once", async () => {
+  const { db, adapter } = await setup();
+  const period = "2027-02";
+  const preview = await getMonthlyPreview(db, period);
+  adapter.sqlite.exec("CREATE TRIGGER fail_month BEFORE INSERT ON charges BEGIN SELECT RAISE(ABORT,'synthetic_month_failure'); END;");
+  await assert.rejects(publishMonth(db, admin, period, preview.snapshot), /synthetic_month_failure/);
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM charges WHERE period=?").get(period)!.n, 0);
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM audit_events WHERE entity_type='month' AND entity_id=?").get(period)!.n, 0);
+  adapter.sqlite.exec("DROP TRIGGER fail_month");
+  assert.equal(await publishMonth(db, admin, period, preview.snapshot), preview.newCount);
+  assert.equal(await publishMonth(db, admin, period, preview.snapshot), 0);
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) n FROM charges WHERE period=?").get(period)!.n, preview.newCount);
+});
+
+test("monthly publication recovers a lost committed response without duplicate charges", async () => {
+  const { db, adapter } = await setup();
+  const period = "2027-02";
+  const preview = await getMonthlyPreview(db, period);
+  const originalBatch = adapter.batch.bind(adapter);
+  let interrupted = true;
+  adapter.batch = async statements => {
+    const result = await originalBatch(statements);
+    if (interrupted) { interrupted = false; throw new Error("synthetic_lost_response"); }
+    return result;
+  };
+  await assert.rejects(publishMonth(db, admin, period, preview.snapshot), /synthetic_lost_response/);
+  const initial = adapter.sqlite.prepare("SELECT id FROM charges WHERE period=? ORDER BY id").all(period);
+  assert.equal(initial.length, preview.newCount);
+  assert.equal(await publishMonth(db, admin, period, preview.snapshot), 0);
+  assert.deepEqual(adapter.sqlite.prepare("SELECT id FROM charges WHERE period=? ORDER BY id").all(period), initial);
+});
+
+test("Unicode profile values and an empty roster have stable, compact publication snapshots", async () => {
+  const { db, adapter } = await setup();
+  const athlete = (await getAdminDashboard(db)).athletes[0];
+  await setAthleteFee(db, admin, athlete.id, { ...athlete, name: 'María “Prueba” \\ / ♞',
+    discountReason: 'Acuerdo: "prueba" / familiar', discountMinor: 10000 }, athleteFeeSnapshot(athlete));
+  const reviewed = await getMonthlyPreview(db, "2027-02");
+  assert.match(reviewed.snapshot, /^[a-f0-9]{64}$/);
+  assert.equal(await publishMonth(db, admin, "2027-02", reviewed.snapshot), reviewed.newCount);
+  assert.equal((await getMonthlyPreview(db, "2027-02")).snapshot, reviewed.snapshot);
+  adapter.sqlite.exec("UPDATE athletes SET active=0");
+  const empty = await getMonthlyPreview(db, "2027-03");
+  assert.equal(empty.newCount, 0);
+  assert.equal(await publishMonth(db, admin, "2027-03", empty.snapshot), 0);
 });
 test("billing and receipt sequence year change at Costa Rica midnight", () => {
   assert.equal(billingYear("2027-01-01T05:59:59.000Z"), 2026);
@@ -209,7 +435,7 @@ test("pending submission never reduces balances and unrelated charges are denied
   assert.equal(dashboard.balanceMinor, original);
   assert.equal(dashboard.pendingMinor, 300000);
   await assert.rejects(
-    submitPayment(db, outsider, data),
+    submitPayment(db, outsider, { ...data, submissionId: crypto.randomUUID() }),
     (e) => (e as { status: number }).status === 403,
   );
 });
@@ -496,6 +722,68 @@ test("invitation is bound to verified adult email and expiration, and grants all
   assert.equal((await getParentDashboard(db, second)).athletes.length, 2);
   await assert.rejects(redeemInvitation(db, second, tokenHash));
 });
+test("revoking one athlete invalidates the whole pending invitation; only a fresh invitation restores access", async () => {
+  const { adapter, db, charges } = await setup();
+  const athleteIds = charges.map(charge => charge.athleteId);
+  const oldHash = "c".repeat(64), newHash = "d".repeat(64);
+  const oldId = await createInvitation(db, admin, { email: second.email, athleteIds, tokenHash: oldHash });
+  const otherChildId = await createInvitation(db, admin, { email: second.email, athleteIds: [athleteIds[1]], tokenHash: "c1".repeat(32) });
+  const otherAdultId = await createInvitation(db, admin, { email: outsider.email, athleteIds: [athleteIds[0]], tokenHash: "c2".repeat(32) });
+  const unaffected = adapter.sqlite.prepare("SELECT * FROM invitations WHERE id IN (?,?) ORDER BY id").all(otherChildId, otherAdultId);
+  await revokeGuardian(db, admin, { userId: second.id, athleteId: athleteIds[0] });
+  assert.deepEqual(adapter.sqlite.prepare("SELECT * FROM invitations WHERE id IN (?,?) ORDER BY id").all(otherChildId, otherAdultId), unaffected);
+  const links = adapter.sqlite.prepare("SELECT * FROM guardian_links WHERE user_id=? ORDER BY athlete_id").all(second.id);
+  await assert.rejects(redeemInvitation(db, second, oldHash), (error: unknown) => (error as { status: number }).status === 403);
+  assert.deepEqual(adapter.sqlite.prepare("SELECT * FROM guardian_links WHERE user_id=? ORDER BY athlete_id").all(second.id), links);
+  assert.equal(adapter.sqlite.prepare("SELECT redeemed_at FROM invitations WHERE id=?").get(oldId)!.redeemed_at, null);
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) AS count FROM audit_events WHERE entity_id=? AND action='redeem'").get(oldId)!.count, 0);
+  const freshId = await createInvitation(db, admin, { email: second.email, athleteIds, tokenHash: newHash });
+  await redeemInvitation(db, second, newHash);
+  assert.deepEqual((await getParentDashboard(db, second)).athletes.map(athlete => athlete.id).sort(), [...athleteIds].sort());
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) AS count FROM audit_events WHERE entity_id=? AND action='redeem'").get(freshId)!.count, 1);
+});
+test("guardian revocation after an invitation read wins before its atomic grant and creates no redemption audit", async () => {
+  const { adapter, db, charges } = await setup();
+  const tokenHash = "e".repeat(64);
+  const invitationId = await createInvitation(db, admin, { email: second.email, athleteIds: charges.map(charge => charge.athleteId), tokenHash });
+  adapter.beforeBatch = async () => { await revokeGuardian(db, admin, { userId: second.id, athleteId: charges[0].athleteId }); };
+  await assert.rejects(redeemInvitation(db, second, tokenHash), (error: unknown) => (error as { status: number }).status === 409);
+  assert.equal((await getParentDashboard(db, second)).athletes.length, 0);
+  assert.equal(adapter.sqlite.prepare("SELECT redeemed_at FROM invitations WHERE id=?").get(invitationId)!.redeemed_at, null);
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) AS count FROM audit_events WHERE entity_id=? AND action='redeem'").get(invitationId)!.count, 0);
+});
+test("concurrent invitation redemption grants once, audits once and never logs its token", async () => {
+  const { adapter, db, charges } = await setup();
+  const tokenHash = "f".repeat(64), athleteIds = charges.map(charge => charge.athleteId);
+  const invitationId = await createInvitation(db, admin, { email: second.email, athleteIds, tokenHash });
+  const results = await Promise.allSettled([redeemInvitation(db, second, tokenHash), redeemInvitation(db, second, tokenHash)]);
+  assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
+  assert.equal(results.filter(result => result.status === "rejected").length, 1);
+  const audit = adapter.sqlite.prepare("SELECT actor_id,detail_json FROM audit_events WHERE entity_id=? AND action='redeem'").all(invitationId);
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0].actor_id, second.id);
+  assert.deepEqual(JSON.parse(audit[0].detail_json as string), { athleteIds });
+  assert.ok(!JSON.stringify(audit).includes(tokenHash));
+  await assert.rejects(redeemInvitation(db, second, tokenHash));
+  assert.equal(adapter.sqlite.prepare("SELECT count(*) AS count FROM audit_events WHERE entity_id=? AND action='redeem'").get(invitationId)!.count, 1);
+});
+test("expired invitations and account changes at redemption commit cannot grant or consume access", async () => {
+  for (const invalidation of ["expired", "inactive", "email"] as const) {
+    const { adapter, db, charges } = await setup();
+    const tokenHash = "a1".repeat(32);
+    const links = adapter.sqlite.prepare("SELECT * FROM guardian_links WHERE user_id=? ORDER BY athlete_id").all(outsider.id);
+    const invitationId = await createInvitation(db, admin, { email: outsider.email, athleteIds: charges.map(charge => charge.athleteId), tokenHash });
+    if (invalidation === "expired") adapter.sqlite.prepare("UPDATE invitations SET expires_at=created_at WHERE id=?").run(invitationId);
+    else adapter.beforeBatch = () => {
+      if (invalidation === "inactive") adapter.sqlite.prepare("UPDATE users SET active=0 WHERE id=?").run(outsider.id);
+      else adapter.sqlite.prepare("UPDATE users SET email=? WHERE id=?").run("changed@example.invalid", outsider.id);
+    };
+    await assert.rejects(redeemInvitation(db, outsider, tokenHash));
+    assert.deepEqual(adapter.sqlite.prepare("SELECT * FROM guardian_links WHERE user_id=? ORDER BY athlete_id").all(outsider.id), links);
+    assert.equal(adapter.sqlite.prepare("SELECT redeemed_at FROM invitations WHERE id=?").get(invitationId)!.redeemed_at, null);
+    assert.equal(adapter.sqlite.prepare("SELECT count(*) AS count FROM audit_events WHERE entity_id=? AND action='redeem'").get(invitationId)!.count, 0);
+  }
+});
 test("bank confirmation and reason for changed verified fields are required", async () => {
   const { db, charges } = await setup();
   const data = input([{ chargeId: charges[0].id, amountMinor: 100000 }]),
@@ -721,6 +1009,8 @@ test("revoked guardian cannot see current athlete data in an old payment detail,
   const data = input([{ chargeId: charges[0].id, amountMinor: 100000 }]);
   const paymentId = await submitPayment(db, parent, data);
   const file = (await getPaymentDetail(db, parent, paymentId)).files[0];
+  const before = (await getParentDashboard(db, parent)).payments.find(payment => payment.id === paymentId)!;
+  assert.equal(before.canOpenDetail, true);
   await revokeGuardian(db, admin, {
     userId: parent.id,
     athleteId: charges[0].athleteId,
@@ -729,11 +1019,49 @@ test("revoked guardian cannot see current athlete data in an old payment detail,
     getPaymentDetail(db, parent, paymentId),
     (e) => (e as { status: number }).status === 404,
   );
+  const dashboard = await getParentDashboard(db, parent);
+  const retained = dashboard.payments.find(payment => payment.id === paymentId)!;
+  assert.equal(retained.canOpenDetail, false);
+  assert.deepEqual(retained, { ...before, canOpenDetail: false }, "Keep the complete own-payment summary while removing its unavailable detail link");
+  assert.equal(dashboard.pendingMinor, data.amountMinor);
   assert.equal((await getPaymentFile(db, parent, file.id)).id, file.id);
   await assert.rejects(
     getPaymentFile(db, outsider, file.id),
     (e) => (e as { status: number }).status === 404,
   );
+});
+
+test("parent dashboard links follow every requested athlete relationship and authorized receipt list while admin review remains available", async () => {
+  const { db, charges } = await setup();
+  const data = input(charges.slice(0, 2).map(charge => ({ chargeId: charge.id, amountMinor: 100000 })));
+  assert.equal(data.allocations.length, 2);
+  const paymentId = await submitPayment(db, parent, data);
+  const receiptId = await reviewPayment(db, admin, paymentId, verification(data));
+  assert.ok(receiptId);
+  const staffData = { ...input([{ chargeId: charges[0].id, amountMinor: 100000 }]),
+    bankReference: "staff-availability-test", designatedAdultId: parent.id, auditReason: "Registro asistido de prueba." };
+  const staffPaymentId = await submitPayment(db, admin, staffData);
+  const before = await getParentDashboard(db, parent);
+  assert.equal(before.payments.find(payment => payment.id === paymentId)!.canOpenDetail, true);
+  assert.ok(before.receipts.some(receipt => receipt.id === receiptId));
+  await revokeGuardian(db, admin, { userId: parent.id, athleteId: charges[0].athleteId });
+  const activeData = { ...input([{ chargeId: charges[1].id, amountMinor: 100000 }]), bankReference: "active-availability-test" };
+  const activePaymentId = await submitPayment(db, parent, activeData);
+  const after = await getParentDashboard(db, parent);
+  const retained = after.payments.find(payment => payment.id === paymentId)!;
+  assert.equal(retained.canOpenDetail, false, "One revoked requested relationship blocks the complete detail");
+  assert.deepEqual(retained, { ...before.payments.find(payment => payment.id === paymentId), canOpenDetail: false });
+  assert.equal(retained.receiptId, receiptId, "Historical receipt identity stays in the own-payment summary");
+  assert.ok(!after.receipts.some(receipt => receipt.id === receiptId), "Only the authorized receipt list supplies receipt links");
+  assert.equal(after.payments.find(payment => payment.id === staffPaymentId)!.canOpenDetail, false);
+  assert.equal(after.payments.find(payment => payment.id === activePaymentId)!.canOpenDetail, true);
+  await assert.rejects(getPaymentDetail(db, parent, paymentId), (e) => (e as { status: number }).status === 404);
+  await assert.rejects(getReceipt(db, parent, receiptId!), (e) => (e as { status: number }).status === 404);
+  assert.equal((await getPaymentDetail(db, parent, activePaymentId)).payment.id, activePaymentId);
+  const staffDashboard = await getParentDashboard(db, admin);
+  assert.equal(staffDashboard.payments.find(payment => payment.id === staffPaymentId)!.canOpenDetail, true);
+  assert.equal((await getPaymentDetail(db, admin, staffPaymentId)).payment.id, staffPaymentId);
+  assert.equal((await getParentDashboard(db, outsider)).payments.length, 0);
 });
 
 

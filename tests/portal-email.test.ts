@@ -74,7 +74,7 @@ test('a live send uses one HTTPS request with stored address and the persisted U
   const output = await sendOutboxReceipt(live, message, async (url, init) => {
     calls++;
     assert.equal(url, 'https://api.brevo.com/v3/smtp/email');
-    assert.equal(init?.redirect, 'error');
+    assert.equal(init?.redirect, 'manual');
     assert.ok(init?.signal);
     const body = JSON.parse(String(init?.body));
     assert.deepEqual(body.to, [{ email: message.recipientEmail, name: message.recipientName }]);
@@ -96,6 +96,46 @@ test('live batch requires real administrator identity, and demo snapshots cannot
     assert.equal(output.status, 'blocked');
     if ('code' in output) assert.equal(output.code, 'demo_receipt');
   } finally { sqlite.close(); }
+});
+
+test('every provider 3xx is uncertain and nonretryable without following its Location', async () => {
+  for (let status = 300; status < 400; status++) {
+    let calls = 0;
+    const result = await sendOutboxReceipt(live, message, async (url, init) => {
+      calls++;
+      assert.equal(url, 'https://api.brevo.com/v3/smtp/email');
+      assert.equal(init?.redirect, 'manual');
+      return new Response(null, { status, headers: { Location: 'https://untrusted.example.invalid/collect', 'Retry-After': '1' } });
+    }, now);
+    assert.deepEqual(result, { status: 'unknown', code: 'provider_error', retryable: false });
+    assert.equal(calls, 1);
+  }
+});
+
+test('redirects persist an unknown outbox attempt and cannot be automatically sent again or explicitly requeued', async () => {
+  for (const status of [301, 302, 303, 307, 308]) {
+    const { db, sqlite } = database();
+    try {
+      let calls = 0;
+      const fetcher = async (_url: string | URL | Request, init?: RequestInit) => {
+        calls++;
+        assert.equal(init?.redirect, 'manual');
+        return Response.json({ messageId: '<not-accepted@fixture>', detail: 'PRIVATE_REDIRECT_DETAIL' },
+          { status, headers: { Location: 'https://untrusted.example.invalid/collect', 'Retry-After': '1' } });
+      };
+      const result = await sendOutboxBatch(db, actor, live, { now, fetcher });
+      assert.deepEqual(result.results, [{ id, status: 'unknown', code: 'provider_error' }]);
+      const stored = (await listEmailOutbox(db, actor))[0];
+      assert.equal(stored.status, 'unknown');
+      assert.equal(sqlite.prepare('SELECT attempts,provider_message_id FROM email_outbox WHERE id=?').get(id)?.attempts, 1);
+      assert.equal(sqlite.prepare('SELECT provider_message_id FROM email_outbox WHERE id=?').get(id)?.provider_message_id, null);
+      assert.equal(await retryEmailOutbox(db, actor, id, new Date(now.getTime() + 86_400_000)), false);
+      const repeated = await sendOutboxBatch(db, actor, live, { now: new Date(now.getTime() + 86_400_000), fetcher });
+      assert.equal(repeated.processed, 0);
+      assert.equal(calls, 1);
+      assert.ok(!JSON.stringify(result).includes('PRIVATE_REDIRECT_DETAIL'));
+    } finally { sqlite.close(); }
+  }
 });
 
 test('a durable claim and budget reservation prevent duplicate and over-cap sends', async () => {

@@ -1,18 +1,20 @@
 import type { APIContext } from 'astro';
 import { isSameOriginMutation } from '../auth';
 import { authorizePortal } from './access';
-import { formText, InputError, mutationError, portalResponse, readPortalForm } from './http';
+import { businessConfigurationUnavailable, formText, InputError, mutationError, portalResponse, readPortalForm } from './http';
+import { resolveBusinessConfiguration } from './business-config';
 import type { Actor, PaymentReviewSnapshot, PaymentStatus } from './types';
 
 export async function portalMutation(
   context: APIContext,
   env: Cloudflare.Env,
-  options: {admin?:boolean;upload?:boolean;back:string},
+  options: {admin?:boolean;upload?:boolean;business?:boolean;back:string},
   action: (actor: Actor, form: FormData) => Promise<Response>,
 ): Promise<Response> {
   const access = await authorizePortal(context,env,{admin:options.admin});
   if (!access.ok) return access.response;
   if (!isSameOriginMutation(context.request)) return portalResponse('Invalid origin',403);
+  if (options.business && !resolveBusinessConfiguration(context.request, env)) return businessConfigurationUnavailable(context.request);
   try {return await action(access.actor,await readPortalForm(context.request,options.upload));}
   catch(error) {return mutationError(context,error,options.back);}
 }

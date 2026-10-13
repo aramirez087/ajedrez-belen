@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createReceiptSnapshot, DEMO_RECEIPT_NOTICE, renderReceipt, validEmail } from '../src/lib/portal/receipt.ts';
+import { createReceiptSnapshot, DEMO_RECEIPT_NOTICE, STAGING_RECEIPT_NOTICE, renderReceipt, validEmail } from '../src/lib/portal/receipt.ts';
 import type { ReceiptSnapshot } from '../src/lib/portal/types.ts';
 
 export function receiptFixture(overrides: Partial<ReceiptSnapshot> = {}): ReceiptSnapshot {
@@ -88,6 +88,81 @@ test('demo receipts and void notices remain clearly marked in both HTML and text
   assert.match(voided.subject, /^\[ANULADO\]/);
   assert.ok(voided.html.includes('Duplicado &lt;review&gt;') && voided.text.includes('ANULADO'));
   assert.throws(() => renderReceipt(receiptFixture(), { voidReason: 'Reason without a void timestamp' }));
+});
+
+test('receipt production rendering remains unchanged unless staging presentation is explicitly enabled', () => {
+  for (const demo of [false, true]) {
+    for (const presentation of [{}, { voidedAt: '2026-10-10T15:00:00.000Z', voidReason: 'Duplicado' }]) {
+      const input = receiptFixture({ demo });
+      const normal = renderReceipt(input, presentation);
+      assert.deepEqual(renderReceipt(input, { ...presentation, stagingTest: false }), normal);
+      assert.deepEqual(renderReceipt(input, { ...presentation, stagingTest: 'true' as unknown as boolean }), normal);
+      for (const content of [normal.html, normal.text]) {
+        assert.ok(content.includes('después de verificar el ingreso en la cuenta bancaria.'));
+        assert.ok(!content.includes(STAGING_RECEIPT_NOTICE));
+      }
+    }
+  }
+});
+
+test('staging receipt warns in HTML and text without mutating the frozen issuance snapshot or financial values', () => {
+  const input = receiptFixture();
+  input.lines.forEach(Object.freeze);
+  Object.freeze(input.lines);
+  Object.freeze(input.designatedAdult);
+  Object.freeze(input);
+  const before = structuredClone(input);
+  const normal = renderReceipt(input);
+  const staged = renderReceipt(input, { stagingTest: true });
+  assert.deepEqual(input, before);
+  assert.equal(input.demo, false);
+  assert.equal(staged.subject, normal.subject);
+  assert.ok(staged.text.startsWith(STAGING_RECEIPT_NOTICE));
+  assert.ok(staged.html.indexOf(STAGING_RECEIPT_NOTICE) < staged.html.indexOf('<h1'));
+  assert.match(staged.html, /<p style="[^"]*border:3px solid[^\"]*">PRUEBA —/);
+  const printRules = staged.html.match(/@media print\{[\s\S]*?<\/style>/)?.[0] ?? '';
+  assert.ok(printRules.includes('.print-button{display:none!important}'));
+  assert.doesNotMatch(printRules, /(?:p|main|body)\s*\{[^}]*display\s*:\s*none/);
+  for (const content of [staged.html, staged.text]) {
+    assert.ok(content.includes(STAGING_RECEIPT_NOTICE));
+    assert.ok(content.includes('verificación simulada. No se recibieron fondos reales.'));
+    assert.ok(!content.includes('después de verificar el ingreso en la cuenta bancaria.'));
+    assert.ok(content.includes(input.bankReference));
+    assert.ok(content.includes(input.receiptNumber));
+    assert.ok(content.includes(input.lines[0]!.athleteName));
+  }
+  assert.deepEqual(staged.html.match(/<table[\s\S]*?<\/table>/g), normal.html.match(/<table[\s\S]*?<\/table>/g));
+});
+
+test('staging, demo and void notices coexist without claiming actual bank confirmation', () => {
+  const staged = renderReceipt(receiptFixture({ demo: true }), { stagingTest: true,
+    voidedAt: '2026-10-10T15:00:00.000Z', voidReason: 'Prueba duplicada <review>' });
+  assert.match(staged.subject, /^\[DEMOSTRACIÓN\] \[ANULADO\]/);
+  for (const content of [staged.html, staged.text]) {
+    assert.ok(content.includes(STAGING_RECEIPT_NOTICE));
+    assert.ok(content.includes(DEMO_RECEIPT_NOTICE));
+    assert.ok(content.includes('ANULADO —'));
+    assert.ok(content.includes('No se recibieron fondos reales.'));
+    assert.ok(!content.includes('después de verificar el ingreso en la cuenta bancaria.'));
+  }
+  assert.ok(staged.html.includes('Prueba duplicada &lt;review&gt;'));
+  assert.ok(staged.text.includes('Prueba duplicada <review>'));
+});
+
+test('staging compact print and narrow-screen spacing preserve all receipt content and stay out of production output', () => {
+  const input = receiptFixture();
+  const normal = renderReceipt(input);
+  const staged = renderReceipt(input, { stagingTest: true, voidedAt: '2026-10-10T15:00:00.000Z', voidReason: 'Prueba duplicada' });
+  assert.ok(!normal.html.includes('@page'));
+  assert.ok(!normal.html.includes('@media screen'));
+  assert.ok(staged.html.includes('@page{margin:12mm}'));
+  assert.ok(staged.html.includes('@media screen and (max-width:480px)'));
+  assert.ok(staged.html.includes('table{table-layout:fixed}'));
+  assert.ok(staged.html.includes('break-before:avoid'));
+  assert.ok(staged.html.includes('PRUEBA — Datos ficticios. Este documento no acredita un pago real.'));
+  assert.ok(staged.html.includes('ANULADO — Prueba duplicada.'));
+  assert.ok(staged.html.includes('https://wa.me/50687686102'));
+  assert.deepEqual(staged.html.match(/<table[\s\S]*?<\/table>/g), normal.html.match(/<table[\s\S]*?<\/table>/g));
 });
 
 test('issued, demo and void receipts direct questions to the official WhatsApp without inviting email replies', () => {

@@ -8,7 +8,7 @@ export const POST: APIRoute=context=>portalMutation(context,env,{admin:true,back
   const action=formText(form,'action',20);
   if(action==='publish') {
     const period=formText(form,'month',7);
-    await publishMonth(env.DB,actor,period);
+    await publishMonth(env.DB,actor,period,formText(form,'expectedSnapshot',64));
     return successRedirect(`/admin/mensualidades?month=${encodeURIComponent(period)}`,'month_published');
   }
   if(action==='adjust') {

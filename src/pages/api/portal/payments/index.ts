@@ -1,15 +1,14 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
-import { submitPayment } from '../../../../lib/portal/domain';
-import { attachSlipDraft } from '../../../../lib/portal/ocr';
-import { formText, InputError, parseAllocations, parseMoney, successRedirect } from '../../../../lib/portal/http';
+import { formText, parseAllocations, parseMoney, successRedirect } from '../../../../lib/portal/http';
 import { portalMutation } from '../../../../lib/portal/routes';
-import { resolveSubmissionSlip } from '../../../../lib/portal/slip-upload';
+import { submitPaymentForm } from '../../../../lib/portal/payment-submission';
 
 export const prerender = false;
 export const POST: APIRoute = context => portalMutation(
-  context, env, { upload: true, back: '/portal/pagos/nuevo' }, async (actor, form) => {
+  context, env, { upload: true, business: true, back: '/portal/pagos/nuevo' }, async (actor, form) => {
     const input = {
+      submissionId: formText(form, 'submissionId', 36),
       payerName: formText(form, 'payerName'), amountMinor: parseMoney(form.get('amount')),
       transferDate: formText(form, 'transferDate', 10), bankReference: formText(form, 'bankReference', 128),
       allocations: parseAllocations(form),
@@ -17,11 +16,7 @@ export const POST: APIRoute = context => portalMutation(
       auditReason: formText(form, 'auditReason', 500, true) || undefined,
       shareEvidence: form.get('shareEvidence') === 'on', note: formText(form, 'note', 500, true) || undefined,
     };
-    const saved = await resolveSubmissionSlip(env, actor, form);
-    if (!saved) throw new InputError('invalid_file');
-    const id = await submitPayment(env.DB, actor, { ...input, file: saved.file });
-    // Financial references retain originals even if this bookkeeping step is interrupted.
-    try { await attachSlipDraft(env.DB, actor, saved.draftId, id); } catch { /* Cleanup reconciles the reference. */ }
+    const id = await submitPaymentForm(env, actor, form, input);
     return successRedirect(`/portal/pagos/${id}`, 'submitted');
   },
 );

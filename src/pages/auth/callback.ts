@@ -2,12 +2,15 @@ import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 import { authUnavailableResponse } from '../../lib/auth';
 import { getAuthService } from '../../lib/workos-runtime';
+import { stagingCallback } from '../../lib/staging-auth';
+import { stagingAuthSetupRequested } from '../../lib/staging-auth-policy';
 
 export const prerender = false;
 
 export const GET: APIRoute = async (context) => {
   const service = getAuthService(env);
   if (!service) return authUnavailableResponse();
+  if (stagingAuthSetupRequested(env)) return stagingCallback(context, env, service);
   const state = context.url.searchParams.get('state') ?? undefined;
   try {
     const code = context.url.searchParams.get('code');

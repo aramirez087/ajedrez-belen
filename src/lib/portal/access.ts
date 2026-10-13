@@ -4,6 +4,7 @@ import { allowPortalDemo, getDemoIdentity } from './demo-policy';
 import { portalResponse } from './http';
 import { ensureUser } from './domain';
 import type { Actor } from './types';
+import { isStagingPortalActor, restrictedModeRequested, stagingPortalTestRequested } from '../staging-auth-policy';
 
 declare global {
   namespace App { interface Locals { portalActor?: Actor } }
@@ -26,6 +27,9 @@ export async function authorizePortal(context: APIContext, env: Cloudflare.Env, 
   {ok:true;actor:Actor} | {ok:false;response:Response}
 > {
   if (env.PORTAL_ENABLED !== 'true') return {ok:false,response:portalResponse('Not found',404)};
+  if (restrictedModeRequested(env) && (!stagingPortalTestRequested(env) || !isStagingPortalActor(context,env))) {
+    return {ok:false,response:portalResponse('Forbidden',403)};
+  }
   let actor = context.locals.portalActor ?? getPortalIdentity(context,env);
   if (!actor && !context.locals.auth?.user && allowPortalDemo(context.url,import.meta.env.DEV,env)) {
     actor = getDemoIdentity(context.cookies.get('portal-demo-role')?.value);

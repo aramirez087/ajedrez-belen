@@ -8,6 +8,11 @@
 .portal-demo-banner { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px 14px; min-height: 39px; padding: 8px 20px; background: var(--red); color: var(--paper); font-size: 11px; }
 .portal-demo-banner .checker-mark { color: var(--paper); width: 11px; height: 11px; }
 .portal-demo-banner a { text-decoration: underline; text-underline-offset: 3px; }
+.portal-test-banner { background: var(--red); color: var(--paper); border-bottom: 1px solid var(--red-hover); }
+.portal-test-banner .portal-shell { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 20px; padding-block: 13px; }
+.portal-test-banner strong { flex-shrink: 0; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; }
+.portal-test-banner span { font-size: 13px; line-height: 1.55; }
+.portal-test-badge { display: inline-block; margin-left: 9px; padding: 3px 6px; border: 1px solid var(--red); color: var(--red); font-size: 9px; font-weight: 650; letter-spacing: .07em; line-height: 1.2; text-transform: uppercase; vertical-align: middle; }
 .portal-header { min-height: 96px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); padding-block: 20px; }
 .portal-brand { display: flex; align-items: center; gap: 10px; min-width: 0; font-family: var(--display); font-size: 20px; font-weight: 650; letter-spacing: -.04em; }
 .portal-brand img { object-fit: contain; flex-shrink: 0; }
@@ -278,6 +283,8 @@
 }
 @media print {
   .portal-page { background: #fff; }
+  .portal-test-banner { margin-bottom: 16px; border: 1px solid #111; background: #fff; color: #111; }
+  .portal-test-banner .portal-shell { padding: 12px 14px; }
   .portal-header, .portal-navigation, .portal-footer, .portal-demo-banner, .portal-heading-action { display: none !important; }
   .portal-shell { width: 100%; }
   .portal-table-wrap { overflow: visible; }

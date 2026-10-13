@@ -2,6 +2,7 @@ import { defineMiddleware } from 'astro:middleware';
 import { env } from 'cloudflare:workers';
 import { getAuthConfigurationStatus, isSameOriginMutation } from './lib/auth';
 import { getAuthService } from './lib/workos-runtime';
+import { isStagingSetupOwner, isStagingPortalActor, stagingParentTestConfiguration, restrictedModeRequested, stagingAuthSetupGate } from './lib/staging-auth-policy';
 
 function isPrototypeRoute(pathname: string): boolean {
   return pathname === '/prototype' || pathname.startsWith('/prototype/') ||
@@ -30,6 +31,55 @@ function privateResponse(response: Response): Response {
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
+  if (restrictedModeRequested(env)) {
+    const root = context.url.pathname.split('/')[1].toLowerCase();
+    let decodedRoot = root;
+    try { decodedRoot = decodeURIComponent(context.url.pathname).split('/')[1].toLowerCase(); } catch { /* Malformed routes cannot match an application route. */ }
+    const protectedRoots = ['auth', 'login', 'portal', 'admin', 'api', 'demo', 'prototype'];
+    const protectedPath = protectedRoots.includes(root) || protectedRoots.includes(decodedRoot);
+    if (!protectedPath) return next();
+    const gate = stagingAuthSetupGate(context.request, env);
+    if (gate.status !== 200) {
+      const body = gate.status === 404 ? 'Not found' : gate.status === 403 ? 'Forbidden'
+        : gate.status === 405 ? 'Method not allowed' : 'Authentication unavailable';
+      return privateResponse(new Response(body, { status: gate.status,
+        headers: gate.allow ? { Allow: gate.allow } : undefined }));
+    }
+    // Starting or completing PKCE does not inspect an unrelated existing session.
+    if (['/auth/admin', '/auth/parent', '/auth/callback'].includes(context.url.pathname)) {
+      return privateResponse(await next());
+    }
+    const service = getAuthService(env);
+    if (!service) return privateResponse(new Response('Authentication unavailable', { status: 503 }));
+    try {
+      const { auth, refreshedSessionData } = await service.withAuth(context.cookies);
+      context.locals.auth = auth;
+      if (refreshedSessionData) await service.saveSession(context.cookies, refreshedSessionData);
+    } catch {
+      context.locals.auth = { user: null };
+      await service.clearSession(context.cookies);
+    }
+    if (['portal', 'admin', 'api'].includes(root) && !isStagingPortalActor(context, env)) {
+      // Deny before authorizePortal/ensureUser: even a page GET can otherwise write an account.
+      const anonymous = !context.locals.auth?.user;
+      await service.clearSession(context.cookies);
+      if (anonymous && root !== 'api' && ['GET', 'HEAD'].includes(context.request.method)) {
+        const login = root === 'portal' && stagingParentTestConfiguration(env) ? '/auth/parent' : '/auth/admin';
+        return privateResponse(context.redirect(login, 302));
+      }
+      return privateResponse(new Response(anonymous ? 'Authentication required' : 'Forbidden', {
+        status: anonymous ? 401 : 403,
+      }));
+    }
+    // A pinned parent remains a parent even when requesting an administrator URL.
+    // Deny before portal profile synchronization or any financial query.
+    const adminPath = context.url.pathname === '/admin' || context.url.pathname.startsWith('/admin/') ||
+      context.url.pathname === '/api/admin' || context.url.pathname.startsWith('/api/admin/');
+    if (adminPath && !isStagingSetupOwner(context, env)) {
+      return privateResponse(new Response('Forbidden', { status: 403 }));
+    }
+    return privateResponse(await next());
+  }
   const portalRoute = isPortalRoute(context.url.pathname);
   const authRoute = context.url.pathname === '/auth' || context.url.pathname.startsWith('/auth/');
   if (context.isPrerendered || (!portalRoute && !isPrototypeRoute(context.url.pathname))) return next();

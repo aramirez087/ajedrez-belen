@@ -1,11 +1,13 @@
 ---
 import type { Athlete } from '../../lib/portal/types';
 import { inputMoney } from './format';
+import { athleteFeeSnapshot } from '../../lib/portal/domain';
 interface Props { athlete?: Athlete; month: string; }
 const { athlete, month } = Astro.props;
 const prefix = athlete?.id ?? 'new';
 ---
 <form class="portal-form" action={athlete ? `/api/admin/athletes/${athlete.id}` : '/api/admin/athletes'} method="post">
+  {athlete && <input type="hidden" name="expectedSnapshot" value={athleteFeeSnapshot(athlete)} />}
   <div class="portal-form-row"><div class="portal-field"><label for={`${prefix}-name`}>Nombre completo del atleta</label><input id={`${prefix}-name`} name="name" type="text" maxlength="160" value={athlete?.name ?? ''} required /></div><div class="portal-field"><label for={`${prefix}-category`}>Categoría</label><input id={`${prefix}-category`} name="category" type="text" list="athlete-categories" maxlength="100" value={athlete?.category ?? 'Iniciación'} required /></div></div>
   <div class="portal-form-row"><div class="portal-field"><label for={`${prefix}-fee`}>Cuota mensual (₡)</label><select id={`${prefix}-fee`} name="monthlyFee" required><option value="12000" selected={(athlete?.feeMinor ?? 1200000) === 1200000}>₡12.000 · Iniciación</option><option value="15000" selected={athlete?.feeMinor === 1500000}>₡15.000 · Cadetes, intermedios y avanzados</option></select></div><div class="portal-field"><label for={`${prefix}-discount`}>Descuento manual (₡)</label><input id={`${prefix}-discount`} name="manualDiscount" type="number" min="0" max="15000" step="0.01" inputmode="decimal" value={inputMoney(athlete?.discountMinor ?? 0)} required /></div></div>
   <div class="portal-field"><label for={`${prefix}-discount-reason`}>Motivo del descuento</label><input id={`${prefix}-discount-reason`} name="discountReason" type="text" maxlength="500" value={athlete?.discountReason ?? ''} /><p class="portal-help">Obligatorio cuando hay descuento. La regla para hermanos se mantiene manual.</p></div>

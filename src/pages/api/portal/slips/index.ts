@@ -9,7 +9,7 @@ import { saveSlipDraft } from '../../../../lib/portal/slip-upload';
 export const prerender = false;
 
 export const POST: APIRoute = context => portalMutation(
-  context, env, { upload: true, back: '/portal/pagos/nuevo' }, async (actor, form) => {
+  context, env, { upload: true, business: true, back: '/portal/pagos/nuevo' }, async (actor, form) => {
     const slip = await readSlip(form);
     if (!slip) throw new InputError('invalid_file');
     const draft = await saveSlipDraft(env, actor, slip);

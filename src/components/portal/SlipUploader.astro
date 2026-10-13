@@ -1,15 +1,18 @@
 ---
 import OcrReview from './OcrReview.astro';
-interface Props { mode: 'off' | 'demo' | 'groq'; available: boolean; required?: boolean; id?: string; athletes?: readonly {id:string;name:string}[]; }
-const { mode, available, required = true, id = 'slip', athletes = [] } = Astro.props;
+import { env } from 'cloudflare:workers';
+import { isStagingTestParent, restrictedModeRequested } from '../../lib/staging-auth-policy';
+interface Props { mode: 'off' | 'demo' | 'groq'; available: boolean; required?: boolean; eagerUpload?: boolean; id?: string; athletes?: readonly {id:string;name:string}[]; }
+const { mode, available, required = true, eagerUpload = true, id = 'slip', athletes = [] } = Astro.props;
 const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
 ---
-<section class="portal-slip-uploader" data-slip-uploader data-ocr-mode={mode} data-ocr-available={String(available)} data-authorized-athletes={JSON.stringify(authorizedAthletes)}>
+<section class="portal-slip-uploader" data-slip-uploader data-eager-upload={String(eagerUpload)} data-restricted-auth={String(restrictedModeRequested(env))} data-parent-test-auth={String(isStagingTestParent(Astro,env))} data-ocr-mode={mode} data-ocr-available={String(available)} data-authorized-athletes={JSON.stringify(authorizedAthletes)}>
   <div class="portal-form-step"><span aria-hidden="true">01</span><div><h2>{required ? 'Primero, adjunta tu transferencia.' : '¿Necesitas corregir el archivo?'}</h2><p>{required ? 'Usa la imagen o el PDF original del banco.' : 'El archivo nuevo reemplaza la versión actual y conserva el historial.'}</p></div></div>
   <div class="portal-slip-drop" data-slip-drop><svg width="30" height="34" viewBox="0 0 30 34" fill="none" aria-hidden="true"><path d="M1 1h19l9 9v23H1zM20 1v9h9M15 26V15m-5 5 5-5 5 5" stroke="currentColor" stroke-width="1.2"/></svg><div class="portal-field"><label for={id}>{required ? 'Comprobante de la transferencia' : 'Archivo actualizado (opcional)'}</label><input id={id} name="slip" type="file" accept="image/jpeg,image/png,application/pdf" required={required} aria-describedby={`${id}-help ${id}-status`} data-slip-input /><p id={`${id}-help`} class="portal-help">JPG, PNG o PDF · máximo 3 MB. Se guarda de forma privada.</p></div></div>
   <input type="hidden" name="draftId" value="" data-slip-draft />
   <div class="portal-slip-preview" data-slip-preview hidden><div class="portal-slip-preview-image" data-slip-image-wrap hidden><button class="portal-slip-preview-button" type="button" data-slip-zoom aria-label="Ampliar imagen seleccionada"><img alt="Vista previa del archivo seleccionado" data-slip-image /><span class="portal-evidence-zoom">Ampliar imagen <span aria-hidden="true">↗</span></span></button></div><div class="portal-slip-preview-info"><span class="portal-private-label"><svg width="12" height="14" viewBox="0 0 12 14" fill="none" aria-hidden="true"><path d="M3 6V4a3 3 0 0 1 6 0v2M1 6h10v7H1z" stroke="currentColor"/></svg>Archivo privado</span><strong data-slip-name></strong><p data-slip-size></p><p class="portal-help" data-slip-preview-note></p></div></div>
   <p id={`${id}-status`} class="portal-slip-status" role="status" aria-live="polite" data-slip-status>El archivo se adjuntará al enviar el formulario.</p>
+  <div class="portal-help" data-slip-auth-recovery hidden><a class="portal-link" href="/portal/acceso" target="_blank" rel="noopener noreferrer" data-slip-auth-link>Revisar acceso en otra pestaña <span aria-hidden="true">↗</span></a><p>Mantén esta pestaña abierta. Después de revisar tu acceso, vuelve aquí y reintenta guardar o leer el archivo. No se reintenta automáticamente.</p></div>
   <div class="portal-ocr-controls" data-ocr-controls hidden><div class="portal-ocr-disclosure"><p class="portal-eyebrow">{mode === 'demo' ? 'Demostración · datos ficticios' : 'Lectura opcional'}</p><p data-ocr-disclosure>{mode === 'demo' ? 'La lectura simulada usa un ejemplo ficticio del sistema. No analiza tu archivo ni envía información a un servicio externo.' : 'Al pulsar Leer datos, se enviará la imagen de tu comprobante a Groq para sugerir los campos del formulario. Puedes completar todo manualmente.'}</p><p class="portal-help" data-ocr-pdf-note hidden>En un PDF se leerá únicamente la primera página convertida a imagen. El PDF original se conserva completo.</p></div><button class="portal-button portal-button-secondary" type="button" disabled data-slip-extract>{mode === 'demo' ? 'Probar lectura simulada' : 'Leer datos'}<span aria-hidden="true">↗</span></button><button class="portal-link portal-text-button" type="button" data-slip-retry hidden>Reintentar guardar archivo</button></div>
   <OcrReview interactive />
   <section class="portal-athlete-suggestions" aria-labelledby={`${id}-athlete-heading`} data-athlete-suggestions hidden>
@@ -26,6 +29,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
 </section>
 <script>
   import { renderFirstPdfPage } from '../../lib/portal/pdf-preview';
+  import { readSlipResponse, slipAuthRecovery } from '../../lib/portal/slip-response';
   import { suggestAthletes, type MatchableAthlete } from '../../lib/portal/athlete-match';
   type Suggestions = { amount: string | null; currency: string | null; transferDate: string | null; bankReference: string | null; payerName: string | null; description: string | null; warnings: string[] };
   type Extraction = { status: string; suggestions: Suggestions | null; mode: 'demo' | 'groq'; code?: string | null; sourceKind?: string; };
@@ -51,6 +55,8 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
     const input = uploader.querySelector<HTMLInputElement>('[data-slip-input]')!;
     const draft = uploader.querySelector<HTMLInputElement>('[data-slip-draft]')!;
     const status = uploader.querySelector<HTMLElement>('[data-slip-status]')!;
+    const authRecovery = uploader.querySelector<HTMLElement>('[data-slip-auth-recovery]')!;
+    const authLink = uploader.querySelector<HTMLAnchorElement>('[data-slip-auth-link]')!;
     const preview = uploader.querySelector<HTMLElement>('[data-slip-preview]')!;
     const previewWrap = uploader.querySelector<HTMLElement>('[data-slip-image-wrap]')!;
     const image = uploader.querySelector<HTMLImageElement>('[data-slip-image]')!;
@@ -91,7 +97,8 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
     let saving = false;
     let reading = false;
     let mode = uploader.dataset.ocrMode ?? 'off';
-    let available = uploader.dataset.ocrAvailable === 'true';
+    const eagerUpload = uploader.dataset.eagerUpload !== 'false';
+    let available = eagerUpload && uploader.dataset.ocrAvailable === 'true';
     let previousOverflow = '';
     controls.hidden = !available;
     function allocationRows(athleteId: string) {
@@ -142,7 +149,12 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
         athleteCandidates.appendChild(item);
       });
     }
-    function showStatus(message: string, error = false) { status.textContent = message; status.classList.toggle('portal-slip-status-error', error); }
+    function showStatus(message: string, error = false) { authRecovery.hidden = true; status.textContent = message; status.classList.toggle('portal-slip-status-error', error); }
+    function showRequestError(code: string, fallback: string) {
+      const recovery = slipAuthRecovery(code, uploader.dataset.restrictedAuth === 'true', uploader.dataset.parentTestAuth === 'true');
+      showStatus(recovery?.message ?? messages[code] ?? fallback, true);
+      if (recovery) { authLink.href = recovery.href; authLink.textContent = `${recovery.label} ↗`; authRecovery.hidden = false; }
+    }
     function showImage(file: File) {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       objectUrl = URL.createObjectURL(file); image.src = objectUrl; dialogImage.src = objectUrl; previewWrap.hidden = false;
@@ -152,12 +164,6 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
       retryButton.disabled = saving || reading;
       controls.setAttribute('aria-busy', String(saving || reading));
     }
-    async function readJson<T>(response: Response): Promise<T> {
-      const body = await response.json();
-      const code = body && typeof body === 'object' && 'error' in body && typeof body.error === 'string' ? body.error : 'operation_failed';
-      if (!response.ok) throw new Error(code);
-      return body as T;
-    }
     async function requestJson<T>(url: string, data: FormData, signal: AbortSignal): Promise<T> {
       const request = new AbortController();
       const abort = () => request.abort();
@@ -165,7 +171,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
       if (signal.aborted) request.abort();
       const timeout = window.setTimeout(abort, 45_000);
       try {
-        return await readJson<T>(await fetch(url, { method: 'POST', body: data, headers: { Accept: 'application/json' }, credentials: 'same-origin', signal: request.signal }));
+        return await readSlipResponse<T>(await fetch(url, { method: 'POST', body: data, headers: { Accept: 'application/json' }, credentials: 'same-origin', signal: request.signal }));
       } finally {
         window.clearTimeout(timeout);
         signal.removeEventListener('abort', abort);
@@ -173,6 +179,10 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
     }
     async function saveFile(file: File, run: number, signal: AbortSignal) {
       if (saving || reading || signal.aborted) return;
+      if (!eagerUpload) {
+        showStatus('El archivo actualizado se guardará al enviar esta corrección.');
+        return;
+      }
       saving = true; updateReadButton();
       showStatus('Guardando el archivo original de forma privada…'); retryButton.hidden = true;
       const data = new FormData(); data.set('slip', file);
@@ -192,7 +202,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
         draft.value = ''; draftExpiresAt = null; updateReadButton(); retryButton.hidden = false; controls.hidden = false;
         readButton.hidden = !available;
         const code = error instanceof Error ? error.message : '';
-        showStatus(messages[code] ?? 'No pudimos guardar el archivo todavía. Puedes reintentar o enviar el formulario con el archivo adjunto.', true);
+        showRequestError(code, 'No pudimos guardar el archivo todavía. Puedes reintentar o enviar el formulario con el archivo adjunto.');
       } finally {
         if (run === generation) { saving = false; updateReadButton(); }
       }
@@ -282,7 +292,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
         clearAthleteSuggestions();
         const code = error instanceof Error ? error.message : '';
         if (['draft_expired','draft_not_found','original_missing'].includes(code)) { draft.value = ''; draftExpiresAt = null; retryButton.hidden = false; }
-        showStatus(messages[code] ?? 'No pudimos obtener datos del archivo. Completa el formulario manualmente; tu original sigue guardado.', true);
+        showRequestError(code, 'No pudimos obtener datos del archivo. Completa el formulario manualmente; tu original sigue guardado.');
       } finally {
         if (run === generation && !signal.aborted) { reading = false; updateReadButton(); readButton.textContent = mode === 'demo' ? 'Probar lectura simulada ↗' : 'Leer datos ↗'; }
       }
@@ -323,11 +333,13 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
       uploader.querySelector<HTMLElement>('[data-slip-size]')!.textContent = `${Math.ceil(restoredFile.size / 1024)} KB · ${restoredFile.type === 'application/pdf' ? 'PDF original' : restoredFile.type === 'image/png' ? 'PNG' : 'JPG'}`;
       pdfNote.hidden = restoredFile.type !== 'application/pdf';
       readButton.textContent = mode === 'demo' ? 'Probar lectura simulada ↗' : 'Leer datos ↗';
-      retryButton.hidden = Boolean(draft.value) || !input.validity.valid;
+      retryButton.hidden = !eagerUpload || Boolean(draft.value) || !input.validity.valid;
       controls.hidden = !available && retryButton.hidden;
       readButton.hidden = !available;
       updateReadButton();
-      showStatus(draft.value
+      showStatus(!eagerUpload
+        ? 'Conservamos el archivo adjunto y los datos. El archivo actualizado se guardará al enviar esta corrección.'
+        : draft.value
         ? 'Conservamos el archivo y los datos. Revisa el estado del pago en tu cuenta antes de volver a enviarlo.'
         : 'Conservamos el archivo adjunto y los datos. Revisa tu cuenta antes de volver a enviar; puedes guardar el archivo otra vez si necesitas la lectura.');
       // Rebuild the local preview only; saving and OCR still require user action.

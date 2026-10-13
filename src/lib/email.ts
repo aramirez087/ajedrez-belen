@@ -78,7 +78,8 @@ export async function sendReceiptEmail(
   try {
     const response = await fetcher('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
-      redirect: 'error',
+      // workerd supports manual redirects; never forward credentials or a receipt.
+      redirect: 'manual',
       signal: controller.signal,
       headers: {
         'accept': 'application/json',
@@ -98,6 +99,10 @@ export async function sendReceiptEmail(
       }),
     });
 
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      return { status: 'unknown', code: 'provider_error', retryable: false, httpStatus: response.status };
+    }
     // Never expose a raw response or exception: either could include API keys or personal data.
     let body: unknown;
     try { body = await response.json(); } catch { body = undefined; }

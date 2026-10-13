@@ -10,6 +10,6 @@ const access = await authorizePortal(Astro, env);
 if (!access.ok) return access.response;
 let receipt: Receipt;
 try { receipt = await getReceipt(env.DB, access.actor, Astro.params.id ?? ''); } catch { return portalResponse('Comprobante no disponible.', 404); }
-const html = renderReceipt(receipt.snapshot, {voidedAt:receipt.voidedAt,voidReason:receipt.voidReason}).html;
+const html = renderReceipt(receipt.snapshot, {voidedAt:receipt.voidedAt,voidReason:receipt.voidReason,stagingTest:env.STAGING_PORTAL_TEST === 'true'}).html;
 return portalResponse(html, 200, {'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
 ---

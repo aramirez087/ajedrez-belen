@@ -578,6 +578,7 @@ test("submitted evidence is preserved even if attach follow-up crashes; OCR is r
   const charge = (await getParentDashboard(ctx.db, parent)).charges[0];
   const metadata = await getDraftForSubmission(ctx.db, parent, record.id);
   const paymentId = await submitPayment(ctx.db, parent, {
+    submissionId: crypto.randomUUID(),
     payerName: "Persona confirmada por adulto",
     amountMinor: 100000,
     transferDate: "2026-10-10",
@@ -641,6 +642,7 @@ test("revision original and OCR metadata survive independently, including admini
     allocations: [{ chargeId: charge.id, amountMinor: 100000 }],
   };
   const paymentId = await submitPayment(ctx.db, parent, {
+    submissionId: crypto.randomUUID(),
     ...fields,
     file: await getDraftForSubmission(ctx.db, parent, first.id),
   });
