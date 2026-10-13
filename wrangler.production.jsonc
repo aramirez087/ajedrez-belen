@@ -21,7 +21,7 @@
     "PORTAL_ENABLED": "true",
     "PORTAL_DEMO": "false",
     "PORTAL_BUSINESS_CONFIG_APPROVED": "true",
-    "OCR_MODE": "off",
+    "OCR_MODE": "groq",
     "EMAIL_MODE": "live",
     "EMAIL_FROM": "no-reply@ajedrezbelen.com",
     "EMAIL_FROM_NAME": "Ajedrez Belén",
