@@ -107,6 +107,10 @@ test('family payment registration is own-family only; other-family registration 
   assert.ok(admin.includes('name="auditReason"'), 'assisted registrations keep their mandatory reason');
   const layout = readFileSync(new URL('../src/layouts/PortalLayout.astro', import.meta.url), 'utf8');
   assert.ok(layout.includes('/admin/pagos/nuevo'), 'administrators can reach assisted registration from their nav');
+  const adminHome = readFileSync(new URL('../src/pages/admin/index.astro', import.meta.url), 'utf8');
+  assert.ok(adminHome.includes('href="/admin/pagos/nuevo">Registrar para una familia'),
+    'the admin home button opens assisted registration, never the family form');
+  assert.ok(!adminHome.includes('href="/portal/pagos/nuevo"'), 'administration never links into the family registration form');
 });
 
 test('the receipt document page can actually display its crest and print button', () => {
