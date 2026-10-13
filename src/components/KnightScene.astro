@@ -1,31 +1,41 @@
 ---
 interface Props { src: string }
 const { src } = Astro.props;
+// Knight's-tour hops on an 800×800 grid (each step a legal L).
+const tour = '150,750 250,550 450,450 550,250 750,150 650,350 450,250 350,450 150,350 250,150';
+const tourStops = tour.split(' ').map((pt) => { const [cx, cy] = pt.split(','); return { cx, cy }; });
 ---
 <figure class="knight-figure">
   <div class="knight-scene" data-knight-scene>
-    <div class="scene-backdrop" aria-hidden="true">
-      <span class="scene-ghost">64</span>
-      <span class="scene-coordinate coordinate-top">a&ensp;b&ensp;c&ensp;d&ensp;e&ensp;f&ensp;g&ensp;h</span>
-      <span class="scene-coordinate coordinate-side">8<br />7<br />6<br />5<br />4</span>
-      <span class="scene-notation">1. e4 …</span>
+    <div class="scene-tilt" data-tilt>
+      <div class="scene-backdrop" aria-hidden="true">
+        <span class="scene-ghost" data-depth="6">64</span>
+        <svg class="knight-tour" viewBox="0 0 800 800" preserveAspectRatio="xMidYMax slice" focusable="false">
+          <polyline points={tour} />
+          {tourStops.map((s) => <circle cx={s.cx} cy={s.cy} r="9" />)}
+        </svg>
+        <span class="scene-coordinate coordinate-top">a&ensp;b&ensp;c&ensp;d&ensp;e&ensp;f&ensp;g&ensp;h</span>
+        <span class="scene-coordinate coordinate-side">8<br />7<br />6<br />5<br />4</span>
+        <span class="scene-notation">1. e4 …</span>
+      </div>
+      <svg class="chess-board" viewBox="0 0 540 240" aria-hidden="true" focusable="false" data-depth="12">
+        <defs>
+          <pattern id="board-checks" width="420" height="420" patternUnits="userSpaceOnUse" patternTransform="matrix(1 .086 -.334 .352 215 132)">
+            <rect width="420" height="420" fill="var(--board-light)" />
+            <path d="M210 0h210v210H210ZM0 210h210v210H0Z" fill="var(--board-dark)" />
+          </pattern>
+          <radialGradient id="board-fade" cx="55%" cy="64%" r="66%" gradientTransform="translate(0 -.21) scale(1 1.32)">
+            <stop offset=".46" stop-color="white" />
+            <stop offset="1" stop-color="black" />
+          </radialGradient>
+          <mask id="board-crop"><rect width="540" height="240" fill="url(#board-fade)" /></mask>
+        </defs>
+        <rect width="540" height="240" fill="url(#board-checks)" mask="url(#board-crop)" />
+      </svg>
+      <div class="knight-shadow" aria-hidden="true"></div>
+      <img src={src} class="knight-piece" data-depth="22" alt="Caballo de ajedrez tallado en madera clara, sobre un tablero." width="750" height="1000" fetchpriority="high" decoding="async" />
+      <span class="scene-glare" aria-hidden="true"></span>
     </div>
-    <svg class="chess-board" viewBox="0 0 540 240" aria-hidden="true" focusable="false">
-      <defs>
-        <pattern id="board-checks" width="420" height="420" patternUnits="userSpaceOnUse" patternTransform="matrix(1 .086 -.334 .352 215 132)">
-          <rect width="420" height="420" fill="var(--board-light)" />
-          <path d="M210 0h210v210H210ZM0 210h210v210H0Z" fill="var(--board-dark)" />
-        </pattern>
-        <radialGradient id="board-fade" cx="55%" cy="64%" r="66%" gradientTransform="translate(0 -.21) scale(1 1.32)">
-          <stop offset=".46" stop-color="white" />
-          <stop offset="1" stop-color="black" />
-        </radialGradient>
-        <mask id="board-crop"><rect width="540" height="240" fill="url(#board-fade)" /></mask>
-      </defs>
-      <rect width="540" height="240" fill="url(#board-checks)" mask="url(#board-crop)" />
-    </svg>
-    <div class="knight-shadow" aria-hidden="true"></div>
-    <img src={src} class="knight-piece" alt="Caballo de ajedrez tallado en madera clara, sobre un tablero." width="750" height="1000" fetchpriority="high" decoding="async" />
   </div>
-  <figcaption><span>64 casillas. Infinitas posibilidades.</span><span class="figcaption-move" aria-hidden="true">Tu turno ↓</span><span class="checker-mark" aria-hidden="true"></span></figcaption>
+  <figcaption><span>64 casillas. Infinitas posibilidades.</span><span class="figcaption-move" aria-hidden="true">El caballo salta en L · Tu turno ↓</span><span class="checker-mark" aria-hidden="true"></span></figcaption>
 </figure>

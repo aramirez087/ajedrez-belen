@@ -1,0 +1,136 @@
+---
+// Morphy vs. Duque Karl / Conde Isouard, París 1858 ("La partida de la ópera").
+// 1.e4 e5 2.Cf3 d6 3.d4 Ag4 4.dxe5 Axf3 5.Dxf3 dxe5 6.Ac4 Cf6 7.Db3 De7
+// 8.Cc3 c6 9.Ag5 b5 10.Cxb5 cxb5 11.Axb5+ Cbd7 12.O-O-O Td8 13.Txd7 Txd7
+// 14.Td1 De6 15.Axd7+ Cxd7 16.Db8+ Cxb8 17.Td8#
+// Snapshots (pasos): A=3...Ag4  B=9.Ag5  C=12.O-O-O  D=16.Db8+  E=17.Td8#
+type Sq = string | null;
+interface OperaPiece { id: string; glyph: string; color: 'white' | 'black'; squares: Sq[] }
+const P = (id: string, glyph: string, color: 'white' | 'black', squares: Sq[]): OperaPiece => ({ id, glyph, color, squares });
+const pieces: OperaPiece[] = [
+  P('wK', '♚', 'white', ['e1', 'e1', 'c1', 'c1', 'c1']),
+  P('wQ', '♛', 'white', ['d1', 'b3', 'b3', 'b8', null]),
+  P('wRa', '♜', 'white', ['a1', 'a1', 'd1', null, null]),
+  P('wRh', '♜', 'white', ['h1', 'h1', 'h1', 'd1', 'd8']),
+  P('wBc', '♝', 'white', ['c1', 'g5', 'g5', 'g5', 'g5']),
+  P('wBf', '♝', 'white', ['f1', 'c4', 'b5', null, null]),
+  P('wNb', '♞', 'white', ['b1', 'c3', null, null, null]),
+  P('wNg', '♞', 'white', ['f3', null, null, null, null]),
+  P('wPa', '♟', 'white', ['a2', 'a2', 'a2', 'a2', 'a2']),
+  P('wPb', '♟', 'white', ['b2', 'b2', 'b2', 'b2', 'b2']),
+  P('wPc', '♟', 'white', ['c2', 'c2', 'c2', 'c2', 'c2']),
+  P('wPd', '♟', 'white', ['d4', null, null, null, null]),
+  P('wPe', '♟', 'white', ['e4', 'e4', 'e4', 'e4', 'e4']),
+  P('wPf', '♟', 'white', ['f2', 'f2', 'f2', 'f2', 'f2']),
+  P('wPg', '♟', 'white', ['g2', 'g2', 'g2', 'g2', 'g2']),
+  P('wPh', '♟', 'white', ['h2', 'h2', 'h2', 'h2', 'h2']),
+  P('bK', '♚', 'black', ['e8', 'e8', 'e8', 'e8', 'e8']),
+  P('bQ', '♛', 'black', ['d8', 'e7', 'e7', 'e6', 'e6']),
+  P('bRa', '♜', 'black', ['a8', 'a8', 'a8', null, null]),
+  P('bRh', '♜', 'black', ['h8', 'h8', 'h8', 'h8', 'h8']),
+  P('bBc', '♝', 'black', ['g4', null, null, null, null]),
+  P('bBf', '♝', 'black', ['f8', 'f8', 'f8', 'f8', 'f8']),
+  P('bNb', '♞', 'black', ['b8', 'b8', 'd7', null, null]),
+  P('bNg', '♞', 'black', ['g8', 'f6', 'f6', 'd7', 'b8']),
+  P('bPa', '♟', 'black', ['a7', 'a7', 'a7', 'a7', 'a7']),
+  P('bPb', '♟', 'black', ['b7', 'b7', null, null, null]),
+  P('bPc', '♟', 'black', ['c7', 'c6', null, null, null]),
+  P('bPd', '♟', 'black', ['d6', 'e5', 'e5', 'e5', 'e5']),
+  P('bPe', '♟', 'black', ['e5', null, null, null, null]),
+  P('bPf', '♟', 'black', ['f7', 'f7', 'f7', 'f7', 'f7']),
+  P('bPg', '♟', 'black', ['g7', 'g7', 'g7', 'g7', 'g7']),
+  P('bPh', '♟', 'black', ['h7', 'h7', 'h7', 'h7', 'h7']),
+];
+const steps = [
+  { move: '3… Ag4', title: 'La clavada', body: 'Las negras clavan el caballo contra la dama. Morphy ni parpadea: abre el centro y sigue sacando piezas. La lección número uno del club: desarrolla, no persigas.' },
+  { move: '9. Ag5', title: 'Todas las piezas juegan', body: 'Nueve jugadas y el ejército blanco está completo en el tablero. Las negras apenas han desarrollado dos piezas. En ajedrez, esa diferencia se paga muy caro.' },
+  { move: '12. O-O-O', title: 'El enroque que ataca', body: 'El rey blanco queda a salvo en una esquina… y la torre aterriza en la columna abierta, apuntando directo al rey rival, atrapado en el centro.' },
+  { move: '16. Db8+', title: 'El sacrificio de dama', body: '¡Morphy regala su dama! El caballo negro, único defensor de la casilla mortal, no tiene más remedio que capturarla y alejarse de su rey.' },
+  { move: '17. Td8#', title: 'Jaque mate', body: 'La torre cierra la partida, protegida por el alfil. Diecisiete jugadas y una obra maestra eterna. Todo esto se aprende igual: jugada a jugada, en buena compañía.' },
+];
+const highlights: string[][] = [['g4', 'f3'], ['g5', 'f6'], ['c1', 'd1'], ['b8'], ['d8', 'e8']];
+const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+const pos = (sq: string) => ({ x: files.indexOf(sq[0]) * 100, y: (8 - Number(sq[1])) * 100 });
+---
+<div class="opera" data-opera data-highlights={JSON.stringify(highlights)}>
+  <div class="opera-board-col">
+    <div class="opera-sticky">
+      <div class="opera-board" aria-hidden="true">
+        {[8, 7, 6, 5, 4, 3, 2, 1].map((rank) => files.map((file, fi) => (
+          <span class:list={['osq', (fi + rank) % 2 === 0 ? 'osq-dark' : 'osq-light']} data-osq={file + rank}>
+            {fi === 0 && <span class="sq-coord sq-rank">{rank}</span>}
+            {rank === 1 && <span class="sq-coord sq-file">{file}</span>}
+          </span>
+        )))}
+        {pieces.map((p) => {
+          const start = p.squares[0];
+          const xy = start ? pos(start) : { x: 0, y: 0 };
+          return <span class:list={['opiece', 'piece-' + p.color]} data-opiece={p.id} data-squares={JSON.stringify(p.squares)} style={`transform: translate(${xy.x}%, ${xy.y}%);`}>{p.glyph}</span>;
+        })}
+        <span class="opera-stamp" data-opera-stamp aria-hidden="true">Td8#</span>
+      </div>
+      <div class="opera-meta">
+        <p class="opera-move" data-opera-move>{steps[0].move}</p>
+        <div class="opera-dots" aria-hidden="true">
+          {steps.map((_, i) => <span class:list={['opera-dot', i === 0 && 'is-on']} data-opera-dot></span>)}
+        </div>
+        <p class="opera-count" data-opera-count>Jugada destacada 1 de 5</p>
+      </div>
+    </div>
+  </div>
+  <div class="opera-steps">
+    {steps.map((s, i) => (
+      <article class="opera-step" data-opera-step={i}>
+        <p class="opera-step-move">{s.move}</p>
+        <h3>{s.title}</h3>
+        <p>{s.body}</p>
+      </article>
+    ))}
+  </div>
+</div>
+<script>
+  const opera = document.querySelector<HTMLElement>('[data-opera]');
+  if (opera) {
+    const pieceEls = [...opera.querySelectorAll<HTMLElement>('[data-opiece]')];
+    const sqEls = [...opera.querySelectorAll<HTMLElement>('[data-osq]')];
+    const moveEl = opera.querySelector<HTMLElement>('[data-opera-move]');
+    const countEl = opera.querySelector<HTMLElement>('[data-opera-count]');
+    const stampEl = opera.querySelector<HTMLElement>('[data-opera-stamp]');
+    const dots = [...opera.querySelectorAll<HTMLElement>('[data-opera-dot]')];
+    const stepEls = [...opera.querySelectorAll<HTMLElement>('[data-opera-step]')];
+    const highlights: string[][] = JSON.parse(opera.dataset.highlights ?? '[]');
+    const moves = ['3… Ag4', '9. Ag5', '12. O-O-O', '16. Db8+', '17. Td8#'];
+    const FILES = 'abcdefgh';
+    let current = -1;
+    function applyStep(i: number) {
+      if (i === current) return;
+      current = i;
+      pieceEls.forEach((el) => {
+        const squares: (string | null)[] = JSON.parse(el.dataset.squares ?? '[]');
+        const sq = squares[i];
+        if (!sq) { el.classList.add('is-captured'); return; }
+        el.classList.remove('is-captured');
+        const x = FILES.indexOf(sq[0]) * 100;
+        const y = (8 - Number(sq[1])) * 100;
+        el.style.transform = `translate(${x}%, ${y}%)`;
+      });
+      sqEls.forEach((el) => {
+        const on = (highlights[i] ?? []).includes(el.dataset.osq ?? '');
+        el.classList.toggle('is-lit', on);
+        el.classList.toggle('is-mate', i === 4 && el.dataset.osq === 'e8');
+      });
+      dots.forEach((d, di) => d.classList.toggle('is-on', di <= i));
+      stepEls.forEach((s, si) => s.classList.toggle('is-active', si === i));
+      if (moveEl) moveEl.textContent = moves[i];
+      if (countEl) countEl.textContent = `Jugada destacada ${i + 1} de 5`;
+      stampEl?.classList.toggle('is-on', i === 4);
+    }
+    const so = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) applyStep(Number((e.target as HTMLElement).dataset.operaStep ?? 0));
+      });
+    }, { rootMargin: '-42% 0px -42% 0px', threshold: 0 });
+    stepEls.forEach((el) => so.observe(el));
+    applyStep(0);
+  }
+</script>

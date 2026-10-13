@@ -4,6 +4,7 @@ import '../styles/global.css';
 import KnightScene from '../components/KnightScene.astro';
 import HeroBoard from '../components/HeroBoard.astro';
 import PuzzleBoard from '../components/PuzzleBoard.astro';
+import OperaGame from '../components/OperaGame.astro';
 import { association as a } from '../data/association';
 
 const waBase = 'https://wa.me/' + a.whatsapp?.replace(/\D/g, '');
@@ -55,6 +56,7 @@ const structuredData = {
         </a>
         <nav aria-label="Navegación principal">
           <a class="nav-club" href="#asociacion">El club</a>
+          <a class="nav-game" href="#partida">La partida</a>
           <a href="#reto">El reto</a>
           <a href="#niveles">Las clases</a>
           <a class="nav-fees" href="#preguntas">Preguntas</a>
@@ -62,6 +64,11 @@ const structuredData = {
         <a href={contactUrl} target="_blank" rel="noopener noreferrer" class="nav-contact">Hablemos <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12" /></svg></a>
       </div>
     </header>
+    <div class="scroll-rail" data-rail aria-hidden="true">
+      <span class="rail-coord" data-rail-coord>e2</span>
+      <span class="rail-track"><span class="rail-fill" data-rail-fill></span><span class="rail-pawn" data-rail-pawn>♟</span></span>
+      <span class="rail-coord rail-coord-end">e8</span>
+    </div>
     <main id="contenido" tabindex="-1">
       <section id="inicio" class="hero frame" aria-labelledby="hero-heading">
         <div class="hero-copy">
@@ -77,9 +84,9 @@ const structuredData = {
             <a class="text-link" href="#reto">Primero, un reto <span aria-hidden="true">↓</span></a>
           </div>
           <dl class="hero-facts" data-hero="5">
-            <div><dt>Desde</dt><dd>₡12.000<em> / mes</em></dd></div>
-            <div><dt>Niveles</dt><dd>3<em> para cada paso</em></dd></div>
-            <div><dt>Hermanos</dt><dd>25%<em> de descuento</em></dd></div>
+            <div><dt>Desde</dt><dd>₡<span data-count="12000">12.000</span><em> / mes</em></dd></div>
+            <div><dt>Niveles</dt><dd><span data-count="3">3</span><em> para cada paso</em></dd></div>
+            <div><dt>Hermanos</dt><dd><span data-count="25">25</span>%<em> de descuento</em></dd></div>
           </dl>
         </div>
         <KnightScene src={a.heroKnight} />
@@ -115,10 +122,22 @@ const structuredData = {
         </ol>
       </section>
 
+      <section id="partida" class="game" aria-labelledby="game-heading">
+        <div class="frame">
+          <p class="section-index" data-reveal><span>02</span> La partida</p>
+          <div class="game-heading" data-reveal>
+            <h2 id="game-heading">París, 1858.<br /><em>Una obra maestra</em> en 17 jugadas.</h2>
+            <p>Paul Morphy, de 21 años, jugó esta partida en un palco de la ópera contra dos aristócratas que consultaban cada movimiento. Sigue bajando: el tablero la reproduce para ti, jugada a jugada.</p>
+          </div>
+          <OperaGame />
+          <p class="game-source" data-reveal>Morphy vs. Duque Karl de Brunswick y Conde Isouard · Ópera de París, 1858 · Defensa Philidor — conocida como «la partida de la ópera».</p>
+        </div>
+      </section>
+
       <section id="reto" class="challenge" aria-labelledby="challenge-heading">
         <div class="frame challenge-grid">
           <div class="challenge-copy">
-            <p class="section-index section-index-light" data-reveal><span>02</span> El reto</p>
+            <p class="section-index section-index-light" data-reveal><span>03</span> El reto</p>
             <h2 id="challenge-heading" data-reveal>¿Puedes dar<br /><em>jaque mate</em><br />en una jugada?</h2>
             <p data-reveal>Así empieza todo en el club: con una posición, una idea y las ganas de encontrarla. Juegan las blancas. Una sola jugada y la partida se acaba.</p>
             <div class="puzzle-win" data-puzzle-win data-reveal>
@@ -131,8 +150,9 @@ const structuredData = {
       </section>
 
       <section id="niveles" class="programme" aria-labelledby="levels-heading">
+        <span class="giant-word" data-giant aria-hidden="true">Ajedrez Belén · Ajedrez Belén ·</span>
         <div class="frame">
-          <p class="section-index" data-reveal><span>03</span> Las clases</p>
+          <p class="section-index" data-reveal><span>04</span> Las clases</p>
           <div class="programme-heading" data-reveal>
             <h2 id="levels-heading">Cada nivel,<br /><em>un nuevo horizonte.</em></h2>
             <p>Tu primera partida o tu próximo reto.<br />Encuentra tu lugar en el tablero.</p>
@@ -167,7 +187,7 @@ const structuredData = {
       </section>
 
       <section class="steps frame" aria-labelledby="steps-heading">
-        <p class="section-index" data-reveal><span>04</span> Cómo empezar</p>
+        <p class="section-index" data-reveal><span>05</span> Cómo empezar</p>
         <h2 id="steps-heading" class="steps-heading" data-reveal>De la primera duda<br />a la <em>primera jugada.</em></h2>
         <ol class="steps-list">
           <li data-reveal><span class="step-num" aria-hidden="true">1</span><h3>Escríbenos</h3><p>Un mensaje por WhatsApp basta. Cuéntanos quién quiere aprender y te respondemos con los detalles.</p></li>
@@ -177,7 +197,7 @@ const structuredData = {
       </section>
 
       <section id="preguntas" class="faq frame" aria-labelledby="faq-heading">
-        <p class="section-index" data-reveal><span>05</span> Preguntas frecuentes</p>
+        <p class="section-index" data-reveal><span>06</span> Preguntas frecuentes</p>
         <h2 id="faq-heading" class="faq-heading" data-reveal>Antes de <em>mover,</em> pregunta.</h2>
         <div class="faq-grid">
           <details data-reveal><summary>¿Necesito saber jugar para empezar? <span aria-hidden="true">+</span></summary><p>No. El nivel de Iniciación está hecho para dar los primeros pasos: conocer las piezas, el tablero y disfrutar las primeras partidas desde cero.</p></details>
@@ -206,6 +226,7 @@ const structuredData = {
     <a class="mobile-cta" data-mobile-cta href={contactUrl} target="_blank" rel="noopener noreferrer"><span>Quiero aprender ajedrez</span><span class="mobile-cta-price">desde ₡12.000/mes →</span></a>
     <script>
       const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
       document.documentElement.classList.add('is-loaded');
       const io = new IntersectionObserver((entries) => {
         entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } });
@@ -216,16 +237,94 @@ const structuredData = {
       const contact = document.querySelector('.contact');
       let contactVisible = false;
       if (contact) new IntersectionObserver(([e]) => { contactVisible = e.isIntersecting; }, { threshold: 0.2 }).observe(contact);
+
+      /* Scroll coordinate rail: the page is the e-file, e2 → e8 (coronación). */
+      const railFill = document.querySelector<HTMLElement>('[data-rail-fill]');
+      const railPawn = document.querySelector<HTMLElement>('[data-rail-pawn]');
+      const railCoord = document.querySelector<HTMLElement>('[data-rail-coord]');
+      const giant = document.querySelector<HTMLElement>('[data-giant]');
+      let ticking = false;
       const onScroll = () => {
         header?.classList.toggle('is-scrolled', scrollY > 24);
         cta?.classList.toggle('is-on', scrollY > 560 && !contactVisible);
+        const max = document.documentElement.scrollHeight - innerHeight;
+        const p = max > 0 ? Math.min(scrollY / max, 1) : 0;
+        if (railFill) railFill.style.transform = `scaleY(${p})`;
+        if (railPawn) railPawn.style.top = `${p * 100}%`;
+        if (railCoord) railCoord.textContent = 'e' + Math.min(2 + Math.floor(p * 6.999), 8);
         if (!reduce) {
-          const knight = document.querySelector<HTMLElement>('.knight-piece');
-          if (knight && scrollY < innerHeight) knight.style.translate = `0 ${Math.min(scrollY * -0.045, 0) * -1}px`;
+          if (giant) {
+            const r = giant.parentElement?.getBoundingClientRect();
+            if (r && r.top < innerHeight && r.bottom > 0) {
+              const gp = (innerHeight - r.top) / (innerHeight + r.height);
+              giant.style.transform = `translateX(${-gp * 16}%)`;
+            }
+          }
         }
+        ticking = false;
       };
-      addEventListener('scroll', onScroll, { passive: true });
+      addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(onScroll); } }, { passive: true });
       onScroll();
+
+      /* Animated counters in the hero facts. */
+      const fmt = { format: (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.') };
+      const cio = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (!e.isIntersecting) return;
+          cio.unobserve(e.target);
+          const el = e.target as HTMLElement;
+          const target = Number(el.dataset.count ?? 0);
+          if (reduce || target <= 3) { el.textContent = fmt.format(target); return; }
+          const t0 = performance.now(), dur = 1100;
+          const tick = (t: number) => {
+            const k = Math.min((t - t0) / dur, 1);
+            el.textContent = fmt.format(Math.round(target * (1 - Math.pow(1 - k, 3))));
+            if (k < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        });
+      }, { threshold: 0.4 });
+      document.querySelectorAll('[data-count]').forEach((el) => cio.observe(el));
+
+      /* Knight scene: 3D cursor tilt with layered depth. */
+      const scene = document.querySelector<HTMLElement>('[data-knight-scene]');
+      const tiltEl = document.querySelector<HTMLElement>('[data-tilt]');
+      if (scene && tiltEl && finePointer && !reduce) {
+        const layers = [...tiltEl.querySelectorAll<HTMLElement>('[data-depth]')];
+        let tx = 0, ty = 0, cx = 0, cy = 0, raf = 0;
+        const render = () => {
+          cx += (tx - cx) * 0.08; cy += (ty - cy) * 0.08;
+          tiltEl.style.transform = `rotateX(${(-cy * 5).toFixed(2)}deg) rotateY(${(cx * 7).toFixed(2)}deg)`;
+          layers.forEach((l) => {
+            const d = Number(l.dataset.depth ?? 0);
+            l.style.translate = `${(-cx * d).toFixed(1)}px ${(-cy * d * 0.7).toFixed(1)}px`;
+          });
+          if (Math.abs(tx - cx) > 0.001 || Math.abs(ty - cy) > 0.001) raf = requestAnimationFrame(render);
+          else raf = 0;
+        };
+        scene.addEventListener('pointermove', (e) => {
+          const r = scene.getBoundingClientRect();
+          tx = ((e.clientX - r.left) / r.width - 0.5) * 2;
+          ty = ((e.clientY - r.top) / r.height - 0.5) * 2;
+          scene.style.setProperty('--glare-x', `${((e.clientX - r.left) / r.width) * 100}%`);
+          scene.style.setProperty('--glare-y', `${((e.clientY - r.top) / r.height) * 100}%`);
+          if (!raf) raf = requestAnimationFrame(render);
+        });
+        scene.addEventListener('pointerleave', () => { tx = 0; ty = 0; if (!raf) raf = requestAnimationFrame(render); });
+      }
+
+      /* Magnetic calls to action. */
+      if (finePointer && !reduce) {
+        document.querySelectorAll<HTMLElement>('.button').forEach((btn) => {
+          btn.addEventListener('pointermove', (e) => {
+            const r = btn.getBoundingClientRect();
+            const x = (e.clientX - r.left) / r.width - 0.5;
+            const y = (e.clientY - r.top) / r.height - 0.5;
+            btn.style.translate = `${x * 7}px ${y * 7 - 2}px`;
+          });
+          btn.addEventListener('pointerleave', () => { btn.style.translate = ''; });
+        });
+      }
     </script>
   </body>
 </html>
