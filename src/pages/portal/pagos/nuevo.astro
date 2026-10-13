@@ -8,6 +8,7 @@ import { authorizePortal } from '../../../lib/portal/access';
 import { getParentDashboard, getChargesForAdult, listFamilies } from '../../../lib/portal/domain';
 import { getOcrAvailability } from '../../../lib/portal/ocr-policy';
 import { allowPortalDemo } from '../../../lib/portal/demo-policy';
+import { listEmailDrafts } from '../../../lib/portal/slip-upload';
 import { resolveBusinessConfiguration } from '../../../lib/portal/business-config';
 import { businessConfigurationUnavailable } from '../../../lib/portal/http';
 export const prerender = false;
@@ -25,6 +26,7 @@ const dashboard = actor.isAdmin ? null : await getParentDashboard(env.DB, actor)
 const allCharges = selectedAdult ? await getChargesForAdult(env.DB, actor, selectedAdult.adultId) : dashboard?.charges ?? [];
 const athletes = (selectedAdult?.athletes ?? dashboard?.athletes ?? []).map(({id,name}) => ({id,name}));
 const charges = allCharges.filter(charge => charge.balanceMinor > 0);
+const emailDrafts = actor.isAdmin ? [] : await listEmailDrafts(env, actor).catch(() => []);
 const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 ---
 <PortalLayout title="Registrar pago" actor={actor} active="new-payment">
@@ -34,7 +36,7 @@ const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',ye
     <section class="portal-panel"><form class="portal-form" action="/api/portal/payments" method="post" enctype="multipart/form-data">
       <input type="hidden" name="submissionId" value={crypto.randomUUID()} />
       {selectedAdult && <input type="hidden" name="designatedAdultId" value={selectedAdult.adultId} />}
-      <SlipUploader mode={ocr.mode} available={ocr.available} athletes={athletes} />
+      <SlipUploader mode={ocr.mode} available={ocr.available} athletes={athletes} savedDrafts={emailDrafts} />
       <div class="portal-form-step"><span aria-hidden="true">02</span><div><h2>Revisa los datos del pago.</h2><p>Completa la información o corrige las sugerencias de la lectura.</p></div></div>
       <div class="portal-field"><label for="payer-name">Nombre de quien realizó la transferencia</label><input id="payer-name" name="payerName" type="text" maxlength="160" autocomplete="name" value={selectedAdult?.adultName ?? actor.name} required /></div>
       <div class="portal-form-row"><div class="portal-field"><label for="amount">Monto transferido (₡)</label><input id="amount" name="amount" type="number" min="0.01" max="10000000" step="0.01" inputmode="decimal" required /></div><div class="portal-field"><label for="transfer-date">Fecha de la transferencia</label><input id="transfer-date" name="transferDate" type="date" max={today} value={today} required /></div></div>
@@ -48,6 +50,6 @@ const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',ye
       {actor.isAdmin && <div class="portal-field"><label for="audit-reason">Motivo del registro por administración</label><textarea id="audit-reason" name="auditReason" maxlength="500" required></textarea></div>}
       <button class="portal-button portal-button-wide" type="submit" disabled={charges.length === 0 || (actor.isAdmin && !selectedAdult)}>Enviar para revisión <span aria-hidden="true">→</span></button><p class="portal-help">Enviar este formulario registra el pago como pendiente. El comprobante de la Asociación se emite después de confirmarlo en el banco.</p>
     </form></section>
-    <aside class="portal-panel"><div class="portal-guidance"><p class="portal-eyebrow">Antes de transferir</p><h3 style="margin-top:13px">Incluye el nombre del atleta.</h3><p>Escribe en el detalle de SINPE el nombre completo del atleta. Si pagas varias mensualidades, indica los nombres y el mes.</p><p><strong>Destino del pago</strong></p><p class="portal-number">{business.paymentDestination}</p><p>{business.associationName}</p></div><div class="portal-guidance"><h3>De la transferencia al comprobante</h3><p>1. Realizas la transferencia y adjuntas el archivo.</p><p>2. La Asociación comprueba el ingreso en la cuenta.</p><p>3. El comprobante numerado queda disponible en el portal y el saldo se actualiza.</p></div><div class="portal-guidance"><h3>Consultas por WhatsApp</h3><p>Las respuestas a los correos automáticos del portal no se atienden. Para consultas sobre un pago, escribe a la Asociación.</p><a class="portal-link" href="https://wa.me/50687686102">Consultar por WhatsApp <span aria-hidden="true">↗</span></a></div><a class="portal-link" href={actor.isAdmin ? '/admin' : '/portal'}>Volver a la cuenta <span aria-hidden="true">↗</span></a></aside>
+    <aside class="portal-panel"><div class="portal-guidance"><p class="portal-eyebrow">Antes de transferir</p><h3 style="margin-top:13px">Incluye el nombre del atleta.</h3><p>Escribe en el detalle de SINPE el nombre completo del atleta. Si pagas varias mensualidades, indica los nombres y el mes.</p><p><strong>Destino del pago</strong></p><p class="portal-number">{business.paymentDestination}</p><p>{business.associationName}</p></div><div class="portal-guidance"><h3>¿Prefieres enviarlo por correo?</h3><p>Envía el comprobante adjunto a <strong>pagos@recibir.ajedrezbelen.com</strong> desde el correo de tu cuenta. Aparecerá aquí listo para completar los datos del pago; tienes siete días para registrarlo.</p></div><div class="portal-guidance"><h3>De la transferencia al comprobante</h3><p>1. Realizas la transferencia y adjuntas el archivo.</p><p>2. La Asociación comprueba el ingreso en la cuenta.</p><p>3. El comprobante numerado queda disponible en el portal y el saldo se actualiza.</p></div><div class="portal-guidance"><h3>Consultas por WhatsApp</h3><p>Las respuestas a los correos automáticos del portal no se atienden. Para consultas sobre un pago, escribe a la Asociación.</p><a class="portal-link" href="https://wa.me/50687686102">Consultar por WhatsApp <span aria-hidden="true">↗</span></a></div><a class="portal-link" href={actor.isAdmin ? '/admin' : '/portal'}>Volver a la cuenta <span aria-hidden="true">↗</span></a></aside>
   </div>
 </PortalLayout>

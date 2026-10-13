@@ -1,0 +1,24 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ajedrez-belen-email-inbound",
+  "account_id": "7d3e79129c4f0b3619a419cabbfa021e",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "vars": {
+    "ADMIN_USER_IDS": "user_01M4SQMQKETQMKM1254C25V224"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "ajedrez-belen-portal-production",
+    "database_id": "ffa2abc9-acce-44e0-ab96-c2cf68a13f13",
+    "migrations_dir": "../../migrations"
+  }],
+  "r2_buckets": [{
+    "binding": "SLIPS",
+    "bucket_name": "ajedrez-belen-portal-production-slips"
+  }]
+}

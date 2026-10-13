@@ -27,7 +27,8 @@
     "@workos-inc/node": "^10.14.0",
     "@workos/authkit-session": "0.5.4",
     "astro": "7.3.8",
-    "pdfjs-dist": "6.4.299"
+    "pdfjs-dist": "6.4.299",
+    "postal-mime": "^4.0.5"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.8",

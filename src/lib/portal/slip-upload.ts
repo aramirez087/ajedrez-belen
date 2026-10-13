@@ -26,6 +26,18 @@ export async function saveSlipDraft(
   return draft;
 }
 
+export async function listEmailDrafts(
+  env: Cloudflare.Env,
+  actor: Actor,
+): Promise<Array<{ id: string; type: string; size: number; createdAt: string; expiresAt: string }>> {
+  const result = await env.DB.prepare(
+    `SELECT d.id, d.file_type AS type, d.file_size AS size, d.created_at AS createdAt, d.expires_at AS expiresAt
+     FROM slip_drafts d JOIN email_inbound e ON e.draft_id=d.id
+     WHERE d.owner_id=? AND d.state='draft' AND d.expires_at>? ORDER BY d.created_at DESC LIMIT 10`,
+  ).bind(actor.id, new Date().toISOString()).all<{ id: string; type: string; size: number; createdAt: string; expiresAt: string }>();
+  return result.results;
+}
+
 export async function resolveSubmissionSlip(
   env: Cloudflare.Env,
   actor: Actor,
