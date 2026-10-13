@@ -5,6 +5,9 @@ import { getAuthService } from '../../lib/workos-runtime';
 import { stagingCallback } from '../../lib/staging-auth';
 import { stagingAuthSetupRequested } from '../../lib/staging-auth-policy';
 import { safePortalReturnPath } from '../../lib/portal/invitation-entry';
+import { signInWithGoogleCode } from '../../lib/auth-actions';
+import { clientMeta } from '../../lib/auth-flow';
+import { applyAuthOutcome, clearGoogleOAuthFlow, readGoogleOAuthFlow, workosClient } from '../../lib/auth-pages';
 
 export const prerender = false;
 
@@ -12,6 +15,26 @@ export const GET: APIRoute = async (context) => {
   const service = getAuthService(env);
   if (!service) return authUnavailableResponse();
   if (stagingAuthSetupRequested(env)) return stagingCallback(context, env, service);
+  // "Continuar con Google" lands here too (same registered redirect URI):
+  // its signed flow cookie, not the AuthKit verifier, marks the exchange.
+  const googleFlow = await readGoogleOAuthFlow(context.cookies);
+  if (googleFlow) {
+    clearGoogleOAuthFlow(context.cookies);
+    const code = context.url.searchParams.get('code');
+    const auth = workosClient();
+    if (!auth || !code || context.url.searchParams.has('error') ||
+        context.url.searchParams.get('state') !== googleFlow.state) {
+      return context.redirect('/auth/entrar?error=login_failed', 302);
+    }
+    const outcome = await signInWithGoogleCode(auth.client, env, {
+      code, codeVerifier: googleFlow.codeVerifier,
+      destino: googleFlow.destino, next: googleFlow.next, email: '',
+      meta: clientMeta(context.request),
+    });
+    const applied = await applyAuthOutcome(context, outcome, { destino: googleFlow.destino, next: googleFlow.next });
+    if ('response' in applied) return applied.response;
+    return context.redirect('/auth/entrar?error=login_failed', 302);
+  }
   const state = context.url.searchParams.get('state') ?? undefined;
   try {
     const code = context.url.searchParams.get('code');

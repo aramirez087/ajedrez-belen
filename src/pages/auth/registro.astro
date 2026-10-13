@@ -2,6 +2,7 @@
 import { env } from 'cloudflare:workers';
 import AuthShell from '../../components/portal/AuthShell.astro';
 import PasswordField from '../../components/portal/PasswordField.astro';
+import GoogleButton from '../../components/portal/GoogleButton.astro';
 import { authUnavailableResponse } from '../../lib/auth';
 import { registerWithPassword } from '../../lib/auth-actions';
 import { afterLoginPath, clientMeta, parseDestino, validAuthEmail } from '../../lib/auth-flow';
@@ -56,6 +57,7 @@ if (Astro.request.method === 'POST') {
     error = 'No pudimos leer el formulario. Vuelve a intentarlo.';
   }
 }
+const googleHref = `/auth/google?destino=${destino}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
 const entrarHref = `/auth/entrar?destino=${destino}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
 ---
 <AuthShell
@@ -67,6 +69,7 @@ const entrarHref = `/auth/entrar?destino=${destino}${next ? `&next=${encodeURICo
   error={error}
 >
   {!invitedEmail && !hasInvitation && <p class="portal-section-caption">¿Todavía no tienes invitación? Crea tu cuenta igual y pide tu enlace por WhatsApp; al tocarlo, tus atletas aparecen en tu cuenta.</p>}
+  <GoogleButton href={googleHref} />
   <form class="portal-form" method="post">
     <div class="portal-field">
       <label for="fullName">Nombre completo</label>

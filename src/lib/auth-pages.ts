@@ -4,9 +4,9 @@ import { getAuthConfigurationStatus } from './auth';
 import { getAuthService } from './workos-runtime';
 import type { AuthOutcome } from './auth-actions';
 import {
-  PENDING_AUTH_COOKIE, PENDING_AUTH_MAX_AGE_SECONDS,
-  afterLoginPath, decodePendingAuth, encodePendingAuth,
-  type AuthDestino, type PendingAuth,
+  GOOGLE_OAUTH_COOKIE, GOOGLE_OAUTH_MAX_AGE_SECONDS, PENDING_AUTH_COOKIE, PENDING_AUTH_MAX_AGE_SECONDS,
+  afterLoginPath, decodeGoogleOAuthFlow, decodePendingAuth, encodeGoogleOAuthFlow, encodePendingAuth,
+  type AuthDestino, type GoogleOAuthFlow, type PendingAuth,
 } from './auth-flow';
 
 import { getInvitationPreview, type InvitationPreview } from './portal/domain';
@@ -53,6 +53,22 @@ export async function readPendingAuth(cookies: Cookies): Promise<PendingAuth | n
 
 export function clearPendingAuth(cookies: Cookies): void {
   cookies.delete(PENDING_AUTH_COOKIE, { path: '/auth' });
+}
+
+export async function setGoogleOAuthFlow(cookies: Cookies, url: URL, flow: GoogleOAuthFlow): Promise<void> {
+  cookies.set(GOOGLE_OAUTH_COOKIE, await encodeGoogleOAuthFlow(flow, env.WORKOS_COOKIE_PASSWORD!), {
+    path: '/auth', httpOnly: true, sameSite: 'lax',
+    secure: url.protocol === 'https:', maxAge: GOOGLE_OAUTH_MAX_AGE_SECONDS,
+  });
+}
+
+export async function readGoogleOAuthFlow(cookies: Cookies): Promise<GoogleOAuthFlow | null> {
+  if (!env.WORKOS_COOKIE_PASSWORD) return null;
+  return decodeGoogleOAuthFlow(cookies.get(GOOGLE_OAUTH_COOKIE)?.value, env.WORKOS_COOKIE_PASSWORD);
+}
+
+export function clearGoogleOAuthFlow(cookies: Cookies): void {
+  cookies.delete(GOOGLE_OAUTH_COOKIE, { path: '/auth' });
 }
 
 /**

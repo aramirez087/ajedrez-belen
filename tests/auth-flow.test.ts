@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  afterLoginPath, decodePendingAuth, encodePendingAuth,
-  parseWorkosAuthError, spanishAuthError, type PendingAuth,
+  afterLoginPath, decodeGoogleOAuthFlow, decodePendingAuth, encodeGoogleOAuthFlow, encodePendingAuth,
+  parseWorkosAuthError, spanishAuthError, type GoogleOAuthFlow, type PendingAuth,
 } from '../src/lib/auth-flow.ts';
 
 const pending: PendingAuth = {
@@ -43,6 +43,27 @@ test('tampered or malformed pending cookies decode to no step', async () => {
 test('an administrator pending step never carries a family return path', async () => {
   const decoded = await decodePendingAuth(await encodePendingAuth({ ...pending, destino: 'admin', next: '/portal/pagos/nuevo' }, SECRET), SECRET);
   assert.equal(decoded?.next, null);
+});
+
+test('google oauth flow survives its signed round trip and rejects tampering', async () => {
+  const flow: GoogleOAuthFlow = {
+    state: 'state-fixture-123456', codeVerifier: 'verifier-fixture-123456',
+    destino: 'familia', next: '/portal/pagos/nuevo',
+  };
+  assert.deepEqual(await decodeGoogleOAuthFlow(await encodeGoogleOAuthFlow(flow, SECRET), SECRET), flow);
+  const signed = await encodeGoogleOAuthFlow(flow, SECRET);
+  const [payload, signature] = signed.split('.');
+  const object = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as GoogleOAuthFlow;
+  object.codeVerifier = 'swapped-verifier-value';
+  const forged = `${Buffer.from(JSON.stringify(object)).toString('base64url')}.${signature}`;
+  assert.equal(await decodeGoogleOAuthFlow(forged, SECRET), null);
+  assert.equal(await decodeGoogleOAuthFlow(signed, 'another-cookie-password-that-is-also-long'), null);
+  assert.equal(await decodeGoogleOAuthFlow(null, SECRET), null);
+  // An admin flow never carries a family return path, and unsafe paths fall back.
+  const admin = await decodeGoogleOAuthFlow(await encodeGoogleOAuthFlow({ ...flow, destino: 'admin' }, SECRET), SECRET);
+  assert.equal(admin?.next, null);
+  const unsafe = await decodeGoogleOAuthFlow(await encodeGoogleOAuthFlow({ ...flow, next: 'https://evil.example/portal' }, SECRET), SECRET);
+  assert.equal(unsafe?.next, null);
 });
 
 test('after login: invitation wins, admin is fixed, external paths fall back', () => {

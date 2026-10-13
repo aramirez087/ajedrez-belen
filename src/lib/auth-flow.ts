@@ -135,6 +135,54 @@ export async function decodePendingAuth(raw: string | null | undefined, secret: 
   return pending;
 }
 
+export const GOOGLE_OAUTH_COOKIE = 'wos-google-oauth';
+export const GOOGLE_OAUTH_MAX_AGE_SECONDS = 600;
+
+/**
+ * What the "Continuar con Google" start route hands to the callback: the
+ * PKCE verifier and state WorkOS generated, plus where the person was
+ * headed. HMAC-signed with the session cookie password, like the pending
+ * sign-in step, so a callback can only complete the flow this server began.
+ */
+export interface GoogleOAuthFlow {
+  state: string;
+  codeVerifier: string;
+  destino: AuthDestino;
+  next: string | null;
+}
+
+const OAUTH_TOKEN_PATTERN = /^[A-Za-z0-9_\-.]{8,2048}$/;
+
+export async function encodeGoogleOAuthFlow(flow: GoogleOAuthFlow, secret: string): Promise<string> {
+  const payload = bytesToBase64Url(new TextEncoder().encode(JSON.stringify(flow)));
+  const key = await pendingKey(secret);
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
+  return `${payload}.${bytesToBase64Url(new Uint8Array(signature))}`;
+}
+
+export async function decodeGoogleOAuthFlow(raw: string | null | undefined, secret: string): Promise<GoogleOAuthFlow | null> {
+  if (!raw || raw.length > 8192 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(raw)) return null;
+  const [payload, signature] = raw.split('.');
+  let value: unknown;
+  try {
+    const key = await pendingKey(secret);
+    const valid = await crypto.subtle.verify(
+      'HMAC', key, base64UrlToBytes(signature) as BufferSource, new TextEncoder().encode(payload),
+    );
+    if (!valid) return null;
+    value = JSON.parse(new TextDecoder().decode(base64UrlToBytes(payload)));
+  } catch { return null; }
+  if (!value || typeof value !== 'object') return null;
+  const f = value as Record<string, unknown>;
+  if (typeof f.state !== 'string' || !OAUTH_TOKEN_PATTERN.test(f.state)) return null;
+  if (typeof f.codeVerifier !== 'string' || !OAUTH_TOKEN_PATTERN.test(f.codeVerifier)) return null;
+  if (f.destino !== 'familia' && f.destino !== 'admin') return null;
+  return {
+    state: f.state, codeVerifier: f.codeVerifier, destino: f.destino,
+    next: f.destino === 'admin' ? null : safePortalReturnPath(typeof f.next === 'string' ? f.next : null),
+  };
+}
+
 export interface ParsedAuthError {
   code: string | null;
   status: number | null;

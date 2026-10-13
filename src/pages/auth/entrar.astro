@@ -2,6 +2,7 @@
 import { env } from 'cloudflare:workers';
 import AuthShell from '../../components/portal/AuthShell.astro';
 import PasswordField from '../../components/portal/PasswordField.astro';
+import GoogleButton from '../../components/portal/GoogleButton.astro';
 import { authUnavailableResponse } from '../../lib/auth';
 import { signInWithPassword } from '../../lib/auth-actions';
 import {
@@ -62,6 +63,7 @@ if (Astro.request.method === 'POST') {
   }
 }
 
+const googleHref = `/auth/google?destino=${destino}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
 const registroHref = `/auth/registro?destino=${destino}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
 const recuperarHref = `/auth/recuperar?destino=${destino}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
 const familiaHref = `/auth/entrar${next ? `?next=${encodeURIComponent(next)}` : ''}`;
@@ -77,6 +79,7 @@ const adminHref = `/auth/entrar?destino=admin${next ? `&next=${encodeURIComponen
       : 'Entra con el correo que la Asociación vinculó a tus atletas para consultar mensualidades, registrar pagos y ver tus comprobantes.'}
   error={error}
 >
+  <GoogleButton href={googleHref} />
   {!invitedEmail && <div class="portal-role-switch portal-auth-switch" role="navigation" aria-label="Tipo de ingreso">
     <a href={familiaHref} aria-current={destino === 'familia' ? 'page' : undefined}>Familias</a>
     <a href={adminHref} aria-current={destino === 'admin' ? 'page' : undefined}>Administración</a>

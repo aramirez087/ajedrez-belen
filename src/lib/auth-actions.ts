@@ -2,7 +2,7 @@ import type { WorkOS } from '@workos-inc/node';
 import type { AuthEnvironment } from './auth';
 import {
   parseWorkosAuthError, spanishAuthError,
-  type AuthDestino, type PendingAuth,
+  type AuthDestino, type AuthErrorContext, type PendingAuth,
 } from './auth-flow';
 
 /**
@@ -64,7 +64,7 @@ async function sessionOutcome(
 }
 
 /** Translate a thrown provider outcome into the next Spanish step. */
-async function pendingOutcome(client: WorkOS, error: unknown, flow: FlowContext, context: 'password' | 'code' | 'signup'): Promise<AuthOutcome> {
+async function pendingOutcome(client: WorkOS, error: unknown, flow: FlowContext, context: AuthErrorContext): Promise<AuthOutcome> {
   const parsed = parseWorkosAuthError(error);
   if (parsed.pendingToken && parsed.code === 'email_verification_required') {
     return { kind: 'pending', pending: {
@@ -161,6 +161,26 @@ export async function completeWithCode(
     return sessionOutcome(client, result, flow, pending.kind === 'mfa_totp');
   } catch (error) {
     return pendingOutcome(client, error, flow, 'code');
+  }
+}
+
+/**
+ * Finish "Continuar con Google": exchange the authorization code from the
+ * callback for the same sealed session the password flow produces, so MFA
+ * checks, locale pinning and session handling stay identical.
+ */
+export async function signInWithGoogleCode(
+  client: WorkOS, environment: AuthEnvironment,
+  input: { code: string; codeVerifier: string } & FlowContext & { meta: { ipAddress?: string; userAgent?: string } },
+): Promise<AuthOutcome> {
+  try {
+    const result = await client.userManagement.authenticateWithCode({
+      code: input.code, codeVerifier: input.codeVerifier,
+      ...sessionOptions(environment, input.meta),
+    });
+    return sessionOutcome(client, result, { ...input, email: result.user.email });
+  } catch (error) {
+    return pendingOutcome(client, error, input, 'generic');
   }
 }
 

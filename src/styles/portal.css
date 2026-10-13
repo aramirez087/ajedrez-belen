@@ -151,6 +151,10 @@
 .portal-auth-switch { display: flex; margin: 0 0 24px; }
 .portal-auth-switch a { flex: 1 1 0; justify-content: center; text-align: center; }
 .portal-auth-links { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 22px; margin-top: 22px; }
+.portal-google-button { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 49px; padding: 13px 18px; border: 1px solid var(--line-strong); background: #fff; color: var(--ink); font-size: 14px; font-weight: 600; text-decoration: none; }
+.portal-google-button:hover { border-color: var(--ink); }
+.portal-auth-divider { display: flex; align-items: center; gap: 14px; margin: 20px 0; color: var(--muted, #6b7261); font-size: 12.5px; }
+.portal-auth-divider::before, .portal-auth-divider::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
 .portal-auth-orgs { display: grid; gap: 14px; }
 .portal-password { position: relative; }
 .portal-field .portal-password input { padding-right: 96px; }
