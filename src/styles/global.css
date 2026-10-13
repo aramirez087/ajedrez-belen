@@ -488,6 +488,16 @@ footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-i
   .family-note { padding: 20px 16px; }
   .contact h2 { font-size: 58px; }
 }
+.legal { max-width: 760px; padding-top: clamp(48px, 8vw, 96px); padding-bottom: clamp(48px, 8vw, 96px); }
+.legal-eyebrow { color: var(--red); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.legal h1 { font-size: clamp(40px, 6vw, 64px); margin-top: 16px; }
+.legal-updated { color: var(--muted); margin-top: 14px; font-size: 14px; }
+.legal h2 { font-family: var(--display); font-size: 24px; letter-spacing: -.02em; margin-top: 36px; }
+.legal p, .legal li { color: var(--ink-soft); line-height: 1.7; margin-top: 12px; }
+.legal ul { margin: 12px 0 0; padding-left: 22px; }
+.legal li { margin-top: 6px; }
+.legal a { color: var(--red); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.legal-contact { border-top: 1px solid var(--line); margin-top: 44px !important; padding-top: 22px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   [data-hero], [data-reveal] { opacity: 1 !important; transform: none !important; }

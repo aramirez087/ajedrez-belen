@@ -1,0 +1,43 @@
+---
+import '@fontsource-variable/dm-sans';
+import '../styles/global.css';
+import { association as a } from '../data/association';
+interface Props { title: string; heading: string; description: string }
+const { title, heading, description } = Astro.props;
+const wa = 'https://wa.me/' + a.whatsapp?.replace(/\D/g, '');
+---
+<!doctype html>
+<html lang="es-CR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#f7f4ec" />
+    <title>{title} | Ajedrez Belén</title>
+    <link rel="icon" href="/media/favicon.png" type="image/png" />
+  </head>
+  <body>
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
+    <header class="site-header">
+      <div class="frame header-inner">
+        <a href="/" class="brand" aria-label="Ajedrez Belén, inicio">
+          <img src={a.crest ?? '/media/crest-provisional.webp'} alt="" width="46" height="50" />
+          <span>Ajedrez<br />Belén<span class="brand-caption">Un juego. Una comunidad.</span></span>
+        </a>
+        <nav aria-label="Navegación principal"><a href="/portal">Portal de pagos</a></nav>
+      </div>
+    </header>
+    <main id="contenido" class="frame legal">
+      <p class="legal-eyebrow">Ajedrez Belén · Belén, Heredia, Costa Rica</p>
+      <h1>{heading}</h1>
+      <p class="legal-updated">Última actualización: 13 de octubre de 2026</p>
+      <slot />
+      <p class="legal-contact">¿Dudas sobre este documento? Escríbenos por <a href={wa}>WhatsApp</a>.</p>
+    </main>
+    <footer class="frame">
+      <a class="footer-brand" href="/">Ajedrez Belén<span>El juego sigue.</span></a>
+      <p class="footer-note">Belén, Heredia · Hecho entre partidas</p>
+      <div class="footer-links"><a href="/privacidad">Privacidad</a><a href="/terminos">Términos</a><a href="/portal">Portal de pagos</a></div>
+    </footer>
+  </body>
+</html>
