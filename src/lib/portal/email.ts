@@ -1,4 +1,4 @@
-import { renderReceipt, validEmail, type RenderedReceipt } from './receipt.ts';
+import { renderReceipt, validEmail, RECEIPT_LOGO_EMAIL_SRC, type RenderedReceipt } from './receipt.ts';
 import { PortalError, type Actor, type ReceiptSnapshot } from './types.ts';
 
 export interface PortalEmailEnvironment {
@@ -109,7 +109,7 @@ export async function sendOutboxReceipt(
 ): Promise<PortalEmailAttemptResult> {
   let rendered: RenderedReceipt;
   try {
-    rendered = renderReceipt(message.snapshot, { voidedAt: message.voidedAt, voidReason: message.voidReason });
+    rendered = renderReceipt(message.snapshot, { voidedAt: message.voidedAt, voidReason: message.voidReason, logoSrc: RECEIPT_LOGO_EMAIL_SRC });
     if (!validEmail(message.recipientEmail) || !message.recipientName.trim() || message.recipientName.length > 160 ||
         /[\u0000-\u001f\u007f]/.test(message.recipientName) ||
         !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(message.idempotencyKey)) {

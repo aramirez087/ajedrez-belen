@@ -121,6 +121,7 @@
 .portal-table tbody tr:last-child :is(th, td) { border-bottom: 1px solid var(--line); }
 .portal-table tbody tr { transition: background .12s; }
 .portal-table tbody tr:hover { background: var(--surface); }
+.portal-table tbody tr:target { background: color-mix(in srgb, var(--red) 8%, var(--paper)); box-shadow: inset 3px 0 0 var(--red); }
 .portal-table :is(th, td):last-child { padding-right: 0; }
 .portal-table .portal-subtext { display: block; color: var(--muted); font-size: 11px; margin-top: 6px; line-height: 1.55; overflow-wrap: anywhere; }
 .portal-table .portal-subtext-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

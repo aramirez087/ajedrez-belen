@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:workers';
 import { authorizePortal } from '../../../lib/portal/access';
 import { getReceipt } from '../../../lib/portal/domain';
-import { renderReceipt } from '../../../lib/portal/receipt';
+import { renderReceipt, RECEIPT_LOGO_PORTAL_SRC } from '../../../lib/portal/receipt';
 import { portalMessagePage, portalResponse } from '../../../lib/portal/http';
 import type { Receipt } from '../../../lib/portal/types';
 export const prerender = false;
@@ -10,6 +10,16 @@ const access = await authorizePortal(Astro, env);
 if (!access.ok) return access.response;
 let receipt: Receipt;
 try { receipt = await getReceipt(env.DB, access.actor, Astro.params.id ?? ''); } catch { return portalMessagePage('Comprobante no disponible.', 'No encontramos ese comprobante o ya no está disponible para tu cuenta. Tus comprobantes vigentes están en tu cuenta.', 404); }
-const html = renderReceipt(receipt.snapshot, {voidedAt:receipt.voidedAt,voidReason:receipt.voidReason,stagingTest:env.STAGING_PORTAL_TEST === 'true',portalBackLink:true}).html;
-return portalResponse(html, 200, {'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
+// Admins arrive from Comprobantes, families from their account; send each back
+// where they came from. The referer is same-origin only, with a role fallback.
+let backHref: '/portal' | '/admin/comprobantes' = access.actor.isAdmin ? '/admin/comprobantes' : '/portal';
+try {
+  const referer = new URL(Astro.request.headers.get('referer') ?? '');
+  if (referer.origin === Astro.url.origin) {
+    if (referer.pathname.startsWith('/admin')) backHref = '/admin/comprobantes';
+    else if (referer.pathname.startsWith('/portal')) backHref = '/portal';
+  }
+} catch { /* no usable referer: keep the role fallback */ }
+const html = renderReceipt(receipt.snapshot, {voidedAt:receipt.voidedAt,voidReason:receipt.voidReason,stagingTest:env.STAGING_PORTAL_TEST === 'true',portalBackLink:true,backHref,logoSrc:RECEIPT_LOGO_PORTAL_SRC}).html;
+return portalResponse(html, 200, {'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; script-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
 ---

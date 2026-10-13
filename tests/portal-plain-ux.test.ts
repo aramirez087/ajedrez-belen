@@ -85,6 +85,25 @@ test('registration needs one full-name field, split for the identity provider', 
   assert.equal(splitFullName(''), null);
 });
 
+test('every comprobante-flow success notice has a plain-language message', () => {
+  const notice = readFileSync(new URL('../src/components/portal/Notice.astro', import.meta.url), 'utf8');
+  // Keys the verify/void/reject and email routes can actually redirect with,
+  // including the dynamic action names review.ts passes through verbatim.
+  for (const code of ['verified', 'verified_email_sent', 'verified_email_dry_run', 'verified_email_pending',
+    'verified_email_attention', 'email_prepared', 'email_queued', 'email_processed',
+    'email_processed_remaining', 'email_none', 'dry_run', 'needs_info', 'reject', 'rejected', 'void', 'voided']) {
+    assert.ok(new RegExp(`\\b${code}:`).test(notice), `Notice.astro is missing a message for ${code}`);
+  }
+});
+
+test('the receipt document page can actually display its crest and print button', () => {
+  const page = readFileSync(new URL('../src/pages/portal/comprobantes/[id].astro', import.meta.url), 'utf8');
+  assert.ok(page.includes("img-src 'self'"), 'CSP must allow the same-origin crest or the logo silently never renders');
+  assert.ok(page.includes("script-src 'unsafe-inline'"), 'CSP must allow the inline print action');
+  assert.ok(page.includes('logoSrc:RECEIPT_LOGO_PORTAL_SRC'), 'the page passes the crest to the renderer');
+  assert.ok(page.includes('RECEIPT_LOGO_PORTAL_SRC'), 'the page uses the shared crest constant');
+});
+
 test('every error code the server can send has a plain-language message', () => {
   const http = readFileSync(new URL('../src/lib/portal/http.ts', import.meta.url), 'utf8');
   const notice = readFileSync(new URL('../src/components/portal/Notice.astro', import.meta.url), 'utf8');

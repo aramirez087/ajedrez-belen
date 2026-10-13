@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createReceiptSnapshot, DEMO_RECEIPT_NOTICE, STAGING_RECEIPT_NOTICE, renderReceipt, validEmail } from '../src/lib/portal/receipt.ts';
+import { createReceiptSnapshot, DEMO_RECEIPT_NOTICE, STAGING_RECEIPT_NOTICE, renderReceipt, validEmail, RECEIPT_LOGO_PORTAL_SRC, RECEIPT_LOGO_EMAIL_SRC } from '../src/lib/portal/receipt.ts';
 import type { ReceiptSnapshot } from '../src/lib/portal/types.ts';
 
 export function receiptFixture(overrides: Partial<ReceiptSnapshot> = {}): ReceiptSnapshot {
@@ -154,7 +154,8 @@ test('staging compact print and narrow-screen spacing preserve all receipt conte
   const normal = renderReceipt(input);
   const staged = renderReceipt(input, { stagingTest: true, voidedAt: '2026-10-10T15:00:00.000Z', voidReason: 'Prueba duplicada' });
   assert.ok(!normal.html.includes('@page'));
-  assert.ok(!normal.html.includes('@media screen'));
+  assert.ok(!normal.html.includes('@media screen and (max-width:480px)'), 'staging compact rules stay staging-only');
+  assert.ok(normal.html.includes('@media screen and (max-width:560px)'), 'production receipts still fit phone screens');
   assert.ok(staged.html.includes('@page{margin:12mm}'));
   assert.ok(staged.html.includes('@media screen and (max-width:480px)'));
   assert.ok(staged.html.includes('table{table-layout:fixed}'));
@@ -165,14 +166,63 @@ test('staging compact print and narrow-screen spacing preserve all receipt conte
   assert.deepEqual(staged.html.match(/<table[\s\S]*?<\/table>/g), normal.html.match(/<table[\s\S]*?<\/table>/g));
 });
 
-test('receipt HTML uses the Ajedrez Belén paper, ink and deep-red palette without remote images', () => {
+test('receipt HTML uses the Ajedrez Belén paper, ink and deep-red palette; the crest is opt-in presentation', () => {
   const rendered = renderReceipt(receiptFixture());
   assert.ok(rendered.html.includes('background:#f7f4ec'));
   assert.ok(rendered.html.includes('color:#23281f'));
   assert.ok(rendered.html.includes('border-top:4px solid #8c302f'));
   assert.ok(rendered.html.includes("font-family:'DM Sans',Arial,sans-serif"));
-  assert.ok(!rendered.html.includes('<img'));
+  assert.ok(!rendered.html.includes('<img'), 'no image unless a caller supplies the crest');
   assert.ok(!rendered.html.includes('#f8f6f2') && !rendered.html.includes('#bc312e'));
+});
+
+test('receipt header shows the association crest with alt text and fixed size in portal and email forms', () => {
+  for (const logoSrc of [RECEIPT_LOGO_PORTAL_SRC, RECEIPT_LOGO_EMAIL_SRC]) {
+    const rendered = renderReceipt(receiptFixture(), { logoSrc });
+    assert.match(rendered.html, new RegExp(`<img src="${logoSrc.replaceAll('/', '\\/')}" alt="Asociación Deportiva Belemita de Ajedrez" width="72" height="72"`));
+    assert.ok(rendered.html.indexOf('<img') < rendered.html.indexOf('<h1'), 'crest leads the document header');
+    assert.ok(!rendered.text.includes(logoSrc), 'plain text never carries image markup');
+    assert.equal(rendered.subject, renderReceipt(receiptFixture()).subject, 'crest never changes the subject');
+  }
+  assert.ok(RECEIPT_LOGO_EMAIL_SRC.startsWith('https://') && RECEIPT_LOGO_EMAIL_SRC.endsWith('.png'),
+    'email clients need an absolute PNG, not a relative or WebP path');
+});
+
+test('receipt rejects untrusted crest sources and back links instead of emitting them', () => {
+  for (const logoSrc of ['https://evil.example/logo.png', '/media/../secret.png', 'javascript:alert(1)',
+    '/media/crest.svg', 'https://ajedrezbelen.com/media/crest.webp', '/media/crest.png" onerror="alert(1)', 'crest.png', 42]) {
+    assert.throws(() => renderReceipt(receiptFixture(), { logoSrc: logoSrc as string }), /Invalid receipt logo/, String(logoSrc));
+  }
+  assert.throws(() => renderReceipt(receiptFixture(), { portalBackLink: true, backHref: 'https://evil.example' as never }), /Invalid receipt back link/);
+});
+
+test('portal receipt offers print and returns each role where it came from; email output never does', () => {
+  const family = renderReceipt(receiptFixture(), { portalBackLink: true, logoSrc: RECEIPT_LOGO_PORTAL_SRC });
+  assert.match(family.html, /<button type="button" onclick="window\.print\(\)"[^>]*>Imprimir o guardar como PDF<\/button>/);
+  assert.match(family.html, /<a href="\/portal"[^>]*>← Volver a mi cuenta<\/a>/);
+  const admin = renderReceipt(receiptFixture(), { portalBackLink: true, backHref: '/admin/comprobantes', logoSrc: RECEIPT_LOGO_PORTAL_SRC });
+  assert.match(admin.html, /<a href="\/admin\/comprobantes"[^>]*>← Volver a comprobantes<\/a>/);
+  const email = renderReceipt(receiptFixture(), { logoSrc: RECEIPT_LOGO_EMAIL_SRC });
+  assert.ok(!email.html.includes('window.print') && !email.html.includes('Volver a'), 'mailed receipts carry no portal actions');
+});
+
+test('receipt states the applied total and explains a payment with no allocations', () => {
+  const currency = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const applied = renderReceipt(receiptFixture());
+  assert.ok(applied.html.includes('<tfoot>') && applied.html.includes('Total aplicado'));
+  assert.ok(applied.text.includes(`Total aplicado: ${currency.format(24_000)}.`));
+  const unapplied = renderReceipt(receiptFixture({ lines: [], unallocatedMinor: 2_500_000 }));
+  assert.ok(unapplied.html.includes('Sin aplicación a mensualidades en este comprobante.'));
+  assert.ok(unapplied.text.includes('Sin aplicación a mensualidades en este comprobante.'));
+  assert.ok(!unapplied.html.includes('<tfoot>'));
+  assert.ok(unapplied.text.includes(`Saldo a favor sin aplicar: ${currency.format(25_000)}.`));
+});
+
+test('receipt HTML carries a hidden inbox preview without amounts', () => {
+  const rendered = renderReceipt(receiptFixture(), { logoSrc: RECEIPT_LOGO_EMAIL_SRC });
+  assert.match(rendered.html, /<div aria-hidden="true" style="display:none[^"]*">Comprobante AB-2026-000001 — pago confirmado\.<\/div>/);
+  const voided = renderReceipt(receiptFixture(), { voidedAt: '2026-10-10T15:00:00.000Z', voidReason: 'Duplicado' });
+  assert.ok(voided.html.includes('Comprobante AB-2026-000001 anulado.'));
 });
 
 test('issued, demo and void receipts direct questions to the official WhatsApp without inviting email replies', () => {

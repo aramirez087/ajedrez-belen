@@ -15,8 +15,13 @@ export const POST: APIRoute=context=>portalMutation(context,env,{admin:true,back
     return successRedirect('/admin/comprobantes','email_queued');
   }
   if(action==='send_batch') {
-    await sendOutboxBatch(env.DB,actor,env);
-    return successRedirect('/admin/comprobantes',env.EMAIL_MODE==='live'?'email_processed':'dry_run');
+    const batch=await sendOutboxBatch(env.DB,actor,env);
+    // Batches are capped at five: say plainly when more mail is still queued
+    // so an admin never reads a partial run as "everything sent".
+    const notice=batch.remaining>0?'email_processed_remaining'
+      :batch.processed===0?'email_none'
+      :env.EMAIL_MODE==='live'?'email_processed':'dry_run';
+    return successRedirect('/admin/comprobantes',notice);
   }
   throw new InputError('invalid_fields');
 });

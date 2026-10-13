@@ -24,9 +24,21 @@ export const POST: APIRoute=context=>portalMutation(context,env,{admin:true,back
       paymentDate:formDate(form,'verifiedDate'),allocations:parseAllocations(form),
       note:formText(form,'reason',500,true)||undefined,
     });
-    try {if(receiptId)await sendOutboxBatch(env.DB,actor,env,{receiptId});}
-    catch {return successRedirect(`/admin/pagos/${id}`,'verified_email_pending');}
-    return successRedirect(`/admin/pagos/${id}`,'verified');
+    // Name the actual email outcome so the admin never has to guess whether
+    // the comprobante left, waits in queue, or needs account attention.
+    let notice='verified_email_pending';
+    try {
+      if(receiptId){
+        const batch=await sendOutboxBatch(env.DB,actor,env,{receiptId});
+        const statuses=batch.results.map(result=>result.status);
+        notice=statuses.includes('accepted')?'verified_email_sent'
+          :statuses.includes('dry_run')?'verified_email_dry_run'
+          :statuses.some(status=>['blocked','rejected','unknown','cancelled'].includes(status))?'verified_email_attention'
+          :batch.remaining>0?'verified_email_pending'
+          :'verified_email_attention';
+      }
+    } catch {notice='verified_email_pending';}
+    return successRedirect(`/admin/pagos/${id}`,notice);
   }
   if(action==='apply_credit') {
     await applyPaymentCredit(env.DB,actor,{operationId:formText(form,'operationId',36),paymentId:id,allocations:parseAllocations(form),reason:formText(form,'reason',500)});

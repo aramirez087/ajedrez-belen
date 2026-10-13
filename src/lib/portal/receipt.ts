@@ -12,6 +12,23 @@ export interface ReceiptPresentation {
   stagingTest?: boolean;
   /** Portal-only navigation back to the account; never sent by email. */
   portalBackLink?: boolean;
+  /** Portal-only destination for the back link; defaults to the family account. */
+  backHref?: '/portal' | '/admin/comprobantes';
+  /**
+   * Association crest shown in the document header. Display-only, never part of
+   * the issuance snapshot: same-origin `/media/…` in the portal, absolute
+   * `https://…/media/…` PNG/JPG in email (clients block relative and WebP).
+   */
+  logoSrc?: string;
+}
+
+/** Crest used by the portal document (same origin) and by email (absolute). */
+export const RECEIPT_LOGO_PORTAL_SRC = '/media/crest-provisional.png';
+export const RECEIPT_LOGO_EMAIL_SRC = 'https://ajedrezbelen.com/media/crest-provisional.png';
+
+function validLogoSrc(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 200 &&
+    /^(\/media\/[A-Za-z0-9._-]+\.(?:png|webp|jpg)|https:\/\/[A-Za-z0-9.-]+\/media\/[A-Za-z0-9._-]+\.(?:png|jpg))$/.test(value);
 }
 
 export interface RenderedReceipt { subject: string; html: string; text: string }
@@ -103,6 +120,13 @@ export function renderReceipt(input: ReceiptSnapshot, presentation: ReceiptPrese
   const voided = !!presentation.voidedAt;
   if ((voided && (!validTimestamp(presentation.voidedAt) || !text(presentation.voidReason, 500))) ||
       (!voided && presentation.voidReason)) throw new Error('Invalid receipt void notice.');
+  if (presentation.logoSrc !== undefined && !validLogoSrc(presentation.logoSrc)) throw new Error('Invalid receipt logo.');
+  if (presentation.backHref !== undefined && !['/portal', '/admin/comprobantes'].includes(presentation.backHref)) {
+    throw new Error('Invalid receipt back link.');
+  }
+  const logoSrc = presentation.logoSrc ?? '';
+  const backHref = presentation.backHref ?? '/portal';
+  const backLabel = backHref === '/admin/comprobantes' ? '← Volver a comprobantes' : '← Volver a mi cuenta';
   const title = voided ? 'Comprobante de pago anulado' : 'Comprobante de pago';
   const rows: Array<[string, string]> = [
     ['Número', data.receiptNumber], ['Pagado por', data.payerName],
@@ -113,6 +137,11 @@ export function renderReceipt(input: ReceiptSnapshot, presentation: ReceiptPrese
   ];
   const allocations = data.lines.map((line) => ({ athlete: line.athleteName,
     period: month.format(new Date(`${line.period}-01T12:00:00.000Z`)), amount: money.format(line.amountMinor / 100) }));
+  const appliedTotal = allocations.length
+    ? `Total aplicado: ${money.format((data.amountMinor - data.unallocatedMinor) / 100)}.` : '';
+  const noAllocations = 'Sin aplicación a mensualidades en este comprobante.';
+  // Inbox preview line; hidden in the document itself, never carries amounts.
+  const preheader = voided ? `Comprobante ${data.receiptNumber} anulado.` : `Comprobante ${data.receiptNumber} — pago confirmado.`;
   const voidReason = presentation.voidReason?.trim() ?? '';
   const voidNotice = voided ? `ANULADO — ${voidReason}${/[.!?…]$/.test(voidReason) ? '' : '.'} Fecha de anulación: ${date.format(new Date(presentation.voidedAt!))}.` : '';
   const note = stagingTest
@@ -125,23 +154,25 @@ export function renderReceipt(input: ReceiptSnapshot, presentation: ReceiptPrese
     subject: `${data.demo ? '[DEMOSTRACIÓN] ' : ''}${voided ? '[ANULADO] ' : ''}Comprobante ${data.receiptNumber}`,
     text: [...(stagingTest ? [STAGING_RECEIPT_NOTICE] : []), data.demo ? DEMO_RECEIPT_NOTICE : '', voidNotice, data.associationName, title, '',
       ...rows.map(([label, value]) => `${label}: ${value}`), '', 'Aplicación del pago:',
-      ...allocations.map((line) => `${line.athlete} — ${line.period}: ${line.amount}`), credit, '', note, '',
+      ...(allocations.length ? allocations.map((line) => `${line.athlete} — ${line.period}: ${line.amount}`) : [noAllocations]),
+      appliedTotal, credit, '', note, '',
       `Correo automático. ${replyNotice} WhatsApp.`, whatsappUrl]
       .filter((line, index, all) => line !== '' || (index > 0 && all[index - 1] !== '')).join('\n'),
     html: `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} ${escapeHtml(data.receiptNumber)}</title>
-<style>@media print{body{background:white!important;padding:0!important}main{border:0!important;max-width:none!important}.print-button{display:none!important}}${stagingTest ? `
+<style>@media print{body{background:white!important;padding:0!important}main{border:0!important;max-width:none!important}.print-button{display:none!important}}
+@media screen and (max-width:560px){body{padding:12px!important}main{padding:20px 16px!important}h1{font-size:24px!important}table{table-layout:fixed}th,td{overflow-wrap:anywhere}}${stagingTest ? `
 @media screen and (max-width:480px){body{padding:12px!important}main{padding:16px!important}table{table-layout:fixed}th,td{padding:6px 4px!important;font-size:13px;overflow-wrap:anywhere}h1{font-size:24px!important}}
 @media print{@page{margin:12mm}body{font-size:12px;line-height:1.3!important}main{padding:12px!important}main>p{margin:8px 0!important;break-inside:avoid}main>p:first-child{padding:10px!important;font-size:14px!important}main>p:last-child{padding-top:8px!important;break-before:avoid}h1{font-size:22px!important}h2{font-size:16px!important;margin:14px 0 6px!important;break-after:avoid}th,td{padding:5px 4px!important}tr{break-inside:avoid}}` : ''}</style></head>
-<body style="margin:0;padding:24px;background:#f7f4ec;color:#23281f;font-family:'DM Sans',Arial,sans-serif;line-height:1.5"><main style="max-width:720px;margin:auto;background:#fffdf7;border:1px solid #d8d3c2;border-top:4px solid #8c302f;padding:32px">
+<body style="margin:0;padding:24px;background:#f7f4ec;color:#23281f;font-family:'DM Sans',Arial,sans-serif;line-height:1.5"><div aria-hidden="true" style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preheader)}</div><main style="max-width:720px;margin:auto;background:#fffdf7;border:1px solid #d8d3c2;border-top:4px solid #8c302f;padding:32px">
 ${stagingTest ? `<p style="margin:0 0 24px;padding:16px;border:3px solid #8c302f;background:#f3e3dc;color:#8c302f;font-size:18px;font-weight:bold;overflow-wrap:anywhere">${escapeHtml(STAGING_RECEIPT_NOTICE)}</p>\n` : ''}${data.demo ? `<p style="padding:12px;border:2px solid #ad7c14;background:#fff8df;font-weight:bold">${escapeHtml(DEMO_RECEIPT_NOTICE)}</p>` : ''}
 ${voided ? `<p style="padding:12px;border:2px solid #8c302f;color:#8c302f;font-weight:bold">${escapeHtml(voidNotice)}</p>` : ''}
-<p style="font-size:14px;font-weight:bold;color:#8c302f;letter-spacing:.02em;text-transform:uppercase">${escapeHtml(data.associationName)}</p><h1 style="font-size:28px;margin:8px 0;font-family:Manrope,'DM Sans',Arial,sans-serif">${escapeHtml(title)}</h1><p style="font-size:18px;color:#8c302f;font-weight:bold">${escapeHtml(data.receiptNumber)}</p>
+${logoSrc ? `<table role="presentation" style="border-collapse:collapse;width:100%"><tbody><tr><td style="width:88px;padding:0 20px 0 0;vertical-align:middle"><img src="${escapeHtml(logoSrc)}" alt="${escapeHtml(data.associationName)}" width="72" height="72" style="display:block;width:72px;height:72px"></td><td style="padding:0;vertical-align:middle"><p style="margin:0;font-size:14px;font-weight:bold;color:#8c302f;letter-spacing:.02em;text-transform:uppercase">${escapeHtml(data.associationName)}</p><h1 style="font-size:28px;margin:8px 0;font-family:Manrope,'DM Sans',Arial,sans-serif">${escapeHtml(title)}</h1><p style="margin:0;font-size:18px;color:#8c302f;font-weight:bold">${escapeHtml(data.receiptNumber)}</p></td></tr></tbody></table>` : `<p style="font-size:14px;font-weight:bold;color:#8c302f;letter-spacing:.02em;text-transform:uppercase">${escapeHtml(data.associationName)}</p><h1 style="font-size:28px;margin:8px 0;font-family:Manrope,'DM Sans',Arial,sans-serif">${escapeHtml(title)}</h1><p style="font-size:18px;color:#8c302f;font-weight:bold">${escapeHtml(data.receiptNumber)}</p>`}
 <table style="border-collapse:collapse;width:100%"><tbody>${rows.map(([label, value]) => `<tr><th scope="row" style="text-align:left;vertical-align:top;padding:9px 12px 9px 0;border-bottom:1px solid #ddd6c3">${escapeHtml(label)}</th><td style="padding:9px 0;border-bottom:1px solid #ddd6c3;overflow-wrap:anywhere">${escapeHtml(value)}</td></tr>`).join('')}</tbody></table>
-<h2 style="font-size:18px;margin-top:28px;font-family:Manrope,'DM Sans',Arial,sans-serif">Aplicación del pago</h2><table style="border-collapse:collapse;width:100%"><thead><tr><th scope="col" style="text-align:left;padding:8px 4px">Atleta</th><th scope="col" style="text-align:left;padding:8px 4px">Mensualidad</th><th scope="col" style="text-align:right;padding:8px 4px">Monto aplicado</th></tr></thead><tbody>${allocations.map((line) => `<tr><td style="padding:9px 4px;border-top:1px solid #ddd6c3;overflow-wrap:anywhere">${escapeHtml(line.athlete)}</td><td style="padding:9px 4px;border-top:1px solid #ddd6c3">${escapeHtml(line.period)}</td><td style="padding:9px 4px;border-top:1px solid #ddd6c3;text-align:right">${escapeHtml(line.amount)}</td></tr>`).join('')}</tbody></table>
+<h2 style="font-size:18px;margin-top:28px;font-family:Manrope,'DM Sans',Arial,sans-serif">Aplicación del pago</h2><table style="border-collapse:collapse;width:100%"><thead><tr><th scope="col" style="text-align:left;padding:8px 4px">Atleta</th><th scope="col" style="text-align:left;padding:8px 4px">Mensualidad</th><th scope="col" style="text-align:right;padding:8px 4px">Monto aplicado</th></tr></thead><tbody>${allocations.length ? allocations.map((line) => `<tr><td style="padding:9px 4px;border-top:1px solid #ddd6c3;overflow-wrap:anywhere">${escapeHtml(line.athlete)}</td><td style="padding:9px 4px;border-top:1px solid #ddd6c3">${escapeHtml(line.period)}</td><td style="padding:9px 4px;border-top:1px solid #ddd6c3;text-align:right;font-variant-numeric:tabular-nums">${escapeHtml(line.amount)}</td></tr>`).join('') : `<tr><td colspan="3" style="padding:9px 4px;border-top:1px solid #ddd6c3">${escapeHtml(noAllocations)}</td></tr>`}</tbody>${appliedTotal ? `<tfoot><tr><th scope="row" colspan="2" style="text-align:right;padding:9px 4px;border-top:2px solid #ddd6c3">Total aplicado</th><td style="padding:9px 4px;border-top:2px solid #ddd6c3;text-align:right;font-weight:bold;font-variant-numeric:tabular-nums">${escapeHtml(money.format((data.amountMinor - data.unallocatedMinor) / 100))}</td></tr></tfoot>` : ''}</table>
 ${credit ? `<p style="font-weight:bold">${escapeHtml(credit)}</p>` : ''}<p style="margin-top:28px;font-size:13px;color:#5d6152">${escapeHtml(note)}</p>
 <p style="margin-top:20px;padding-top:16px;border-top:1px solid #ddd6c3;font-size:13px;color:#5d6152"><strong>Correo automático.</strong> ${escapeHtml(replyNotice)} <a href="${whatsappUrl}" style="color:#8c302f;text-decoration:underline">WhatsApp</a>.</p>
-${presentation.portalBackLink ? `<p class="print-button" style="margin-top:24px;font-size:14px"><a href="/portal" style="color:#8c302f;font-weight:bold">← Volver a mi cuenta</a></p><p class="print-button" style="font-size:13px;color:#5d6152">Para guardarlo: usa Compartir → Imprimir (o «Guardar como PDF») en tu navegador. Este comprobante queda siempre disponible en tu cuenta.</p>` : ''}
+${presentation.portalBackLink ? `<p class="print-button" style="margin-top:24px"><button type="button" onclick="window.print()" style="min-height:44px;padding:10px 20px;border:0;background:#8c302f;color:#fffdf7;font:inherit;font-size:14px;font-weight:bold;cursor:pointer">Imprimir o guardar como PDF</button></p><p class="print-button" style="font-size:14px"><a href="${escapeHtml(backHref)}" style="color:#8c302f;font-weight:bold">${escapeHtml(backLabel)}</a></p><p class="print-button" style="font-size:13px;color:#5d6152">Este comprobante queda siempre disponible en tu cuenta; no necesitas guardarlo ahora si no quieres.</p>` : ''}
 </main></body></html>`,
   };
 }

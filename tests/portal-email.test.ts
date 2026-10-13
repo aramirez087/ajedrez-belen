@@ -260,6 +260,10 @@ test('a void notification sends the immutable receipt with a visible annulment n
       assert.match(body.subject, /^\[ANULADO\]/);
       assert.equal(body.headers.idempotencyKey, voidId);
       assert.ok(body.textContent.includes('Pago duplicado') && body.htmlContent.includes('ANULADO'));
+      assert.ok(body.htmlContent.includes('<img src="https://ajedrezbelen.com/media/crest-provisional.png"'),
+        'mailed comprobantes carry the association crest as an absolute PNG');
+      assert.ok(!body.htmlContent.includes('window.print') && !body.textContent.includes('crest-provisional'),
+        'mailed comprobantes carry no portal actions and no image markup in text');
       return Response.json({ messageId: '<void@brevo>' }, { status: 201 });
     } });
     assert.equal(calls, 1);
