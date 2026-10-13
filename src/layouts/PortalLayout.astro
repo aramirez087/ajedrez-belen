@@ -153,7 +153,12 @@ const nav = admin && !familyContext
             const slipStatus = form.querySelector<HTMLElement>('[data-slip-status]');
             if (draftId?.value && fileInput) {
               fileInput.required = false;
-              if (slipStatus) slipStatus.textContent = 'Recuperamos el archivo que ya habías adjuntado. Si quieres cambiarlo, adjunta uno nuevo.';
+              const savedSelect = form.querySelector('[data-slip-saved]') as unknown as HTMLSelectElement | null;
+              const emailed = savedSelect ? Array.from(savedSelect.options).some(option => option.value === draftId.value) : false;
+              if (emailed && savedSelect) {
+                savedSelect.value = draftId.value;
+                savedSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              } else if (slipStatus) slipStatus.textContent = 'Recuperamos el archivo que ya habías adjuntado. Si quieres cambiarlo, adjunta uno nuevo.';
             }
             form.dispatchEvent(new Event('input', { bubbles: true }));
           }

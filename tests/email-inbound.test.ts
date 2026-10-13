@@ -67,11 +67,50 @@ function fakeEnv(db: SQLiteD1) {
     objects,
     env: {
       DB: db as unknown as D1Database,
-      SLIPS: { async put(key: string, value: Uint8Array) { objects.set(key, value); } } as unknown as R2Bucket,
+      SLIPS: {
+        async put(key: string, value: Uint8Array) { objects.set(key, value); },
+        async delete(key: string) { objects.delete(key); },
+      } as unknown as R2Bucket,
       ADMIN_USER_IDS: "",
     },
   };
 }
+
+function fakeMessageWithParts(
+  from: string,
+  messageId: string,
+  parts: Array<{ contentType: string; disposition: string; filename: string; b64: string }>,
+): { message: InboundMessage; rejected: () => string | null } {
+  const body = parts.flatMap((part) => [
+    "--b1", `Content-Type: ${part.contentType}`, "Content-Transfer-Encoding: base64",
+    `Content-Disposition: ${part.disposition}; filename="${part.filename}"`, "", part.b64,
+  ]);
+  const mime = [
+    `From: ${from}`, `To: pagos@recibir.ajedrezbelen.com`, `Subject: Comprobante`,
+    `Message-ID: <${messageId}>`, "MIME-Version: 1.0",
+    'Content-Type: multipart/mixed; boundary="b1"', "", ...body, "--b1--", "",
+  ].join("\r\n");
+  let reason: string | null = null;
+  const bytes = new TextEncoder().encode(mime);
+  const message: InboundMessage = {
+    from, to: "pagos@recibir.ajedrezbelen.com",
+    raw: new ReadableStream({ start(c) { c.enqueue(bytes); c.close(); } }),
+    headers: new Headers({ "message-id": `<${messageId}>` }),
+    setReject(r: string) { reason = r; },
+  };
+  return { message, rejected: () => reason };
+}
+
+test("envelope from with a display name still matches the family account", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  const { message, rejected } = fakeMessage("Familia Prueba <familia@example.cr>", "msg-named@test");
+  await handleEmail(message, env);
+  assert.equal(rejected(), null);
+  const mail = db.sqlite.prepare("SELECT sender_email, status FROM email_inbound").get() as { sender_email: string; status: string };
+  assert.equal(mail.sender_email, "familia@example.cr");
+  assert.equal(mail.status, "draft_created");
+});
 
 test("email from a linked guardian creates a seven-day draft ready for the portal form", async () => {
   const db = new SQLiteD1();
@@ -99,4 +138,62 @@ test("unknown sender is rejected and duplicate delivery creates no second draft"
   await handleEmail(again.message, env);
   const count = db.sqlite.prepare("SELECT count(*) AS n FROM slip_drafts").get() as { n: number };
   assert.equal(count.n, 1);
+});
+
+test("declared image type with non-image bytes is rejected by magic bytes, never stored", async () => {
+  const db = new SQLiteD1();
+  const { env, objects } = fakeEnv(db);
+  const text = Buffer.from("esto no es una imagen aunque el correo lo declare").toString("base64");
+  const { message, rejected } = fakeMessageWithParts("familia@example.cr", "msg-spoof@test", [
+    { contentType: "image/png", disposition: "attachment", filename: "comprobante.png", b64: text },
+  ]);
+  await handleEmail(message, env);
+  assert.match(rejected() ?? "", /Adjunta el comprobante/);
+  assert.match(rejected() ?? "", /HEIC/);
+  assert.equal(objects.size, 0);
+  const count = db.sqlite.prepare("SELECT count(*) AS n FROM slip_drafts").get() as { n: number };
+  assert.equal(count.n, 0);
+  const mail = db.sqlite.prepare("SELECT status FROM email_inbound").get() as { status: string };
+  assert.equal(mail.status, "rejected");
+});
+
+test("real PNG labeled octet-stream is accepted under its detected type", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  const { message, rejected } = fakeMessageWithParts("familia@example.cr", "msg-octet@test", [
+    { contentType: "application/octet-stream", disposition: "attachment", filename: "archivo", b64: PNG_B64 },
+  ]);
+  await handleEmail(message, env);
+  assert.equal(rejected(), null);
+  const draft = db.sqlite.prepare("SELECT file_type FROM slip_drafts").get() as { file_type: string };
+  assert.equal(draft.file_type, "image/png");
+});
+
+test("inline signature image never wins over the attached slip", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  const slipBytes = Buffer.concat([Buffer.from(PNG_B64, "base64"), Buffer.alloc(600)]);
+  const { message, rejected } = fakeMessageWithParts("familia@example.cr", "msg-inline@test", [
+    { contentType: "image/png", disposition: "inline", filename: "logo.png", b64: PNG_B64 },
+    { contentType: "image/png", disposition: "attachment", filename: "comprobante.png", b64: slipBytes.toString("base64") },
+  ]);
+  await handleEmail(message, env);
+  assert.equal(rejected(), null);
+  const draft = db.sqlite.prepare("SELECT file_size FROM slip_drafts").get() as { file_size: number };
+  assert.equal(draft.file_size, slipBytes.length);
+});
+
+test("draft budget reached bounces with instructions instead of throwing", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  const now = new Date().toISOString();
+  for (let i = 0; i < 5; i++) {
+    db.sqlite.prepare("INSERT INTO slip_drafts(id,owner_id,object_key,file_type,file_size,file_sha256,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)")
+      .run(`draft-${i}`, "guardian-1", `portal/drafts/draft-${i}/original`, "image/png", 100, "f".repeat(64), now, now);
+  }
+  const { message, rejected } = fakeMessage("familia@example.cr", "msg-limit@test");
+  await handleEmail(message, env);
+  assert.match(rejected() ?? "", /sin registrar/);
+  const count = db.sqlite.prepare("SELECT count(*) AS n FROM slip_drafts").get() as { n: number };
+  assert.equal(count.n, 5);
 });

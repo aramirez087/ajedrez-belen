@@ -10,6 +10,7 @@ import { getChargesForAdult, listFamilies } from '../../../lib/portal/domain';
 import { getOcrAvailability } from '../../../lib/portal/ocr-policy';
 import { allowPortalDemo } from '../../../lib/portal/demo-policy';
 import { resolveBusinessConfiguration } from '../../../lib/portal/business-config';
+import { listEmailDrafts } from '../../../lib/portal/slip-upload';
 export const prerender = false;
 const access = await authorizePortal(Astro, env, { admin: true });
 if (!access.ok) return access.response;
@@ -25,6 +26,9 @@ const selectedAdult = families.find(family => family.active && family.adultId ==
 const allCharges = business && selectedAdult ? await getChargesForAdult(env.DB, actor, selectedAdult.adultId) : [];
 const athletes = selectedAdult?.athletes ?? [];
 const charges = allCharges.filter(charge => charge.balanceMinor > 0);
+// Files the administrator sent to pagos@recibir… belong to the administrator's
+// own account; a family's emailed files stay usable only from that family's session.
+const emailDrafts = business ? await listEmailDrafts(env, actor).catch(() => []) : [];
 const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 ---
 <PortalLayout title="Registrar pago para una familia" actor={actor} active="new-payment">
@@ -37,7 +41,7 @@ const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',ye
     <section class="portal-panel"><form class="portal-form" action="/api/portal/payments" method="post" enctype="multipart/form-data" data-unsaved-guard data-draft-key="nuevo-pago-asistido">
       <input type="hidden" name="submissionId" value={crypto.randomUUID()} />
       <input type="hidden" name="designatedAdultId" value={selectedAdult.adultId} />
-      <SlipUploader mode={ocr.mode} available={ocr.available} athletes={athletes} savedDrafts={[]} />
+      <SlipUploader mode={ocr.mode} available={ocr.available} athletes={athletes} savedDrafts={emailDrafts} savedLabel="Archivos enviados desde tu correo de administración" savedHelp="Son los comprobantes que enviaste tú a pagos@recibir.ajedrezbelen.com desde el correo de esta cuenta, no los de la familia. Si eliges uno, se usa ese archivo y se descarta cualquier otro que hubieras seleccionado." />
       <div class="portal-form-step"><span aria-hidden="true">02</span><div><h2>Revisa los datos del pago.</h2><p>Completa la información o corrige las sugerencias de la lectura.</p></div></div>
       <div class="portal-field"><label for="payer-name">Nombre de quien realizó la transferencia</label><input id="payer-name" name="payerName" type="text" maxlength="160" autocomplete="name" placeholder="Nombre y apellidos…" value={selectedAdult.adultName} required /></div>
       <div class="portal-form-row"><div class="portal-field"><label for="amount">Monto transferido (₡)</label><input id="amount" name="amount" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="27000…" required aria-describedby="amount-help" /><p id="amount-help" class="portal-help">Solo el número, como sale en el banco: 27000 o 27.000.</p></div><DateInput id="transfer-date" name="transferDate" label="Fecha de la transferencia" value={today} minYear={2020} /></div>

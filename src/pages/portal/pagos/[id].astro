@@ -17,6 +17,7 @@ import { allowPortalDemo } from '../../../lib/portal/demo-policy';
 import { portalMessagePage } from '../../../lib/portal/http';
 import type { PaymentDetail } from '../../../lib/portal/types';
 import { resolveBusinessConfiguration } from '../../../lib/portal/business-config';
+import { listEmailDrafts } from '../../../lib/portal/slip-upload';
 export const prerender = false;
 const access = await authorizePortal(Astro, env);
 if (!access.ok) return access.response;
@@ -33,6 +34,7 @@ const designatedFamily = canRevise && actor.isAdmin ? (await listFamilies(env.DB
 const charges = canRevise ? (actor.isAdmin ? await getChargesForAdult(env.DB,actor,payment.designatedAdultId) : dashboard?.charges ?? []) : [];
 const athletes = (designatedFamily?.athletes ?? dashboard?.athletes ?? []).map(({id,name}) => ({id,name}));
 const requested = Object.fromEntries(detail.requestedAllocations.map(allocation => [allocation.chargeId,allocation.amountMinor]));
+const emailDrafts = canRevise ? await listEmailDrafts(env, actor).catch(() => []) : [];
 ---
 <PortalLayout title="Detalle del pago" actor={actor} active="overview">
   <PageHeader title={paymentLabels[payment.status] ?? 'Detalle del pago'} eyebrow="Transferencia registrada" backHref="/portal" backLabel="Volver a mi cuenta" description={payment.status === 'pending' ? `La Asociación revisará los datos y comprobará el ingreso en el banco. El saldo de las mensualidades conserva su valor hasta confirmar el pago de ${money(payment.amountMinor)} del ${dateLabel(payment.transferDate)}.` : payment.status === 'needs_info' ? (payment.reviewNote ?? 'La Asociación necesita información adicional para completar la revisión. Completa el formulario de esta página.') : `${money(payment.verifiedAmountMinor ?? payment.amountMinor)} · ${dateLabel(payment.transferDate)} · Ref. ${payment.bankReference}${payment.reviewNote ? ` — ${payment.reviewNote}` : ''}`}>{detail.receipt && <a class="portal-button" href={`/portal/comprobantes/${detail.receipt.id}`}>Abrir comprobante <span aria-hidden="true">↗</span></a>}</PageHeader>
@@ -51,7 +53,8 @@ const requested = Object.fromEntries(detail.requestedAllocations.map(allocation 
     {canRevise && <form class="portal-form" action={`/api/portal/payments/${payment.id}/revise`} method="post" enctype="multipart/form-data" data-unsaved-guard data-draft-key={`corregir-${payment.id}`}>
       <input type="hidden" name="expectedRevision" value={payment.revision} /><input type="hidden" name="expectedStatus" value={payment.status} /><input type="hidden" name="expectedReviewNote" value={payment.reviewNote ?? ''} />
       <h2>Completar información</h2><p class="portal-help">{payment.reviewNote ?? 'Actualiza los datos solicitados por la Asociación.'}</p>
-      <SlipUploader mode={ocr.mode} available={ocr.available && businessReady} eagerUpload={businessReady} athletes={athletes} required={false} />
+      <p class="portal-help">{actor.isAdmin ? <>Si el archivo nuevo está en tu correo de administración, envíalo a <strong>pagos@recibir.ajedrezbelen.com</strong> desde <strong>{actor.email}</strong> y actualiza esta página. Aparece en «Archivos enviados desde tu correo de administración», no entre los de la familia.</> : <>Si el archivo nuevo lo tienes en el correo, envíalo a <strong>pagos@recibir.ajedrezbelen.com</strong> desde <strong>{actor.email}</strong> (un JPG, PNG o PDF de hasta 3 MB) y actualiza esta página: aparecerá en «Archivos que nos enviaste por correo».</>}</p>
+      <SlipUploader mode={ocr.mode} available={ocr.available && businessReady} eagerUpload={businessReady} athletes={athletes} required={false} savedDrafts={emailDrafts} savedLabel={actor.isAdmin ? 'Archivos enviados desde tu correo de administración' : undefined} savedHelp={actor.isAdmin ? 'Son los comprobantes que enviaste tú a pagos@recibir.ajedrezbelen.com desde el correo de esta cuenta, no los de la familia. Si eliges uno, se usa ese archivo y se descarta cualquier otro que hubieras seleccionado.' : undefined} />
       <div class="portal-field"><label for="payer-name">Nombre de quien transfirió</label><input id="payer-name" name="payerName" value={payment.payerName} type="text" maxlength="160" autocomplete="name" placeholder="Nombre y apellidos…" required /></div>
       <div class="portal-form-row"><div class="portal-field"><label for="amount">Monto transferido (₡)</label><input id="amount" name="amount" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value={plainMoney(payment.amountMinor)} required /></div><DateInput id="transfer-date" name="transferDate" label="Fecha de transferencia" value={payment.transferDate} minYear={2020} /></div>
       <div class="portal-field"><label for="bank-reference">Referencia bancaria</label><input id="bank-reference" name="bankReference" type="text" maxlength="128" autocomplete="off" spellcheck="false" value={payment.bankReference} required /></div>

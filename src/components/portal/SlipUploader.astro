@@ -2,15 +2,15 @@
 import OcrReview from './OcrReview.astro';
 import { env } from 'cloudflare:workers';
 import { isStagingTestParent, restrictedModeRequested } from '../../lib/staging-auth-policy';
-interface Props { mode: 'off' | 'demo' | 'groq'; available: boolean; required?: boolean; eagerUpload?: boolean; id?: string; athletes?: readonly {id:string;name:string}[]; savedDrafts?: readonly {id:string;createdAt:string;size:number;type:string;expiresAt?:string}[]; }
-const { mode, available, required = true, eagerUpload = true, id = 'slip', athletes = [], savedDrafts = [] } = Astro.props;
+interface Props { mode: 'off' | 'demo' | 'groq'; available: boolean; required?: boolean; eagerUpload?: boolean; id?: string; athletes?: readonly {id:string;name:string}[]; savedDrafts?: readonly {id:string;createdAt:string;size:number;type:string;expiresAt?:string}[]; savedLabel?: string; savedHelp?: string; }
+const { mode, available, required = true, eagerUpload = true, id = 'slip', athletes = [], savedDrafts = [], savedLabel = 'Archivos que nos enviaste por correo', savedHelp = 'Si eliges uno, no hace falta adjuntarlo otra vez: se usa ese archivo y se descarta cualquier otro que hubieras seleccionado. Revisa por la fecha que sea el de esta transferencia y completa los datos del pago abajo.' } = Astro.props;
 const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
 ---
 <section class="portal-slip-uploader" data-slip-uploader data-eager-upload={String(eagerUpload)} data-restricted-auth={String(restrictedModeRequested(env))} data-parent-test-auth={String(isStagingTestParent(Astro,env))} data-ocr-mode={mode} data-ocr-available={String(available)} data-authorized-athletes={JSON.stringify(authorizedAthletes)}>
   <div class="portal-form-step"><span aria-hidden="true">01</span><div><h2>{required ? 'Adjunta la foto o el PDF de tu transferencia.' : '¿Necesitas corregir el archivo?'}</h2><p>{required ? 'Es el comprobante que te dio tu banco al transferir (una captura de pantalla sirve perfecto). El comprobante oficial de la Asociación llega después, cuando se confirme el pago.' : 'El archivo nuevo reemplaza la versión actual y conserva el historial.'}</p></div></div>
   <div class="portal-slip-drop" data-slip-drop><svg width="30" height="34" viewBox="0 0 30 34" fill="none" aria-hidden="true"><path d="M1 1h19l9 9v23H1zM20 1v9h9M15 26V15m-5 5 5-5 5 5" stroke="currentColor" stroke-width="1.2"/></svg><div class="portal-field"><label for={id}>{required ? 'Foto o PDF de tu transferencia (el del banco)' : 'Archivo actualizado (opcional)'}</label><input id={id} name="slip" type="file" accept="image/jpeg,image/png,application/pdf" required={required} aria-describedby={`${id}-help ${id}-status`} data-slip-input /><p id={`${id}-help`} class="portal-help">JPG, PNG o PDF · máximo 3 MB. ¿La foto pesa mucho o tu teléfono usa HEIC? Haz una <strong>captura de pantalla</strong> del comprobante y adjúntala: siempre funciona. Se guarda de forma privada.</p></div></div>
   <input type="hidden" name="draftId" value="" data-slip-draft />
-  {savedDrafts.length > 0 && <div class="portal-field" style="margin-top:16px"><label for={`${id}-saved`}>Archivos que nos enviaste por correo</label><select id={`${id}-saved`} data-slip-saved><option value="">Adjuntar un archivo nuevo</option>{savedDrafts.map(d => <option value={d.id}>Recibido el {new Date(d.createdAt).toLocaleDateString('es-CR', { timeZone: 'America/Costa_Rica' })} · {(d.size / 1024).toFixed(0)} KB{d.expiresAt ? ` · vence el ${new Date(d.expiresAt).toLocaleDateString('es-CR', { timeZone: 'America/Costa_Rica' })}` : ''}</option>)}</select><p class="portal-help">Si eliges uno, no hace falta adjuntarlo otra vez. Revisa que sea el de esta transferencia y completa los datos del pago abajo.</p></div>}
+  {savedDrafts.length > 0 && <div class="portal-field" style="margin-top:16px"><label for={`${id}-saved`}>{savedLabel}</label><select id={`${id}-saved`} data-slip-saved><option value="">Adjuntar un archivo nuevo</option>{savedDrafts.map(d => <option value={d.id} data-type={d.type}>{d.type === 'application/pdf' ? 'PDF' : d.type === 'image/png' ? 'Imagen PNG' : 'Imagen JPG'} · recibido el {new Date(d.createdAt).toLocaleString('es-CR', { timeZone: 'America/Costa_Rica', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · {Math.max(1, Math.round(d.size / 1024))} KB{d.expiresAt ? ` · vence el ${new Date(d.expiresAt).toLocaleDateString('es-CR', { timeZone: 'America/Costa_Rica' })}` : ''}</option>)}</select><p class="portal-help">{savedHelp}</p></div>}
   <div class="portal-slip-preview" data-slip-preview hidden><div class="portal-slip-preview-image" data-slip-image-wrap hidden><button class="portal-slip-preview-button" type="button" data-slip-zoom aria-label="Ampliar imagen seleccionada"><img alt="Vista previa del archivo seleccionado" data-slip-image /><span class="portal-evidence-zoom">Ampliar imagen <span aria-hidden="true">↗</span></span></button></div><div class="portal-slip-preview-info"><span class="portal-private-label"><svg width="12" height="14" viewBox="0 0 12 14" fill="none" aria-hidden="true"><path d="M3 6V4a3 3 0 0 1 6 0v2M1 6h10v7H1z" stroke="currentColor"/></svg>Archivo privado</span><strong data-slip-name></strong><p data-slip-size></p><p class="portal-help" data-slip-preview-note></p></div></div>
   <p id={`${id}-status`} class="portal-slip-status" role="status" aria-live="polite" data-slip-status>El archivo se adjuntará al enviar el formulario.</p>
   <div class="portal-help" data-slip-auth-recovery hidden><a class="portal-link" href="/portal/acceso" target="_blank" rel="noopener noreferrer" data-slip-auth-link>Revisar acceso en otra pestaña <span aria-hidden="true">↗</span></a><p>Mantén esta pestaña abierta. Después de revisar tu acceso, vuelve aquí y reintenta guardar o leer el archivo. No se reintenta automáticamente.</p></div>
@@ -58,13 +58,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
     const status = uploader.querySelector<HTMLElement>('[data-slip-status]')!;
     const authRecovery = uploader.querySelector<HTMLElement>('[data-slip-auth-recovery]')!;
     const savedSelect = uploader.querySelector('[data-slip-saved]') as HTMLSelectElement | null;
-    savedSelect?.addEventListener('change', () => {
-      draft.value = savedSelect.value;
-      input.required = !savedSelect.value;
-      status.textContent = savedSelect.value
-        ? 'Usaremos el archivo que enviaste por correo. Completa los datos del pago abajo.'
-        : 'El archivo se adjuntará al enviar el formulario.';
-    });
+    const fileInitiallyRequired = input.required;
     const authLink = uploader.querySelector<HTMLAnchorElement>('[data-slip-auth-link]')!;
     const preview = uploader.querySelector<HTMLElement>('[data-slip-preview]')!;
     const previewWrap = uploader.querySelector<HTMLElement>('[data-slip-image-wrap]')!;
@@ -108,8 +102,33 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
     let mode = uploader.dataset.ocrMode ?? 'off';
     const eagerUpload = uploader.dataset.eagerUpload !== 'false';
     let available = eagerUpload && uploader.dataset.ocrAvailable === 'true';
+    let emailedType: string | null = null;
     let previousOverflow = '';
     controls.hidden = !available;
+    // An emailed file and a newly picked file are mutually exclusive: sending
+    // both made the server reject the pair as a mismatch. Choosing one side
+    // visibly discards the other.
+    savedSelect?.addEventListener('change', () => {
+      draft.value = savedSelect.value;
+      draftExpiresAt = null;
+      emailedType = savedSelect.value ? savedSelect.selectedOptions[0]?.dataset.type ?? null : null;
+      input.required = savedSelect.value ? false : fileInitiallyRequired;
+      if (savedSelect.value) {
+        generation++; controller?.abort(); controller = new AbortController();
+        saving = false; reading = false; currentFile = null; renderedPdf = null;
+        input.value = ''; input.setCustomValidity('');
+        if (objectUrl) URL.revokeObjectURL(objectUrl); objectUrl = null;
+        image.removeAttribute('src'); dialogImage.removeAttribute('src');
+        preview.hidden = true; previewWrap.hidden = true; review.hidden = true; retryButton.hidden = true;
+        clearAthleteSuggestions();
+        showStatus(emailedType === 'application/pdf'
+          ? 'Usaremos el PDF que enviaste por correo. Completa los datos a mano: la lectura automática solo funciona si adjuntas el PDF en esta página.'
+          : 'Usaremos el archivo que enviaste por correo. Completa los datos del pago abajo.');
+      } else {
+        showStatus('El archivo se adjuntará al enviar el formulario.');
+      }
+      updateReadButton();
+    });
     function allocationRows(athleteId: string) {
       return Array.from(form!.querySelectorAll<HTMLElement>('[data-allocation-athlete-id]')).filter(row => row.dataset.allocationAthleteId === athleteId);
     }
@@ -169,7 +188,8 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
       objectUrl = URL.createObjectURL(file); image.src = objectUrl; dialogImage.src = objectUrl; previewWrap.hidden = false;
     }
     function updateReadButton() {
-      readButton.disabled = saving || reading || !draft.value || !available || (currentFile?.type === 'application/pdf' && !renderedPdf);
+      const pdfWithoutPreview = ((currentFile?.type === 'application/pdf') || emailedType === 'application/pdf') && !renderedPdf;
+      readButton.disabled = saving || reading || !draft.value || !available || pdfWithoutPreview;
       retryButton.disabled = saving || reading;
       controls.setAttribute('aria-busy', String(saving || reading));
     }
@@ -217,6 +237,9 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
       }
     }
     async function selectFile() {
+      // Cancelling the picker must not discard an emailed file already chosen.
+      if (!input.files?.[0] && savedSelect?.value) return;
+      if (savedSelect) { savedSelect.value = ''; emailedType = null; input.required = fileInitiallyRequired; }
       generation++; const run = generation; controller?.abort(); controller = new AbortController(); const signal = controller.signal;
       saving = false; reading = false;
       clearAthleteSuggestions();
