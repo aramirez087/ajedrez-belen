@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import {
   ageOn,
   billingPeriod,
+  billingStartPeriod,
   createInvitation,
   ensureUser,
   getMonthlyPreview,
@@ -91,6 +92,17 @@ test("age is derived from the birthdate, including the birthday boundary", () =>
   assert.equal(ageOn("2013-06-15", "2026-10-13"), 13);
 });
 
+test("first billing month: registration on or before the 8th bills that month, from the 9th it starts next month", () => {
+  // America/Costa_Rica is UTC-6; 06:00Z is midnight CR on the stated day.
+  assert.equal(billingStartPeriod("2026-10-01T06:00:00.000Z"), "2026-10");
+  assert.equal(billingStartPeriod("2026-10-08T06:00:00.000Z"), "2026-10");
+  assert.equal(billingStartPeriod("2026-10-08T23:00:00.000Z"), "2026-10"); // 17:00 CR, still the 8th
+  assert.equal(billingStartPeriod("2026-10-09T06:00:00.000Z"), "2026-11");
+  assert.equal(billingStartPeriod("2026-10-31T06:00:00.000Z"), "2026-11");
+  assert.equal(billingStartPeriod("2026-12-09T06:00:00.000Z"), "2027-01"); // year rollover
+  assert.equal(billingStartPeriod("2026-12-08T06:00:00.000Z"), "2026-12");
+});
+
 test("a registration invitation opens a self-service window and the cédula rule follows the derived age", async () => {
   const { db, redeemed } = await setup();
   assert.equal(redeemed.kind, "register");
@@ -124,17 +136,20 @@ test("siblings self-register with derived fees, then publish with the family dis
   assert.deepEqual(athletes.map((a) => [a.category, a.fee]), [["Cadetes", 1500000], ["Iniciación", 1200000]]);
   assert.equal(athletes[0].nationalId, "102340567");
   assert.equal(athletes[1].nationalId, null);
-  assert.ok(athletes.every((a) => a.active === 1 && a.startPeriod === billingPeriod(new Date().toISOString())));
+  assert.ok(athletes.every((a) => a.active === 1 && a.startPeriod === billingStartPeriod(new Date().toISOString())));
   await assert.rejects(
     registerAthletes(db, parent, [{ name: "Hermana Mayor", birthDate: birthForAge(13), nationalId: "102340567", school: "Colegio", category: "Cadetes" }]),
     (error: unknown) => (error as { status: number }).status === 409,
   );
-  const { created } = await publishCurrentMonth(db, new Date().toISOString());
+  // Publish the first billed month (this month on/before the 8th, next month after).
+  const startPeriod = billingStartPeriod(new Date().toISOString());
+  const { created } = await publishCurrentMonth(db, `${startPeriod}-01T06:00:00.000Z`);
   assert.equal(created, 2);
   const charges = adapter.sqlite.prepare(
-    "SELECT base_minor - discount_minor AS total FROM charges ORDER BY base_minor DESC",
-  ).all() as Array<{ total: number }>;
+    "SELECT period, base_minor - discount_minor AS total FROM charges ORDER BY base_minor DESC",
+  ).all() as Array<{ period: string; total: number }>;
   assert.deepEqual(charges.map((c) => c.total), [1125000, 900000]); // 25% off both siblings
+  assert.ok(charges.every((c) => c.period === startPeriod)); // no charge before the first billed month
 });
 
 test("a linked family can add athletes at any time, and the guardian controls baja/alta of their own", async () => {

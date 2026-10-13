@@ -65,6 +65,20 @@ export function billingPeriod(instant: string): string {
   }).formatToParts(new Date(instant));
   return `${parts.find((p) => p.type === "year")!.value}-${parts.find((p) => p.type === "month")!.value}`;
 }
+/**
+ * First billed month for a new enrollment. Fees are payable within the first
+ * eight days, so registering on or before the 8th (Costa Rica) bills that
+ * month; from the 9th onward billing starts the following month and the rest
+ * of the registration month is not charged.
+ */
+export function billingStartPeriod(instant: string): string {
+  const period = billingPeriod(instant);
+  const day = Number(costaRicaToday(instant).slice(8, 10));
+  if (day <= 8) return period;
+  const [year, month] = period.split("-").map(Number);
+  const next = month === 12 ? [year + 1, 1] : [year, month + 1];
+  return `${next[0]}-${String(next[1]).padStart(2, "0")}`;
+}
 export function billingYear(instant: string): number {
   return Number(billingPeriod(instant).slice(0, 4));
 }
@@ -1055,8 +1069,9 @@ function selfAthlete(input: SelfAthleteInput, today: string, schedule?: Record<s
 
 /**
  * Self-service enrollment inside a claimed registration window. Every athlete
- * is created active, linked to the guardian, and charged from the current
- * Costa Rica month by the normal (automatic) publication.
+ * is created active and linked to the guardian. The first billed month is
+ * billingStartPeriod: the current month on or before the 8th, otherwise the
+ * following month, charged by the normal (automatic) publication.
  */
 export async function registerAthletes(
   db: D1Database,
@@ -1068,7 +1083,7 @@ export async function registerAthletes(
     fail("Inscriba al menos un atleta (máximo seis por vez).");
   const window = await getRegistrationWindow(db, actor);
   if (!window) fail("Necesitas una invitación de inscripción vigente.", 403, "invitation_invalid");
-  const now = iso(), today = costaRicaToday(now), period = billingPeriod(now);
+  const now = iso(), today = costaRicaToday(now), period = billingStartPeriod(now);
   const schedule = await getFeeSchedule(db);
   const athletes = inputs.map((input) => selfAthlete(input, today, schedule));
   const total = await one<{ n: number }>(db, "SELECT count(*) n FROM athletes");
