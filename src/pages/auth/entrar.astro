@@ -71,11 +71,11 @@ const adminHref = `/auth/entrar?destino=admin${next ? `&next=${encodeURIComponen
 ---
 <AuthShell
   title={destino === 'admin' ? 'Ingreso de administración' : 'Iniciar sesión'}
-  heading={destino === 'admin' ? 'Ingreso de administración.' : invitedEmail ? 'Ya casi estás dentro.' : 'Te damos la bienvenida.'}
+  heading={destino === 'admin' ? 'Ingreso de administración.' : invitedEmail ? 'Inicia sesión.' : 'Te damos la bienvenida.'}
   description={destino === 'admin'
     ? 'Ingreso reservado para el personal autorizado de la Asociación. Si eres encargado de un atleta, usa el ingreso de familias.'
     : invitedEmail
-      ? `Tu invitación es para ${invitedEmail}. Escribe tu contraseña y entras directo a tu cuenta.`
+      ? `Esta invitación es para ${invitedEmail}. Escribe tu contraseña.`
       : 'Entra con el correo que la Asociación vinculó a tus atletas para consultar mensualidades, registrar pagos y ver tus comprobantes.'}
   error={error}
 >

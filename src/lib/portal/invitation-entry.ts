@@ -38,7 +38,7 @@ export function extractInvitationToken(input: string): string | null {
  * only instruction anyone needs, so there are no instructions to read.
  */
 export function invitationWhatsAppMessage(link: string): string {
-  return `♟️ Tu acceso a Ajedrez Belén (vence en 7 días): ${link}`;
+  return `Tu acceso a Ajedrez Belén (vence en 7 días): ${link}`;
 }
 
 /** Opens WhatsApp's share picker with the invitation message ready to send. */
@@ -49,6 +49,11 @@ export function invitationWhatsAppUrl(link: string): string {
 /** Where a person lands the moment their invitation is accepted. */
 export function invitationDestination(kind: 'link' | 'register' | null | undefined): string {
   return kind === 'register' ? '/portal/inscribir' : '/portal';
+}
+
+/** Notice shown on that landing. A new account still has to enroll an athlete. */
+export function invitationRedeemNotice(kind: 'link' | 'register' | null | undefined): string {
+  return kind === 'register' ? 'register_athlete' : 'invitation_redeemed';
 }
 
 /**

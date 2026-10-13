@@ -30,7 +30,6 @@ export const POST: APIRoute=context=>portalMutation(context,env,{back:'/portal/i
     context.cookies.set('portal-invite-link',`${context.url.origin}/portal/invitacion?token=${token}`,{
       path:'/portal/inscribir',httpOnly:true,sameSite:'strict',secure:context.url.protocol==='https:',maxAge:300,
     });
-    return successRedirect('/portal/inscribir','athletes_registered');
   }
-  return successRedirect('/portal','athletes_registered');
+  return successRedirect('/portal/inscribir','athletes_registered');
 });

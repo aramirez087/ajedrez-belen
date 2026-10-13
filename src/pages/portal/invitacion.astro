@@ -5,7 +5,7 @@ import PageHeader from '../../components/portal/PageHeader.astro';
 import { authorizePortal } from '../../lib/portal/access';
 import { getInvitationPreview, redeemInvitation } from '../../lib/portal/domain';
 import { hashInvitationToken } from '../../lib/portal/routes';
-import { INVITATION_TOKEN_PATTERN, invitationDestination } from '../../lib/portal/invitation-entry';
+import { INVITATION_TOKEN_PATTERN, invitationDestination, invitationRedeemNotice } from '../../lib/portal/invitation-entry';
 import { dateLabel } from '../../components/portal/format';
 export const prerender = false;
 const access = await authorizePortal(Astro, env);
@@ -23,7 +23,7 @@ if (preview?.status === 'ready' && emailMatches && tokenHash) {
   try {
     const { kind } = await redeemInvitation(env.DB, actor, tokenHash);
     Astro.cookies.delete('pending-invitation', { path: '/' });
-    return Astro.redirect(`${invitationDestination(kind)}?notice=invitation_redeemed`, 302);
+    return Astro.redirect(`${invitationDestination(kind)}?notice=${invitationRedeemNotice(kind)}`, 302);
   } catch {
     // Lost a race (e.g. opened twice) or hit a transient failure: show the
     // fresh state, with a manual retry only if the invitation is still live.
@@ -44,8 +44,8 @@ const whatsapp = 'https://wa.me/50687686102';
   <PageHeader title="Tu invitación." eyebrow="Invitación" />
   <section class="portal-panel"><div class="portal-guidance portal-guidance-strong">
     {autoRedeemFailed && <>
-      <h2>Ya casi estás dentro.</h2>
-      <p>Entraste con <strong>{actor.email}</strong>. Toca el botón y aterrizas en tu cuenta.</p>
+      <h2>Confirma tu acceso.</h2>
+      <p>Entraste con <strong>{actor.email}</strong>. Toca el botón para continuar.</p>
       <form action="/api/portal/invitations/redeem" method="post"><input type="hidden" name="token" value={token} /><button class="portal-button" type="submit" style="margin-top:20px">Entrar <span aria-hidden="true">→</span></button></form>
     </>}
     {preview?.status === 'ready' && !emailMatches && <>
@@ -65,8 +65,8 @@ const whatsapp = 'https://wa.me/50687686102';
       <a class="portal-button" href={whatsapp} style="margin-top:20px">Pedir un enlace nuevo por WhatsApp <span aria-hidden="true">↗</span></a>
     </>}
     {(!preview || preview.status === 'not_found') && <>
-      <h2>Pega aquí tu enlace y entras.</h2>
-      <p>Si tu enlace de WhatsApp no abrió bien, pégalo completo aquí. Debe ser una invitación para <strong>{actor.email}</strong>.</p>
+      <h2>Pega tu enlace.</h2>
+      <p>Si el enlace de WhatsApp no abrió, pégalo aquí. Tiene que ser para <strong>{actor.email}</strong>.</p>
       <form class="portal-form" action="/api/portal/invitations/redeem" method="post" style="margin-top:18px"><div class="portal-field"><label for="pasted-invite">Tu enlace de invitación</label><input id="pasted-invite" name="token" type="text" maxlength="2000" autocomplete="off" spellcheck="false" placeholder="Pega aquí el enlace completo…" required /></div><button class="portal-button" type="submit">Entrar <span aria-hidden="true">→</span></button></form>
       <p>¿No tienes enlace? <a class="portal-link" href={whatsapp}>Pídelo por WhatsApp <span aria-hidden="true">↗</span></a></p>
     </>}

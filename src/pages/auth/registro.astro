@@ -62,10 +62,10 @@ const entrarHref = `/auth/entrar?destino=${destino}${next ? `&next=${encodeURICo
 ---
 <AuthShell
   title="Crear tu cuenta"
-  heading={invitedEmail ? 'Un minuto y entras.' : 'Creá tu cuenta.'}
+  heading="Crea tu cuenta."
   description={invitedEmail
-    ? `Tu invitación es para ${invitedEmail}. Solo faltan tu nombre y una contraseña; te enviamos un código a ese correo para confirmar que es tuyo y quedas dentro.`
-    : 'Solo faltan tu nombre, tu correo y una contraseña. Te enviamos un código al correo para confirmar que es tuyo y quedas dentro.'}
+    ? `Este registro es para ${invitedEmail}. Escribe tu nombre y una contraseña. Te enviamos un código a ese correo para confirmarlo.`
+    : 'Escribe tu nombre, tu correo y una contraseña. Te enviamos un código al correo para confirmarlo.'}
   error={error}
 >
   {!invitedEmail && !hasInvitation && <p class="portal-section-caption">¿Todavía no tienes invitación? Crea tu cuenta igual y pide tu enlace por WhatsApp; al tocarlo, tus atletas aparecen en tu cuenta.</p>}
@@ -78,7 +78,7 @@ const entrarHref = `/auth/entrar?destino=${destino}${next ? `&next=${encodeURICo
     <div class="portal-field">
       <label for="email">Correo electrónico</label>
       <input id="email" name="email" type="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" value={email} placeholder="tucorreo@ejemplo.com" required />
-      {invitedEmail && <p class="portal-help">Ya lo pusimos por ti: es el correo de tu invitación.</p>}
+      {invitedEmail && <p class="portal-help">Es el correo de la invitación.</p>}
     </div>
     <PasswordField id="password" name="password" label="Contraseña" autocomplete="new-password" toggle help="Al menos 10 caracteres, mezclando letras y números." />
     <button class="portal-button portal-button-wide" type="submit">Crear mi cuenta y entrar <span aria-hidden="true">→</span></button>

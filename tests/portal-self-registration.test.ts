@@ -11,6 +11,7 @@ import {
   ensureUser,
   getMonthlyPreview,
   getRegistrationWindow,
+  needsAthleteRegistration,
   publishCurrentMonth,
   redeemInvitation,
   registerAthletes,
@@ -23,6 +24,8 @@ import {
   submitPayment,
 } from "../src/lib/portal/domain";
 import type { Actor } from "../src/lib/portal/types";
+import type { APIContext } from "astro";
+import { authorizePortal } from "../src/lib/portal/access";
 
 class SQLiteD1 {
   readonly sqlite = new DatabaseSync(":memory:");
@@ -108,6 +111,8 @@ test("a registration invitation opens a self-service window and the cédula rule
   assert.equal(redeemed.kind, "register");
   assert.equal((await getRegistrationWindow(db, parent))?.via, "invitation");
   assert.equal(await getRegistrationWindow(db, stranger), null);
+  assert.equal(await needsAthleteRegistration(db, parent), true);
+  assert.equal(await needsAthleteRegistration(db, stranger), false);
   await assert.rejects(
     registerAthletes(db, stranger, [{ name: "Sin Ventana", birthDate: birthForAge(9), school: "Escuela", category: "Cadetes" }]),
     (error: unknown) => (error as { status: number }).status === 403,
@@ -130,6 +135,7 @@ test("siblings self-register with derived fees, then publish with the family dis
     { name: "Hermano Menor", birthDate: birthForAge(8), school: "Escuela", category: "Principiantes" },
   ]);
   assert.equal(ids.length, 2);
+  assert.equal(await needsAthleteRegistration(db, parent), false);
   const athletes = adapter.sqlite.prepare(
     "SELECT name,category,fee_minor AS fee,national_id AS nationalId,active,start_period AS startPeriod FROM athletes ORDER BY name",
   ).all() as Array<{ name: string; category: string; fee: number; nationalId: string | null; active: number; startPeriod: string }>;
@@ -254,4 +260,53 @@ test("admin pause stops new charges without touching history, and only admins ca
   await setAthletePaused(db, admin, pausedId, false);
   const march = await publishCurrentMonth(db, "2027-03-01T06:00:00.000Z");
   assert.equal(march.created, 2);
+});
+
+const portalEnv = {
+  PORTAL_ENABLED: "true",
+  WORKOS_API_KEY: "sk_SYNTHETIC_ONLY",
+  WORKOS_CLIENT_ID: "client_synthetic",
+  WORKOS_COOKIE_PASSWORD: "SYNTHETIC_LOCAL_COOKIE_PASSWORD_NOT_A_SECRET",
+  WORKOS_REDIRECT_URI: "https://portal.example.invalid/auth/callback",
+  WORKOS_ORGANIZATION_ID: "org_synthetic_staff",
+  ADMIN_USER_IDS: "user_synthetic_staff",
+};
+
+function familyPage(actor: Actor, path: string, method = "GET") {
+  const url = new URL(path, "https://portal.example.invalid");
+  return {
+    locals: {
+      auth: {
+        user: { id: actor.id, email: actor.email, emailVerified: true, firstName: actor.name, lastName: "Prueba" },
+        sessionId: "synthetic-verified-session",
+        accessToken: "synthetic-SDK-verified-token",
+        organizationId: undefined,
+        impersonator: null,
+      },
+    },
+    url,
+    request: new Request(url, { method }),
+  } as unknown as APIContext;
+}
+
+test("until the first athlete exists, every other family page returns to enrollment", async () => {
+  const { db } = await setup();
+  const env = { ...portalEnv, DB: db } as Cloudflare.Env;
+  for (const path of ["/portal", "/portal/pagos/nuevo", "/portal/eventos"]) {
+    const blocked = await authorizePortal(familyPage(parent, path), env);
+    assert.equal(blocked.ok, false, path);
+    if (!blocked.ok) {
+      assert.equal(blocked.response.status, 302);
+      assert.equal(blocked.response.headers.get("Location"), "/portal/inscribir");
+    }
+  }
+  for (const path of ["/portal/inscribir", "/portal/invitacion", "/portal/acceso"]) {
+    assert.equal((await authorizePortal(familyPage(parent, path), env)).ok, true, path);
+  }
+  assert.equal((await authorizePortal(familyPage(parent, "/portal/pagos/nuevo", "POST"), env)).ok, true);
+  assert.equal((await authorizePortal(familyPage(stranger, "/portal"), env)).ok, true);
+  await registerAthletes(db, parent, [
+    { name: "Primero", birthDate: birthForAge(10), school: "Escuela", category: "Cadetes" },
+  ]);
+  assert.equal((await authorizePortal(familyPage(parent, "/portal"), env)).ok, true);
 });

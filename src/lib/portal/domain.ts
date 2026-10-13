@@ -1011,6 +1011,23 @@ export async function getRegistrationWindow(
   return linked ? { invitationId: null, expiresAt: null, via: "family" } : null;
 }
 
+/**
+ * A new account still has to enroll its first athlete. The registration
+ * invitation stays "open" after that enrollment, so the active guardian
+ * link is what ends the step. Accounts with no window are left alone:
+ * they cannot submit the form, and trapping them there would be a dead end.
+ */
+export async function needsAthleteRegistration(db: D1Database, actor: Actor): Promise<boolean> {
+  const window = await getRegistrationWindow(db, actor);
+  if (window?.via !== "invitation") return false;
+  const linked = await one(
+    db,
+    "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND active=1 LIMIT 1",
+    [actor.id],
+  );
+  return !linked;
+}
+
 /** Completed years on a Costa Rica calendar date (both YYYY-MM-DD). */
 export function ageOn(birthDate: string, onDate: string): number {
   const [by, bm, bd] = birthDate.split("-").map(Number);

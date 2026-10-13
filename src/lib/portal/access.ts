@@ -2,7 +2,7 @@ import type { APIContext } from 'astro';
 import { getAuthConfigurationStatus } from '../auth';
 import { allowPortalDemo, getDemoIdentity } from './demo-policy';
 import { portalMessagePage, portalResponse } from './http';
-import { ensureUser } from './domain';
+import { ensureUser, needsAthleteRegistration } from './domain';
 import { safePortalReturnPath } from './invitation-entry';
 import type { Actor } from './types';
 import { isStagingPortalActor, restrictedModeRequested, stagingPortalTestRequested } from '../staging-auth-policy';
@@ -22,6 +22,15 @@ export function getPortalIdentity(context: Pick<APIContext,'locals'>, env: Cloud
     name:[auth.user.firstName,auth.user.lastName].filter(Boolean).join(' ') || auth.user.email,
     isAdmin:admin, mode:'workos',
   };
+}
+
+const athleteStepExempt = ['/portal/inscribir', '/portal/invitacion', '/portal/acceso'];
+
+/** Family pages that stay closed until the first athlete is enrolled. */
+export function portalPageNeedsAthleteStep(pathname: string, method: string): boolean {
+  if (method !== 'GET') return false;
+  if (pathname !== '/portal' && !pathname.startsWith('/portal/')) return false;
+  return !athleteStepExempt.some(path => pathname === path || pathname.startsWith(`${path}/`));
 }
 
 export async function authorizePortal(context: APIContext, env: Cloudflare.Env, options: {admin?:boolean} = {}): Promise<
@@ -74,5 +83,14 @@ export async function authorizePortal(context: APIContext, env: Cloudflare.Env, 
       : portalResponse('El acceso no está disponible. Revisa la inscripción y la configuración del portal.',403)};
   }
   context.locals.portalActor = actor;
+  if (browserPage && !options.admin && portalPageNeedsAthleteStep(context.url.pathname, context.request.method)) {
+    try {
+      if (await needsAthleteRegistration(env.DB, actor)) {
+        return {ok:false, response: portalResponse(null, 302, {Location:'/portal/inscribir'})};
+      }
+    } catch {
+      // A failed check must not lock a family out of a page they can already open.
+    }
+  }
   return {ok:true,actor};
 }

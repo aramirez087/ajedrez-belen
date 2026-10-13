@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseMoney } from '../src/lib/portal/http.ts';
 import { minorAmount, allocationSummary } from '../src/lib/portal/allocation-validation.ts';
-import { safePortalReturnPath, extractInvitationToken, invitationWhatsAppMessage, invitationWhatsAppUrl, invitationDestination, splitFullName } from '../src/lib/portal/invitation-entry.ts';
+import { safePortalReturnPath, extractInvitationToken, invitationWhatsAppMessage, invitationWhatsAppUrl, invitationDestination, invitationRedeemNotice, splitFullName } from '../src/lib/portal/invitation-entry.ts';
+import { portalPageNeedsAthleteStep } from '../src/lib/portal/access.ts';
 
 test('money accepts the formats Costa Rican families actually type', () => {
   // Canonical / browser number input
@@ -75,6 +76,27 @@ test('accepting an invitation lands people where their next job is', () => {
   assert.equal(invitationDestination('link'), '/portal');
   assert.equal(invitationDestination(null), '/portal');
   assert.equal(invitationDestination(undefined), '/portal');
+  assert.equal(invitationRedeemNotice('register'), 'register_athlete');
+  assert.equal(invitationRedeemNotice('link'), 'invitation_redeemed');
+  assert.equal(invitationRedeemNotice(null), 'invitation_redeemed');
+  const notice = readFileSync(new URL('../src/components/portal/Notice.astro', import.meta.url), 'utf8');
+  assert.match(notice, /register_athlete: 'Tu cuenta está lista\. Inscribe a tu atleta/);
+});
+
+test('a new account cannot leave athlete enrollment for the rest of the family portal', () => {
+  for (const path of ['/portal', '/portal/pagos/nuevo', '/portal/pagos/abc', '/portal/eventos', '/portal/eventos/abc', '/portal/comprobantes/abc']) {
+    assert.equal(portalPageNeedsAthleteStep(path, 'GET'), true, path);
+  }
+  for (const path of ['/portal/inscribir', '/portal/inscribir/', '/portal/invitacion', '/portal/acceso', '/admin', '/admin/familias', '/auth/registro']) {
+    assert.equal(portalPageNeedsAthleteStep(path, 'GET'), false, path);
+  }
+  assert.equal(portalPageNeedsAthleteStep('/portal', 'POST'), false);
+  assert.equal(portalPageNeedsAthleteStep('/api/portal/athletes', 'GET'), false);
+  const page = readFileSync(new URL('../src/pages/portal/inscribir.astro', import.meta.url), 'utf8');
+  assert.match(page, /hideNav=\{mustRegister\}/);
+  assert.match(page, /Inscribe a tu atleta\./);
+  assert.match(page, /homeHref=\{mustRegister \? '\/portal\/inscribir'/);
+  assert.match(page, /Inscribir a mi atleta/);
 });
 
 test('registration needs one full-name field, split for the identity provider', () => {
