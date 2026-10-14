@@ -21,6 +21,19 @@ export function dateLabel(value: string | null): string {
   return Number.isNaN(parsed.valueOf()) ? 'Sin fecha' : new Intl.DateTimeFormat('es-CR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: value.length === 10 ? 'UTC' : 'America/Costa_Rica' }).format(parsed);
 }
 export const paymentLabels: Record<string, string> = { pending: 'En revisión', submitted: 'En revisión', needs_info: 'Te falta un dato', approved: 'Confirmado', verified: 'Confirmado', rejected: 'Rechazado', voided: 'Anulado', void: 'Anulado' };
+/** Due-date state for a charge. Dates are `YYYY-MM-DD` (CR calendar days). */
+export function dueState(dueDate: string, today: string): { kind: 'overdue' | 'today' | 'soon' | 'future'; days: number } {
+  const ms = (value: string) => new Date(`${value}T12:00:00Z`).valueOf();
+  const days = Math.round((ms(dueDate) - ms(today)) / 86_400_000);
+  if (Number.isNaN(days)) return { kind: 'future', days: 0 };
+  return days < 0 ? { kind: 'overdue', days: -days } : days === 0 ? { kind: 'today', days: 0 } : days <= 8 ? { kind: 'soon', days } : { kind: 'future', days };
+}
+export function dueLabel(dueDate: string, today: string): string {
+  const state = dueState(dueDate, today);
+  if (state.kind === 'overdue') return state.days === 1 ? 'Venció hace 1 día' : `Venció hace ${state.days} días`;
+  if (state.kind === 'today') return 'Vence hoy';
+  return `Vence el ${dateLabel(dueDate)}`;
+}
 /** One plain sentence per status: who acts next, family side. */
 export const paymentHints: Record<string, string> = {
   pending: 'La Asociación lo está revisando. No tienes que hacer nada.',

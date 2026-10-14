@@ -180,23 +180,65 @@ const invalid = (field: string) => errField === field ? true : undefined;
       status.textContent = `Imagen lista (${Math.max(1, Math.round(file.size / 1024))} KB).`;
       if (img && preview) { img.src = URL.createObjectURL(file); preview.hidden = false; }
     });
+    const ask = (message: string) => new Promise<boolean>((resolve) => {
+      const dialog = document.querySelector<HTMLDialogElement>("#portal-confirm");
+      if (!dialog || typeof dialog.showModal !== "function") { resolve(window.confirm(message)); return; }
+      const messageEl = dialog.querySelector<HTMLElement>("[data-confirm-message]");
+      if (messageEl) messageEl.textContent = message;
+      const yes = dialog.querySelector<HTMLButtonElement>("[data-confirm-yes]");
+      const no = dialog.querySelector<HTMLButtonElement>("[data-confirm-no]");
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        yes?.removeEventListener("click", onYes);
+        no?.removeEventListener("click", onNo);
+        dialog.removeEventListener("close", onClose);
+        if (dialog.open) dialog.close();
+        resolve(ok);
+      };
+      const onYes = () => finish(true);
+      const onNo = () => finish(false);
+      const onClose = () => finish(false);
+      yes?.addEventListener("click", onYes);
+      no?.addEventListener("click", onNo);
+      dialog.addEventListener("close", onClose);
+      try { dialog.showModal(); no?.focus(); }
+      catch {
+        settled = true;
+        yes?.removeEventListener("click", onYes);
+        no?.removeEventListener("click", onNo);
+        dialog.removeEventListener("close", onClose);
+        resolve(window.confirm(message));
+      }
+    });
     form.addEventListener("submit", (ev) => {
       const file = imageInput?.files?.[0];
       if (file && ((file.size > 3 * 1024 * 1024) || !["image/png", "image/jpeg", "image/webp"].includes(file.type))) {
         ev.preventDefault(); imageInput.focus(); return;
       }
+      if (form.dataset.eventConfirmed === "true") { delete form.dataset.eventConfirmed; return; }
       // Confirm long or past events: the two easiest typos to publish live.
       const s = q<HTMLInputElement>('#ev-start')?.value, e2 = q<HTMLInputElement>('#ev-end')?.value;
       const allDay = !!q<HTMLInputElement>("[data-all-day]")?.checked;
+      let mins = 0;
       if (!allDay && s && e2) {
         const [sh, sm] = s.split(":").map(Number), [eh, em] = e2.split(":").map(Number);
-        let mins = (eh * 60 + em) - (sh * 60 + sm); if (mins <= 0) mins += 1440;
-        if (mins > 720 && !window.confirm(`Este evento dura más de 12 horas (${durationText()}). ¿Seguro que las horas están bien?`)) { ev.preventDefault(); return; }
+        mins = (eh * 60 + em) - (sh * 60 + sm); if (mins <= 0) mins += 1440;
       }
       const date = q<HTMLInputElement>('#ev-date')?.value ?? "";
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Costa_Rica" }).format(new Date());
       const freq2 = (form.querySelector("[data-freq]") as HTMLSelectElement | null)?.value ?? "none";
-      if (freq2 === "none" && date && date < today && !window.confirm("La fecha ya pasó. ¿Guardar de todos modos? (Un evento que se repite sí puede empezar en el pasado.)")) ev.preventDefault();
+      const needsLong = mins > 720;
+      const needsPast = freq2 === "none" && date !== "" && date < today;
+      if (!needsLong && !needsPast) return;
+      ev.preventDefault();
+      void (async () => {
+        if (needsLong && !await ask(`Este evento dura más de 12 horas (${durationText()}). ¿Seguro que las horas están bien?`)) return;
+        if (needsPast && !await ask("La fecha ya pasó. ¿Guardar de todos modos? (Un evento que se repite sí puede empezar en el pasado.)")) return;
+        form.dataset.eventConfirmed = "true";
+        form.requestSubmit();
+      })();
     });
     refresh();
     const bad = form.querySelector<HTMLElement>("[aria-invalid='true']");

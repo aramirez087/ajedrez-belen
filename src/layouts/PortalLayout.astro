@@ -39,7 +39,7 @@ const nav = admin && !familyContext
 ---
 <!doctype html>
 <html lang="es">
-  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="robots" content="noindex,nofollow" /><meta name="referrer" content="same-origin" /><link rel="icon" type="image/png" href="/media/favicon.png" /><title>{title} · Ajedrez Belén</title></head>
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="robots" content="noindex,nofollow" /><meta name="referrer" content="same-origin" /><link rel="icon" type="image/png" href="/media/favicon.png" /><link rel="manifest" href="/manifest.webmanifest" /><meta name="theme-color" content="#8c302f" /><title>{title} · Ajedrez Belén</title></head>
   <body class="portal-page">
     <a class="skip-link" href="#portal-main">Saltar al contenido</a>
     {stagingTest && <aside class="portal-test-banner" aria-label="Entorno de prueba"><div class="portal-shell"><strong>Entorno de prueba</strong><span>Solo registros ficticios. No realices transferencias. Correos simulados · OCR desactivado.</span></div></aside>}
@@ -55,6 +55,14 @@ const nav = admin && !familyContext
       <aside class="portal-help-bar"><p><strong>¿Necesitas ayuda?</strong> Escríbenos por WhatsApp al <a href="https://wa.me/50687686102">8768-6102 <span aria-hidden="true">↗</span></a> y te guiamos paso a paso.</p></aside>
       <footer class="portal-footer"><span>Ajedrez Belén · Belén, Heredia</span><a href="https://wa.me/50687686102">¿Dudas con un pago? Escríbenos por WhatsApp <span aria-hidden="true">↗</span></a><a href="/">Volver al sitio <span aria-hidden="true">↗</span></a></footer>
     </div>
+    <dialog class="portal-confirm-dialog" id="portal-confirm" aria-labelledby="portal-confirm-title">
+      <h2 id="portal-confirm-title">Confirma esta acción</h2>
+      <p data-confirm-message></p>
+      <div class="portal-form-actions">
+        <button class="portal-button portal-button-danger" type="button" data-confirm-yes>Sí, continuar <span aria-hidden="true">→</span></button>
+        <button class="portal-button portal-button-secondary" type="button" data-confirm-no>Volver</button>
+      </div>
+    </dialog>
   </body>
 </html>
 <script>
@@ -95,12 +103,31 @@ const nav = admin && !familyContext
     });
     window.addEventListener('pageshow', restore);
   });
-  // Destructive or batch actions ask once before the native submit continues.
+  // Destructive or batch actions ask once in a designed dialog before the
+  // native submit continues (replaces window.confirm, which cannot explain
+  // consequences or style the danger action).
+  const confirmDialog = document.querySelector<HTMLDialogElement>('#portal-confirm');
   document.querySelectorAll<HTMLFormElement>('form[data-confirm]').forEach(form => {
     form.addEventListener('submit', event => {
       if (form.dataset.confirmed === 'true') return;
-      if (!window.confirm(form.dataset.confirm || '¿Confirmas esta acción?')) { event.preventDefault(); return; }
-      form.dataset.confirmed = 'true';
+      const prompt = form.dataset.confirm || '¿Confirmas esta acción?';
+      if (!confirmDialog || typeof confirmDialog.showModal !== 'function') {
+        if (!window.confirm(prompt)) event.preventDefault();
+        return;
+      }
+      event.preventDefault();
+      const message = confirmDialog.querySelector<HTMLElement>('[data-confirm-message]');
+      if (message) message.textContent = prompt;
+      const yes = confirmDialog.querySelector<HTMLButtonElement>('[data-confirm-yes]');
+      const no = confirmDialog.querySelector<HTMLButtonElement>('[data-confirm-no]');
+      const cleanup = () => { yes?.removeEventListener('click', onYes); no?.removeEventListener('click', onNo); confirmDialog.removeEventListener('cancel', cleanup); };
+      const onYes = () => { cleanup(); confirmDialog.close(); form.dataset.confirmed = 'true'; form.requestSubmit((event as SubmitEvent).submitter as HTMLElement | undefined); };
+      const onNo = () => { cleanup(); confirmDialog.close(); };
+      yes?.addEventListener('click', onYes);
+      no?.addEventListener('click', onNo);
+      confirmDialog.addEventListener('cancel', cleanup);
+      confirmDialog.showModal();
+      no?.focus();
     });
     window.addEventListener('pageshow', () => { delete form.dataset.confirmed; });
   });

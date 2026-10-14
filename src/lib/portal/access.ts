@@ -79,9 +79,9 @@ export async function authorizePortal(context: APIContext, env: Cloudflare.Env, 
     try {
       if (await hasActiveAdminGrant(env.DB, actor.id)) actor = { ...actor, isAdmin: true };
     } catch {
-      return {ok:false,response:browserPage
-        ? portalMessagePage('El acceso no está disponible.', 'El acceso no está disponible. Revisa la inscripción y la configuración del portal, o contacta a la Asociación.', 403, '/portal/acceso', 'Volver al acceso')
-        : portalResponse('El acceso no está disponible. Revisa la inscripción y la configuración del portal.',403)};
+      // Least privilege, not lockout: a failed grant read (migration not yet
+      // applied, transient D1 error) must never deny a signed-in family
+      // their own portal. Admin routes still re-check options.admin below.
     }
   }
   if (options.admin && !actor.isAdmin) return {ok:false,response:browserPage

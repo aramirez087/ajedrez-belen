@@ -40,7 +40,7 @@ const eventsLocked = !event && !tombstone && !actor.isAdmin && !(await canViewFa
       <p class="portal-form-actions">{firstUpcoming && <a class="portal-button" href={`/portal/eventos/${event.id}?occurrence=${encodeURIComponent(firstUpcoming.startsAt)}`}>Ver la próxima fecha <span aria-hidden="true">→</span></a>}<a class="portal-link" href="/portal/eventos">Volver a eventos</a></p>
     </section>
   ) : (<>
-  {event.image && <div class="portal-event-hero-wrap"><img class="portal-event-hero" src={`/api/portal/events/${event.id}/image`} alt={event.imageAlt ?? ""} /></div>}
+  {event.image && <div class="portal-event-hero-wrap"><img class="portal-event-hero" src={`/api/portal/events/${event.id}/image`} alt={event.imageAlt ?? ""} width="1200" height="525" /></div>}
   <section class="portal-section portal-event-detail">
     <p><span class="portal-event-badge portal-event-badge-plain">{locBadge}</span>{state === "live" && <span class="portal-event-badge portal-event-badge-live">En vivo ahora</span>}{state === "past" && <span class="portal-event-badge portal-event-badge-muted">Ya pasó</span>}{recurrenceLabel(event) && <span class="portal-event-recurrence"> {recurrenceLabel(event)}</span>}</p>
     {event.locationUrl && state === "live" && <p class="portal-event-live-note" role="status"><strong>Ya empezó.</strong> Todavía puedes entrar.</p>}

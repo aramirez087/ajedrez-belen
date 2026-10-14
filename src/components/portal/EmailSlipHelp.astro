@@ -1,0 +1,14 @@
+---
+import { INBOUND_SLIP_ADDRESS } from '../../lib/portal/inbound-address';
+interface Props { accountEmail: string; }
+const { accountEmail } = Astro.props;
+---
+<details class="portal-guidance portal-guidance-details" id="enviar-por-correo" data-copy-scope>
+  <summary>Otra forma: enviar el comprobante por correo <span aria-hidden="true">+</span></summary>
+  <p>También puedes mandarnos la foto o el PDF de tu transferencia y terminar el registro en esta página:</p>
+  <p>1. Escríbelo desde <strong>{accountEmail}</strong>, el correo de esta cuenta. Desde otro correo no se acepta.</p>
+  <p>2. Envíalo a <strong>{INBOUND_SLIP_ADDRESS}</strong> con <strong>un solo archivo</strong>: JPG, PNG o PDF, de hasta 3 MB. El asunto no importa. Si tu teléfono guarda fotos HEIC, adjunta una captura de pantalla.</p>
+  <p>3. Vuelve aquí y actualiza la página. El archivo aparece en el paso 01, en «Archivos que nos enviaste por correo». Elígelo, revisa el monto que leímos y envía el formulario. Si el monto no aparece, escríbelo.</p>
+  <p><strong>El correo no registra el pago.</strong> Solo guarda el archivo en privado durante siete días. Si llegó bien, te respondemos con el monto, la fecha y la referencia que leímos. Si algo viene mal, el correo rebota con el motivo.</p>
+  <div class="portal-copy-row"><button class="portal-button portal-button-secondary" type="button" data-copy-value={INBOUND_SLIP_ADDRESS}>Copiar correo <span aria-hidden="true">↗</span></button><a class="portal-link" href={`mailto:${INBOUND_SLIP_ADDRESS}?subject=Comprobante%20de%20mi%20transferencia`}>Abrir mi correo <span aria-hidden="true">↗</span></a><span class="portal-copy-feedback" data-copy-feedback role="status"></span></div>
+</details>

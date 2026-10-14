@@ -1,17 +1,27 @@
 ---
 import type { Charge } from '../../lib/portal/types';
-import { money, plainMoney, monthLabel } from './format';
+import { money } from './format';
+import AllocationRow from './AllocationRow.astro';
 interface Props { charges: Charge[]; values?: Record<string, number>; legend?: string; prefix?: string; }
 const { charges, values = {}, legend = '¿Qué mensualidades pagas con esta transferencia?', prefix = 'allocation' } = Astro.props;
+const todayCR = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Costa_Rica', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const currentPeriod = todayCR.slice(0, 7);
+const capOf = (charge: Charge) => Math.max(charge.balanceMinor, values[charge.id] ?? 0);
+const dueNow = charges.filter(charge => charge.period <= currentPeriod);
+const future = charges.filter(charge => charge.period > currentPeriod);
+const showFutureFold = future.length > 0 && dueNow.length > 0;
+const payAll = dueNow.length > 0 ? dueNow : charges;
+const payAllIds = new Set(payAll.map(charge => charge.id));
+const payAllMinor = payAll.reduce((total, charge) => total + capOf(charge), 0);
+const futureMinor = future.reduce((total, charge) => total + capOf(charge), 0);
+const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo el saldo';
 ---
-<fieldset class="portal-fieldset" data-allocator tabindex="-1" aria-describedby={`${prefix}-amount-check`}>
+<fieldset id={`${prefix}-group`} class="portal-fieldset" data-allocator data-prefix={prefix} tabindex="-1" aria-describedby={`${prefix}-amount-check`}>
   <legend>{legend}</legend>
-  <p class="portal-help" style="margin:0 0 13px">Escribe cuánto de tu transferencia va para cada mensualidad, o toca <strong>«Pagar todo»</strong> y lo llenamos por ti. Deja en blanco las que no pagas hoy.</p>
-  {charges.map(charge => { const cap = Math.max(charge.balanceMinor, values[charge.id] ?? 0); return <div class="portal-allocation-row" data-allocation-athlete-id={charge.athleteId} role="group" tabindex="-1" aria-label={`Mensualidad de ${charge.athleteName}, ${monthLabel(charge.period)}`}>
-    <div><label for={`${prefix}-${charge.id}`}>{charge.athleteName}<small id={`${prefix}-${charge.id}-balance`}>{monthLabel(charge.period)} · se deben {money(charge.balanceMinor)}</small></label>{cap > 0 && <button class="portal-quick-fill" type="button" data-quick-fill={`${prefix}-${charge.id}`} data-amount={plainMoney(cap)}>Pagar todo · {money(cap)}</button>}</div>
-    <input type="hidden" name="allocationChargeId[]" value={charge.id} />
-    <input id={`${prefix}-${charge.id}`} name="allocationAmount[]" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-max-minor={cap} value={(values[charge.id] ?? 0) > 0 ? plainMoney(values[charge.id] ?? 0) : ''} placeholder="27000…" aria-label={`Monto en colones para ${charge.athleteName}, ${monthLabel(charge.period)}`} aria-describedby={`${prefix}-${charge.id}-balance ${prefix}-amount-check`} data-allocation />
-  </div>; })}
+  <p class="portal-help" style="margin:0 0 13px">{showFutureFold ? <>Toca <strong>«{payAllLabel}»</strong> y llenamos el monto y las mensualidades que ya se deben. El próximo mes queda aparte, por si quieres adelantarlo.</> : <>Escribe cuánto de tu transferencia va para cada mensualidad, o toca <strong>«{payAllLabel}»</strong> y lo llenamos por ti. Deja en blanco las que no pagas hoy.</>}</p>
+  {payAllMinor > 0 && <div class="portal-copy-row" style="margin:0 0 6px"><button class="portal-button portal-button-secondary" type="button" data-pay-all>{payAllLabel} · {money(payAllMinor)} <span aria-hidden="true">→</span></button></div>}
+  {(showFutureFold ? dueNow : charges).map(charge => <AllocationRow charge={charge} prefix={prefix} cap={capOf(charge)} filled={values[charge.id] ?? 0} today={todayCR} inPayAll={payAllIds.has(charge.id)} />)}
+  {showFutureFold && <details class="portal-future-charges"><summary>Adelantar el próximo mes (opcional) · {money(futureMinor)}</summary>{future.map(charge => <AllocationRow charge={charge} prefix={prefix} cap={capOf(charge)} filled={values[charge.id] ?? 0} today={todayCR} inPayAll={false} />)}</details>}
   {charges.length === 0 && <p class="portal-help">No hay mensualidades pendientes para esta cuenta.</p>}
   <div class="portal-total"><span>Total que pagas con esta transferencia</span><output data-allocation-total aria-live="polite">{money(Object.values(values).reduce((total, value) => total + value, 0))}</output></div>
   <p id={`${prefix}-amount-check`} class="portal-help" data-allocation-status role="status" aria-live="polite" hidden></p>
@@ -31,6 +41,37 @@ const { charges, values = {}, legend = '¿Qué mensualidades pagas con esta tran
     const submitters = Array.from(form?.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button[type="submit"], input[type="submit"]') ?? []);
     const initiallyDisabled = submitters.map(button => button.disabled);
     let interacted = inputs.some(input => input.value !== '');
+    // Inline error for the transfer-amount field itself (it lives outside
+    // this fieldset): created once, announced where the mistake is.
+    let amountError: HTMLElement | null = null;
+    if (transfer && form) {
+      amountError = form.querySelector<HTMLElement>('[data-amount-error]');
+      if (!amountError) {
+        amountError = document.createElement('p');
+        amountError.className = 'portal-help portal-field-error'; amountError.dataset.amountError = '';
+        amountError.setAttribute('role', 'alert'); amountError.hidden = true;
+        (transfer.closest('.portal-field') ?? transfer.parentElement)?.appendChild(amountError);
+      }
+      amountError.id = amountError.id || `${group.dataset.prefix || 'allocation'}-amount-error`;
+      amountError.classList.add('portal-field-error');
+      const described = new Set((transfer.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean));
+      described.add(amountError.id);
+      transfer.setAttribute('aria-describedby', [...described].join(' '));
+    }
+    const plain = (minor: number) => minor % 100 === 0 ? String(minor / 100) : (minor / 100).toFixed(2);
+    // One tap covers what is due now. Next month stays as the person left it,
+    // and the transfer amount follows the new total while it is still automatic.
+    const fillAll = () => {
+      const targets = inputs.filter(input => input.dataset.payAllTarget === '1');
+      const chosen = targets.length > 0 ? targets : inputs;
+      let filled = 0;
+      chosen.forEach(input => { const cap = Number(input.dataset.maxMinor ?? 0); if (cap > 0) { input.value = plain(cap); filled += cap; } });
+      if (transfer && filled > 0) transfer.dataset.autoAmount = '1';
+      interacted = true;
+      (form ?? group).dispatchEvent(new Event('input', { bubbles: true }));
+      transfer?.focus();
+    };
+    group.querySelector<HTMLButtonElement>('[data-pay-all]')?.addEventListener('click', fillAll);
     group.querySelectorAll<HTMLButtonElement>('[data-quick-fill]').forEach(button => {
       button.addEventListener('click', () => {
         const target = group.querySelector<HTMLInputElement>(`#${CSS.escape(button.dataset.quickFill ?? '')}`);
@@ -59,6 +100,18 @@ const { charges, values = {}, legend = '¿Qué mensualidades pagas con esta tran
       valid = valid && summary.kind !== 'invalid';
       const total = summary.totalMinor;
       if (output) output.value = valid ? formatMinor(total) : 'Revisa los montos';
+      // Mirror: until the person types the amount themselves, the transfer
+      // amount follows the distributed total so it is never typed twice.
+      if (transfer && total > 0 && summary.kind === 'ready' && (transfer.dataset.autoAmount === '1' || transfer.value === '')) {
+        transfer.value = plain(total); transfer.dataset.autoAmount = '1';
+      }
+      // The amount field reports its own error first; never let an
+      // allocation message mask a malformed transfer amount (B-2).
+      if (transfer && transfer.value !== '' && minorAmount(transfer.value) === null) {
+        transfer.setCustomValidity(moneyHint); transfer.setAttribute('aria-invalid', 'true');
+        if (amountError && (showErrors || interacted)) { amountError.hidden = false; amountError.textContent = `Ese monto no se entiende. ${moneyHint}`; }
+        if (showErrors) { if (status) { status.textContent = `Revisa el monto que transferiste. ${moneyHint}`; status.style.color = 'var(--red)'; status.hidden = false; } return false; }
+      } else if (amountError) { amountError.hidden = true; amountError.textContent = ''; }
       if (!showErrors) {
         // Nothing typed yet: stay quiet instead of opening with a red error.
         inputs.forEach(input => input.setCustomValidity(''));
@@ -85,9 +138,10 @@ const { charges, values = {}, legend = '¿Qué mensualidades pagas con esta tran
       }
       if (status) status.textContent = total === amount
         ? 'El total coincide con tu transferencia. El pago se aplica cuando la Asociación confirme el ingreso en el banco.'
-        : `${formatMinor(amount - total)} quedarán guardados a tu favor para el próximo mes, después de la confirmación en el banco.`;
+        : `Distribuiste ${formatMinor(total)} de ${formatMinor(amount)}. Los ${formatMinor(amount - total)} restantes quedarán a tu favor para el próximo mes, después de la confirmación en el banco.`;
       return true;
     };
+    transfer?.addEventListener('input', () => { delete transfer.dataset.autoAmount; });
     const onInteract = () => { interacted = true; update(); };
     (form ?? group).addEventListener('input', onInteract);
     (form ?? group).addEventListener('change', onInteract);

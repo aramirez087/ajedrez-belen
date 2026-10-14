@@ -7,7 +7,7 @@ const errors: Record<string, string> = {
   invalid_form: 'No pudimos leer el formulario. Vuelve a completarlo y enviarlo; si se repite, escríbenos por WhatsApp.',
   invalid_fields: 'Falta un dato obligatorio o está incompleto. Revisa los campos del formulario y vuelve a enviarlo.',
   invalid_amount: 'Ese monto no se entiende. Escribe solo el número en colones, por ejemplo 27000 o 27.000.',
-  invalid_allocations: 'Revisa cuánto del pago corresponde a cada mensualidad. Puedes usar el botón «Pagar todo» en cada fila.',
+  invalid_allocations: 'Revisa cuánto del pago corresponde a cada mensualidad. Puedes tocar «Pagar todo lo que vence» o escribir el monto de cada una.',
   duplicate_transfer: 'Esa referencia bancaria ya está registrada: este pago ya entró o alguien lo registró antes. Revisa tus pagos antes de enviar otro.',
   overallocated: 'La suma que distribuiste es mayor que el pago o que lo que se debe en alguna mensualidad. Baja algún monto y vuelve a intentarlo.',
   already_verified: 'Este pago ya fue confirmado. Puedes ver su comprobante en tu cuenta.',
@@ -117,13 +117,36 @@ const notices: Record<string, string> = {
 const error = Astro.url.searchParams.get('error');
 const notice = Astro.url.searchParams.get('notice');
 ---
-{error && <div class="portal-notice portal-notice-error" role="alert"><strong><span aria-hidden="true">✗</span> No se pudo completar.</strong><p>{errors[error] ?? errors.invalid}</p><p style="margin-top:9px">¿No logras avanzar? <a class="portal-link" href="https://wa.me/50687686102">Escríbenos por WhatsApp <span aria-hidden="true">↗</span></a> y lo resolvemos contigo.</p></div>}
-{notice && <div class="portal-notice portal-notice-success" role="status"><strong><span aria-hidden="true">✓</span> Listo.</strong><p>{notices[notice] ?? 'La acción se completó.'}</p></div>}
+{error && <div class="portal-notice portal-notice-error" id="portal-notice" tabindex="-1" role="alert"><strong><span aria-hidden="true">✗</span> No se pudo completar.</strong><p>{errors[error] ?? errors.invalid}</p><p style="margin-top:9px">¿No logras avanzar? <a class="portal-link" href="https://wa.me/50687686102">Escríbenos por WhatsApp <span aria-hidden="true">↗</span></a> y lo resolvemos contigo.</p></div>}
+{notice && <div class="portal-notice portal-notice-success" id="portal-notice" tabindex="-1" role="status"><strong><span aria-hidden="true">✓</span> Listo.</strong><p>{notices[notice] ?? 'La acción se completó.'}</p></div>}
 {(error || notice) && <script>
   // The message belongs to the action that just finished; refreshing or
   // sharing this URL must not announce it again as if it were new.
   const clean = new URL(window.location.href);
+  const code = clean.searchParams.get('error');
   clean.searchParams.delete('notice');
   clean.searchParams.delete('error');
   window.history.replaceState(null, '', clean);
+  // Land keyboard and screen-reader users on the outcome. Only link a field
+  // when this error code names one; a required-but-empty control is not proof
+  // that it caused the failure.
+  const box = document.querySelector<HTMLElement>('#portal-notice');
+  const anchors: Record<string, string> = {
+    invalid_amount: '#amount',
+    invalid_allocations: '#allocation-group',
+    overallocated: '#allocation-group',
+    allocation_exceeds_balance: '#allocation-group',
+    allocation_mismatch: '#allocation-group',
+    invalid_allocation: '#allocation-group',
+  };
+  const href = code ? anchors[code] : undefined;
+  const field = href ? document.querySelector(href) : null;
+  if (field && box && href) {
+    const link = document.createElement('a');
+    link.className = 'portal-link';
+    link.href = href;
+    link.textContent = 'Ir al dato que hay que corregir';
+    box.appendChild(link);
+  }
+  box?.focus({ preventScroll: false });
 </script>}

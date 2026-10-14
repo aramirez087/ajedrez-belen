@@ -82,14 +82,16 @@ const adminHref = `/auth/entrar?destino=admin${next ? `&next=${encodeURIComponen
   notice={Astro.url.searchParams.get('notice') === 'admin_ready' ? 'Ya quedaste como administrador. Entra con el mismo correo. La primera vez, la Asociación pide el código de tu aplicación de autenticación.' : undefined}
 >
   <GoogleButton href={googleHref} />
+  <p class="portal-help" style="text-align:center">{destino === 'admin' ? 'Con Google entras al ingreso de la Asociación.' : 'Con Google entras con tu cuenta familiar.'}</p>
   {!invitedEmail && <div class="portal-role-switch portal-auth-switch" role="navigation" aria-label="Tipo de ingreso">
-    <a href={familiaHref} aria-current={destino === 'familia' ? 'page' : undefined}>Familias</a>
-    <a href={adminHref} aria-current={destino === 'admin' ? 'page' : undefined}>Administración</a>
+    <a href={familiaHref} aria-current={destino === 'familia' ? 'page' : undefined}>Soy encargado de un atleta</a>
+    <a href={adminHref} aria-current={destino === 'admin' ? 'page' : undefined}>Soy de la Asociación</a>
   </div>}
+  {!invitedEmail && <p class="portal-help">{destino === 'admin' ? '¿Eres encargado de un atleta? Usa «Soy encargado de un atleta»: con la misma cuenta ves a tu familia.' : '¿También ayudas con la administración? Entra por aquí y cambia a Administración adentro.'}</p>}
   <form class="portal-form" method="post" action={Astro.url.pathname + Astro.url.search}>
     <div class="portal-field">
       <label for="email">Correo electrónico</label>
-      <input id="email" name="email" type="email" autocomplete="username" inputmode="email" spellcheck="false" maxlength="254" value={email} placeholder="tucorreo@ejemplo.com" required />
+      <input id="email" name="email" type="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" value={email} placeholder="tucorreo@ejemplo.com" required />
     </div>
     <PasswordField id="password" name="password" label="Contraseña" autocomplete="current-password" toggle />
     <button class="portal-button portal-button-wide" type="submit">{invitedEmail ? 'Entrar' : 'Iniciar sesión'} <span aria-hidden="true">→</span></button>

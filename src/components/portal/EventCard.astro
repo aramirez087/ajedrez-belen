@@ -30,5 +30,6 @@ const isZoom = /zoom\.us/i.test(event.locationUrl ?? "");
     </p>
     {event.description && <p class="portal-event-desc">{event.description}</p>}
     {showJoin && <p class="portal-event-card-join"><a class="portal-button portal-event-join-button" href={event.locationUrl} target="_blank" rel="noopener noreferrer">{state === "live" ? (isZoom ? "Ya empezó: entrar por Zoom" : "Ya empezó: entrar ahora") : (isZoom ? "Entrar por Zoom" : "Entrar al evento")} <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a></p>}
+    {!admin && !occurrence.cancelled && state !== "past" && <p class="portal-event-card-actions"><a class="portal-link" href={`/api/portal/events/${event.id}/ics?occurrence=${encodeURIComponent(occurrence.startsAt)}`}>Agregar a mi calendario <span aria-hidden="true">↓</span></a></p>}
   </div>
 </article>

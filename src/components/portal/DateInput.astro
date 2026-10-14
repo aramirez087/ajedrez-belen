@@ -1,7 +1,7 @@
 ---
 import { MONTHS_ES } from './format';
-interface Props { id: string; name: string; label: string; value?: string; minYear?: number; maxYear?: number; dataOriginal?: string; }
-const { id, name, label, value = '', minYear, maxYear, dataOriginal } = Astro.props;
+interface Props { id: string; name: string; label: string; value?: string; minYear?: number; maxYear?: number; dataOriginal?: string; quickToday?: boolean; }
+const { id, name, label, value = '', minYear, maxYear, dataOriginal, quickToday = false } = Astro.props;
 const [yearPart, monthPart, dayPart] = (value ?? '').split('-');
 const currentYear = new Date().getFullYear();
 const from = minYear ?? currentYear - 30;
@@ -32,7 +32,8 @@ const groupAttrs = dataOriginal ? { 'data-date-group': name, 'data-original': da
       {years.map(year => <option value={year} selected={selectedYear === year}>{year}</option>)}
     </select>
   </div>
-  <p class="portal-help" data-date-error role="status" hidden style="color:var(--red)"></p>
+  {quickToday && <button class="portal-quick-fill" type="button" data-set-today>Usar la fecha de hoy <span aria-hidden="true">↓</span></button>}
+  <p class="portal-help portal-field-error" data-date-error role="status" hidden></p>
 </div>
 <script>
   document.querySelectorAll<HTMLElement>('.portal-date-row-date').forEach(row => {
@@ -51,6 +52,12 @@ const groupAttrs = dataOriginal ? { 'data-date-group': name, 'data-original': da
       if (error) { error.hidden = !message; error.textContent = message; }
     };
     selects.forEach(select => select.addEventListener('change', check));
+    row.parentElement?.querySelector<HTMLButtonElement>('[data-set-today]')?.addEventListener('click', () => {
+      const [year, month, day] = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Costa_Rica', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).split('-');
+      daySelect.value = String(Number(day)); monthSelect.value = String(Number(month)); yearSelect.value = String(Number(year));
+      selects.forEach(select => select.dispatchEvent(new Event('change', { bubbles: true })));
+      daySelect.focus();
+    });
     check();
   });
 </script>
