@@ -1,28 +1,8 @@
 ---
 import LegalPage from '../components/LegalPage.astro';
+import AppPurpose from '../components/AppPurpose.astro';
 export const prerender = true;
 ---
-<LegalPage title="Ajedrez Belén" heading="Ajedrez Belén." description="Ajedrez Belén es el portal de familias del club de ajedrez de Belén, Heredia. Sirve para consultar mensualidades, registrar pagos y ver eventos. Se lee sin iniciar sesión." updated="14 de octubre de 2026">
-  <p>Ajedrez Belén es la aplicación del club de ajedrez de Belén, Heredia, Costa Rica. Los padres, madres y encargados la usan para inscribir a sus atletas, consultar las mensualidades de las clases, registrar el pago con el comprobante del banco y ver los eventos del club. Esta página explica ese propósito y se lee completa sin una cuenta y sin iniciar sesión.</p>
-  <p>La política de privacidad está en <a href="https://ajedrezbelen.com/politica/">https://ajedrezbelen.com/politica/</a>. Los términos están en <a href="https://ajedrezbelen.com/terminos/">https://ajedrezbelen.com/terminos/</a>.</p>
-
-  <h2>Para qué sirve</h2>
-  <ul>
-    <li>Crear la cuenta del encargado e identificarla.</li>
-    <li>Inscribir a los atletas de la familia y ver su grupo.</li>
-    <li>Consultar las mensualidades de las clases.</li>
-    <li>Registrar una transferencia y adjuntar el comprobante del banco.</li>
-    <li>Recibir el comprobante cuando la Asociación confirma el pago.</li>
-    <li>Ver los eventos del club.</li>
-  </ul>
-  <p>Las clases se pagan por transferencia. La aplicación no cobra con tarjeta ni entra a la cuenta bancaria de la familia: la persona encargada sube el comprobante y la Asociación lo verifica.</p>
-
-  <h2>Qué pedimos a Google, y por qué</h2>
-  <p>El ingreso con Google es opcional. También se puede crear la cuenta con correo y contraseña. Si eliges «Continuar con Google», la aplicación pide solo tu nombre, tu correo verificado y un identificador de esa cuenta, para crear tu cuenta de encargado o reconocerte cuando vuelves, y para enviarte los avisos a ese correo.</p>
-  <p>No pedimos acceso a Gmail, Google Drive, Google Calendar, contactos, fotos ni a ningún otro contenido de tu cuenta de Google. No vemos tu contraseña.</p>
-
-  <h2>What this application does</h2>
-  <p>Ajedrez Belén is the family portal of a chess club in Belén, Heredia, Costa Rica. Parents and guardians use this application to enroll their athletes, view monthly class fees, record a bank transfer by uploading the receipt, receive a receipt after the club confirms the payment, and see club events. This page can be read without logging in and without a Google account.</p>
-  <p>Google sign-in is optional. The only Google user data the application requests is the parent’s name, verified email address, and a stable account identifier. Those data recognize the parent account and receive portal notices. The application does not request Gmail, Google Drive, Google Calendar, contacts, photos, or any other Google user data, and it never sees the Google password.</p>
-  <p>Privacy policy: <a href="https://ajedrezbelen.com/politica/">https://ajedrezbelen.com/politica/</a></p>
+<LegalPage title="Ajedrez Belén" heading="Ajedrez Belén" description="Ajedrez Belén es la aplicación de la Asociación Ajedrez Belén. Las familias inscriben atletas, consultan mensualidades, registran transferencias y ven los eventos del club." updated="14 de octubre de 2026">
+  <AppPurpose />
 </LegalPage>
