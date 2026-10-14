@@ -90,6 +90,18 @@ tr[data-reveal] { transform: none; }
 .nav-contact svg { width: 15px; flex-shrink: 0; }
 .nav-contact:hover { color: var(--paper); background: var(--ink); }
 
+/* Always visible. The OAuth review reads the page without running animations. */
+.app-purpose { border-bottom: 1px solid var(--line); background: var(--paper-deep); }
+.app-purpose-inner { padding-block: 18px 20px; }
+.app-purpose-kicker { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; color: var(--red); font-family: var(--display); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.app-purpose-kicker .checker-mark { width: 12px; height: 12px; }
+.app-purpose p { max-width: 78ch; color: var(--ink-soft); font-size: 15px; line-height: 1.6; }
+.app-purpose p + p { margin-top: 10px; }
+.app-purpose strong { color: var(--ink); }
+.app-purpose-en { color: var(--muted); font-size: 13.5px; }
+.app-purpose-links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 12px; font-size: 14px; }
+.app-purpose-links a { color: var(--red); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+
 /* Hero */
 .hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 0 40px; padding-top: clamp(36px, 5vh, 64px); }
 .hero-copy { position: relative; z-index: 2; min-width: 0; padding-bottom: 40px; align-self: center; }
