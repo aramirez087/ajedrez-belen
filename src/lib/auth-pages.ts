@@ -6,8 +6,9 @@ import type { AuthOutcome } from './auth-actions';
 import {
   GOOGLE_OAUTH_COOKIE, GOOGLE_OAUTH_MAX_AGE_SECONDS, PENDING_AUTH_COOKIE, PENDING_AUTH_MAX_AGE_SECONDS,
   afterLoginPath, decodeGoogleOAuthFlow, decodePendingAuth, encodeGoogleOAuthFlow, encodePendingAuth,
-  type AuthDestino, type GoogleOAuthFlow, type PendingAuth,
+  type GoogleOAuthFlow, type PendingAuth,
 } from './auth-flow';
+import { sessionGrantsAdmin } from './portal/access';
 
 import { getAdminInvitationPreview } from './portal/admin-access';
 import { getInvitationPreview, type InvitationPreview } from './portal/domain';
@@ -84,7 +85,7 @@ export function clearGoogleOAuthFlow(cookies: Cookies): void {
 export async function applyAuthOutcome(
   context: Pick<APIContext, 'cookies' | 'url' | 'redirect'>,
   outcome: AuthOutcome,
-  flow: { destino: AuthDestino; next: string | null },
+  flow: { next: string | null },
 ): Promise<{ response: Response } | { error: string }> {
   if (outcome.kind === 'error') return { error: outcome.message };
   if (outcome.kind === 'pending') {
@@ -96,10 +97,12 @@ export async function applyAuthOutcome(
   if (!service) return { error: 'El acceso no está disponible en este momento. Vuelve a intentarlo más tarde.' };
   clearPendingAuth(context.cookies);
   await service.saveSession(context.cookies, outcome.sealedSession);
+  const isAdmin = await sessionGrantsAdmin(env, outcome.userId, outcome.organizationId);
   const destination = afterLoginPath(
-    flow.destino, flow.next,
+    flow.next,
     context.cookies.has('pending-invitation'),
     context.cookies.has(ADMIN_INVITATION_COOKIE),
+    isAdmin,
   );
   return { response: context.redirect(destination, 303) };
 }

@@ -12,5 +12,5 @@ export const GET: APIRoute = async context => {
     return stagingSignIn(context, env, service);
   }
   if (env.PORTAL_ENABLED !== 'true') return new Response('Not found', {status:404});
-  return context.redirect('/auth/entrar?destino=admin', 302);
+  return context.redirect('/auth/entrar', 302);
 };

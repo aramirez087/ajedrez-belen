@@ -28,7 +28,7 @@ if (preview?.status === 'ready' && emailMatches && tokenHash) {
     if (outcome === 'refresh') {
       const service = getAuthService(env);
       if (service) await service.clearSession(Astro.cookies);
-      return Astro.redirect('/auth/entrar?destino=admin&notice=admin_ready', 302);
+      return Astro.redirect('/auth/entrar?notice=admin_ready', 302);
     }
     return Astro.redirect('/admin?notice=admin_joined', 302);
   } catch {
@@ -42,7 +42,7 @@ if (preview?.status === 'used' && emailMatches) {
   if (actor.isAdmin) return Astro.redirect('/admin?notice=admin_joined', 302);
   const service = getAuthService(env);
   if (service) await service.clearSession(Astro.cookies);
-  return Astro.redirect('/auth/entrar?destino=admin&notice=admin_ready', 302);
+  return Astro.redirect('/auth/entrar?notice=admin_ready', 302);
 }
 if (preview && preview.status !== 'ready') Astro.cookies.delete(ADMIN_INVITATION_COOKIE, { path: '/' });
 const whatsapp = 'https://wa.me/50687686102';

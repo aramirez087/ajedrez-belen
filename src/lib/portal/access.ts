@@ -12,6 +12,28 @@ declare global {
   namespace App { interface Locals { portalActor?: Actor } }
 }
 
+/**
+ * Whether this session may open administration. The staff organization has
+ * to be on the session (that is what carries its MFA). The allowlist or an
+ * active portal grant then decides. A failed grant read stays false.
+ */
+export function sessionOrganizationId(auth: App.Locals['auth']): string | undefined {
+  return auth?.user ? auth.organizationId : undefined;
+}
+
+export async function sessionGrantsAdmin(
+  env: Cloudflare.Env,
+  userId: string,
+  organizationId: string | null | undefined,
+): Promise<boolean> {
+  const staffOrg = env.WORKOS_ORGANIZATION_ID?.trim();
+  if (!staffOrg || organizationId !== staffOrg || !userId) return false;
+  const allowlist = new Set(env.ADMIN_USER_IDS?.split(',').map((value) => value.trim()).filter(Boolean) ?? []);
+  if (allowlist.has(userId)) return true;
+  if (!env.DB) return false;
+  try { return await hasActiveAdminGrant(env.DB, userId); } catch { return false; }
+}
+
 export function getPortalIdentity(context: Pick<APIContext,'locals'>, env: Cloudflare.Env): Actor | null {
   if (!getAuthConfigurationStatus(env).configured) return null;
   const auth = context.locals.auth;

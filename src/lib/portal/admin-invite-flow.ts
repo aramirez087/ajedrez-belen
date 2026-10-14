@@ -18,5 +18,5 @@ export async function settleAdminInvite(
   if (outcome === 'ready') return successRedirect('/admin', 'admin_joined');
   const service = getAuthService(env);
   if (service) await service.clearSession(context.cookies);
-  return successRedirect('/auth/entrar?destino=admin', 'admin_ready');
+  return successRedirect('/auth/entrar', 'admin_ready');
 }

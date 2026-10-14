@@ -5,23 +5,25 @@ import PasswordField from '../../components/portal/PasswordField.astro';
 import GoogleButton from '../../components/portal/GoogleButton.astro';
 import { authUnavailableResponse } from '../../lib/auth';
 import { registerWithPassword } from '../../lib/auth-actions';
-import { afterLoginPath, clientMeta, parseDestino, validAuthEmail } from '../../lib/auth-flow';
+import { afterLoginPath, clientMeta, validAuthEmail } from '../../lib/auth-flow';
 import { applyAuthOutcome, pendingInvitationEmail, workosClient } from '../../lib/auth-pages';
-import { getPortalIdentity } from '../../lib/portal/access';
+import { getPortalIdentity, sessionGrantsAdmin, sessionOrganizationId } from '../../lib/portal/access';
 import { safePortalReturnPath, splitFullName } from '../../lib/portal/invitation-entry';
 import { portalResponse, readPortalForm } from '../../lib/portal/http';
 export const prerender = false;
 if (env.PORTAL_ENABLED !== 'true') return portalResponse('No encontrado.', 404);
 
-const destino = parseDestino(Astro.url.searchParams.get('destino'));
 const next = safePortalReturnPath(Astro.url.searchParams.get('next'));
 const hasInvitation = Astro.cookies.has('pending-invitation');
 const identity = getPortalIdentity(Astro, env);
 const hasAdminInvitation = Astro.cookies.has('pending-admin-invitation');
-if (identity) return Astro.redirect(afterLoginPath(destino, next, hasInvitation, hasAdminInvitation), 302);
+if (identity) {
+  const isAdmin = await sessionGrantsAdmin(env, identity.id, sessionOrganizationId(Astro.locals.auth));
+  return Astro.redirect(afterLoginPath(next, hasInvitation, hasAdminInvitation, isAdmin), 302);
+}
 
 // From an invitation link the correo is already known: prefilled, not typed.
-const invitedEmail = destino === 'familia' ? await pendingInvitationEmail(Astro.cookies) : null;
+const invitedEmail = await pendingInvitationEmail(Astro.cookies);
 
 let error = '';
 let fullName = '';
@@ -48,9 +50,9 @@ if (Astro.request.method === 'POST') {
       error = 'La contraseña es demasiado larga. Usa una de menos de 256 caracteres.';
     } else {
       const outcome = await registerWithPassword(auth.client, env, {
-        firstName: names.firstName, lastName: names.lastName, email, password, destino, next, meta: clientMeta(Astro.request),
+        firstName: names.firstName, lastName: names.lastName, email, password, destino: 'familia', next, meta: clientMeta(Astro.request),
       });
-      const applied = await applyAuthOutcome(Astro, outcome, { destino, next });
+      const applied = await applyAuthOutcome(Astro, outcome, { next });
       if ('response' in applied) return applied.response;
       error = applied.error;
     }
@@ -58,8 +60,8 @@ if (Astro.request.method === 'POST') {
     error = 'No pudimos leer el formulario. Vuelve a intentarlo.';
   }
 }
-const googleHref = `/auth/google?destino=${destino}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
-const entrarHref = `/auth/entrar?destino=${destino}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
+const googleHref = `/auth/google${next ? `?next=${encodeURIComponent(next)}` : ''}`;
+const entrarHref = `/auth/entrar${next ? `?next=${encodeURIComponent(next)}` : ''}`;
 ---
 <AuthShell
   title="Crear tu cuenta"

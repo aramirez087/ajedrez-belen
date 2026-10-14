@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   afterLoginPath, decodeGoogleOAuthFlow, decodePendingAuth, encodeGoogleOAuthFlow, encodePendingAuth,
-  parseWorkosAuthError, spanishAuthError, type GoogleOAuthFlow, type PendingAuth,
+  parseWorkosAuthError, spanishAuthError, staffOrganizationChoice, type GoogleOAuthFlow, type PendingAuth,
 } from '../src/lib/auth-flow.ts';
 
 const pending: PendingAuth = {
@@ -66,16 +66,31 @@ test('google oauth flow survives its signed round trip and rejects tampering', a
   assert.equal(unsafe?.next, null);
 });
 
-test('after login: invitation wins, admin is fixed, external paths fall back', () => {
-  assert.equal(afterLoginPath('familia', '/portal/pagos/nuevo', true), '/portal/invitacion');
-  assert.equal(afterLoginPath('familia', '/portal/pagos/nuevo', false), '/portal/pagos/nuevo');
-  assert.equal(afterLoginPath('familia', 'https://evil.example/portal', false), '/portal');
-  assert.equal(afterLoginPath('familia', '/portal/acceso', false), '/portal');
-  assert.equal(afterLoginPath('familia', null, false), '/portal');
-  assert.equal(afterLoginPath('admin', '/portal/pagos/nuevo', true), '/admin');
-  assert.equal(afterLoginPath('admin', null, false), '/admin');
-  assert.equal(afterLoginPath('admin', null, false, true), '/portal/admin-invitacion');
-  assert.equal(afterLoginPath('familia', '/portal/pagos/nuevo', true, true), '/portal/admin-invitacion');
+test('after login: invitation wins, an admin session opens administration, external paths fall back', () => {
+  assert.equal(afterLoginPath('/portal/pagos/nuevo', true), '/portal/invitacion');
+  assert.equal(afterLoginPath('/portal/pagos/nuevo', false), '/portal/pagos/nuevo');
+  assert.equal(afterLoginPath('https://evil.example/portal', false), '/portal');
+  assert.equal(afterLoginPath('/portal/acceso', false), '/portal');
+  assert.equal(afterLoginPath(null, false), '/portal');
+  assert.equal(afterLoginPath('/portal/pagos/nuevo', true, false, true), '/admin');
+  assert.equal(afterLoginPath(null, false, false, true), '/admin');
+  assert.equal(afterLoginPath(null, false, true, true), '/portal/admin-invitacion');
+  assert.equal(afterLoginPath('/portal/pagos/nuevo', true, true), '/portal/admin-invitacion');
+});
+
+test('staff organization is chosen only when the sign-in may enter it', () => {
+  const orgs = [{ id: 'org_other' }, { id: 'org_staff' }];
+  assert.equal(staffOrganizationChoice(orgs, 'org_staff'), 'org_staff');
+  assert.equal(staffOrganizationChoice(orgs, ' org_staff '), 'org_staff');
+  assert.equal(staffOrganizationChoice(orgs, 'org_missing'), null);
+  assert.equal(staffOrganizationChoice(undefined, 'org_staff'), null);
+  assert.equal(staffOrganizationChoice(orgs, ''), null);
+});
+
+test('a held admin session keeps the staff organization through the pending cookie', async () => {
+  const held = { ...pending, kind: 'mfa_totp' as const, challengeId: 'auth_challenge_fixture', organizationId: 'org_stafffixture' };
+  assert.equal((await decodePendingAuth(await encodePendingAuth(held, SECRET), SECRET))?.organizationId, 'org_stafffixture');
+  assert.equal(await decodePendingAuth(await encodePendingAuth({ ...held, organizationId: 'not-an-org' }, SECRET), SECRET), null);
 });
 
 test('provider authentication errors expose only the documented step fields', () => {

@@ -4,8 +4,9 @@ import PortalLayout from '../../layouts/PortalLayout.astro';
 import PageHeader from '../../components/portal/PageHeader.astro';
 import { allowPortalDemo } from '../../lib/portal/demo-policy';
 import { portalResponse } from '../../lib/portal/http';
-import { getPortalIdentity } from '../../lib/portal/access';
-import { ADMIN_INVITATION_COOKIE, ADMIN_INVITATION_PATH, safePortalReturnPath } from '../../lib/portal/invitation-entry';
+import { afterLoginPath } from '../../lib/auth-flow';
+import { getPortalIdentity, sessionGrantsAdmin, sessionOrganizationId } from '../../lib/portal/access';
+import { ADMIN_INVITATION_COOKIE, safePortalReturnPath } from '../../lib/portal/invitation-entry';
 export const prerender = false;
 if (env.PORTAL_ENABLED !== 'true') return portalResponse('No encontrado.', 404);
 const demo = allowPortalDemo(Astro.url, import.meta.env.DEV, env);
@@ -14,7 +15,10 @@ const pendingAdminInvitation = Astro.cookies.has(ADMIN_INVITATION_COOKIE);
 const next = safePortalReturnPath(Astro.url.searchParams.get('next'));
 // Already signed in? This page has nothing for you: go where you were headed.
 const identity = getPortalIdentity(Astro, env);
-if (identity) return portalResponse(null, 302, { Location: pendingAdminInvitation ? ADMIN_INVITATION_PATH : pendingInvitation ? '/portal/invitacion' : (next ?? '/portal') });
+if (identity) {
+  const isAdmin = await sessionGrantsAdmin(env, identity.id, sessionOrganizationId(Astro.locals.auth));
+  return portalResponse(null, 302, { Location: afterLoginPath(next, pendingInvitation, pendingAdminInvitation, isAdmin) });
+}
 // Coming from an invitation link? Straight to the one sign-in form — it
 // already shows your correo. No steps to read first.
 if ((pendingInvitation || pendingAdminInvitation) && !Astro.url.searchParams.has('error') && !Astro.url.searchParams.has('notice')) {
@@ -25,11 +29,9 @@ const whatsapp = 'https://wa.me/50687686102';
 ---
 <PortalLayout title="Acceso al portal" hideNav>
   <PageHeader title="Tu cuenta, al día." eyebrow="Portal de pagos" description="Mensualidades, pagos y comprobantes de tus atletas, en un solo lugar." />
-  <div class="portal-two-columns">
-    <section class="portal-panel"><div class="portal-guidance portal-guidance-strong"><h2>Para las familias</h2><p>Entra con tu correo y listo. Si te enviaron un enlace de invitación, tócalo en este mismo teléfono y entras directo.</p>
-      <a class="portal-button" href={parentHref} style="margin-top:20px">Iniciar sesión <span aria-hidden="true">→</span></a>
-      <p><a class="portal-link" href={whatsapp}>¿No tienes enlace? Pídelo por WhatsApp <span aria-hidden="true">↗</span></a></p>
-    </div></section>
-    <section class="portal-panel"><h2>Administración</h2><p class="portal-section-caption">Ingreso reservado para el personal autorizado de la Asociación.</p><a class="portal-link" href="/auth/entrar?destino=admin">Ingresar como administración <span aria-hidden="true">↗</span></a>{demo && <><hr class="portal-divider" /><p class="portal-help">La demostración usa datos ficticios y está disponible en este equipo.</p><a class="portal-link" href="/demo">Abrir demostración <span aria-hidden="true">↗</span></a></>}</section>
-  </div>
+  <section class="portal-panel"><div class="portal-guidance portal-guidance-strong"><h2>Inicia sesión</h2><p>Entra con tu correo y listo. Si tu cuenta es de la Asociación, este mismo ingreso abre la administración. Si te enviaron un enlace de invitación, tócalo en este mismo teléfono y entras directo.</p>
+    <a class="portal-button" href={parentHref} style="margin-top:20px">Iniciar sesión <span aria-hidden="true">→</span></a>
+    <p><a class="portal-link" href={whatsapp}>¿No tienes enlace? Pídelo por WhatsApp <span aria-hidden="true">↗</span></a></p>
+    {demo && <><hr class="portal-divider" /><p class="portal-help">La demostración usa datos ficticios y está disponible en este equipo.</p><a class="portal-link" href="/demo">Abrir demostración <span aria-hidden="true">↗</span></a></>}
+  </div></section>
 </PortalLayout>

@@ -31,7 +31,7 @@ export const GET: APIRoute = async (context) => {
       destino: googleFlow.destino, next: googleFlow.next, email: '',
       meta: clientMeta(context.request),
     });
-    const applied = await applyAuthOutcome(context, outcome, { destino: googleFlow.destino, next: googleFlow.next });
+    const applied = await applyAuthOutcome(context, outcome, { next: googleFlow.next });
     if ('response' in applied) return applied.response;
     return context.redirect('/auth/entrar?error=login_failed', 302);
   }

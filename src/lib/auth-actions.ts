@@ -1,9 +1,10 @@
 import type { WorkOS } from '@workos-inc/node';
 import type { AuthEnvironment } from './auth';
 import {
-  parseWorkosAuthError, spanishAuthError,
+  parseWorkosAuthError, spanishAuthError, staffOrganizationChoice,
   type AuthDestino, type AuthErrorContext, type PendingAuth,
 } from './auth-flow';
+import { hasActiveAdminGrant } from './portal/admin-access';
 
 /**
  * Server-side WorkOS calls behind the app's own Spanish sign-in pages.
@@ -13,7 +14,7 @@ import {
  */
 
 export type AuthOutcome =
-  | { kind: 'session'; sealedSession: string }
+  | { kind: 'session'; sealedSession: string; userId: string; organizationId: string | null }
   | { kind: 'pending'; pending: PendingAuth }
   | { kind: 'error'; message: string };
 
@@ -21,6 +22,15 @@ interface FlowContext {
   destino: AuthDestino;
   next: string | null;
   email: string;
+}
+
+type PortalAuthEnvironment = AuthEnvironment & { DB?: D1Database };
+
+interface AuthenticatedUser {
+  sealedSession?: string;
+  refreshToken: string;
+  organizationId?: string;
+  user: { id: string; locale: string | null };
 }
 
 function sessionOptions(environment: AuthEnvironment, meta: { ipAddress?: string; userAgent?: string }) {
@@ -33,9 +43,10 @@ function sessionOptions(environment: AuthEnvironment, meta: { ipAddress?: string
 
 async function sessionOutcome(
   client: WorkOS,
-  result: { sealedSession?: string; user: { id: string; locale: string | null } },
+  result: { sealedSession?: string; organizationId?: string; user: { id: string; locale: string | null } },
   flow: FlowContext,
   mfaAlreadyVerified = false,
+  staffOrganizationId?: string,
 ): Promise<AuthOutcome> {
   if (!result.sealedSession) return { kind: 'error', message: spanishAuthError(null, 'generic') };
   // Keep every future WorkOS email (verification, invitations) in Spanish,
@@ -46,6 +57,9 @@ async function sessionOutcome(
   // Hosted AuthKit always challenged a TOTP-enrolled person; the API only
   // does so when the environment/organization requires MFA. Hold the sealed
   // session back until one code passes so this UI never weakens that.
+  // A staff session with no authenticator at all does not open: attaching
+  // the organization by refresh does not replace that enrollment.
+  const staffOrg = staffOrganizationId?.trim() ?? '';
   if (!mfaAlreadyVerified) {
     try {
       const factors = await client.multiFactorAuth.listUserAuthFactors({ userId: result.user.id });
@@ -56,11 +70,85 @@ async function sessionOutcome(
           kind: 'mfa_totp', token: 'app-mfa-step', challengeId: challenge.id,
           sealedSession: result.sealedSession, userId: result.user.id,
           email: flow.email, destino: flow.destino, next: flow.next,
+          ...(result.organizationId ? { organizationId: result.organizationId } : {}),
         } };
+      }
+      if (staffOrg && result.organizationId === staffOrg) {
+        return { kind: 'error', message: 'Tu cuenta necesita configurar la verificación en dos pasos antes de entrar. Escríbenos por WhatsApp y te ayudamos a activarla.' };
       }
     } catch { /* WorkOS enforcement still applies; never lock everyone out on a lookup failure. */ }
   }
-  return { kind: 'session', sealedSession: result.sealedSession };
+  return {
+    kind: 'session', sealedSession: result.sealedSession,
+    userId: result.user.id, organizationId: result.organizationId ?? null,
+  };
+}
+
+/**
+ * A staff member who signed in without an organization still needs that
+ * organization's session, because administration and its MFA live there.
+ * Everyone else keeps the user session. A directory or refresh failure
+ * keeps the user session too, so a family is never locked out of the portal.
+ */
+async function withStaffOrganization(
+  client: WorkOS,
+  environment: PortalAuthEnvironment,
+  result: AuthenticatedUser,
+  meta: { ipAddress?: string; userAgent?: string },
+): Promise<AuthenticatedUser> {
+  const associationId = environment.WORKOS_ORGANIZATION_ID?.trim() ?? '';
+  if (!associationId || result.organizationId === associationId) return result;
+  const allowlist = new Set(environment.ADMIN_USER_IDS?.split(',').map((id) => id.trim()).filter(Boolean) ?? []);
+  let candidate = allowlist.has(result.user.id);
+  if (!candidate && environment.DB) {
+    try { candidate = await hasActiveAdminGrant(environment.DB, result.user.id); } catch { candidate = false; }
+  }
+  if (!candidate) return result;
+  try {
+    const listed = await client.userManagement.listOrganizationMemberships({
+      organizationId: associationId, userId: result.user.id, statuses: ['active'], limit: 1,
+    });
+    if (listed.data.length === 0) return result;
+    return await client.userManagement.authenticateWithRefreshToken({
+      refreshToken: result.refreshToken, organizationId: associationId,
+      ...sessionOptions(environment, meta),
+    });
+  } catch (error) {
+    const parsed = parseWorkosAuthError(error);
+    // MFA and other real authentication steps must surface. A directory
+    // miss or a refresh the session cannot complete leaves the family session.
+    if (parsed.code) throw error;
+    return result;
+  }
+}
+
+async function finishAuthentication(
+  client: WorkOS,
+  environment: PortalAuthEnvironment,
+  result: AuthenticatedUser,
+  flow: FlowContext,
+  meta: { ipAddress?: string; userAgent?: string },
+  mfaAlreadyVerified = false,
+): Promise<AuthOutcome> {
+  try {
+    const bound = await withStaffOrganization(client, environment, result, meta);
+    return sessionOutcome(client, bound, flow, mfaAlreadyVerified, environment.WORKOS_ORGANIZATION_ID);
+  } catch (error) {
+    return pendingOutcome(client, error, flow, 'generic');
+  }
+}
+
+/** When WorkOS asks which organization, continue straight into the staff one. */
+async function continueStaffOrganization(
+  client: WorkOS,
+  environment: AuthEnvironment,
+  outcome: AuthOutcome,
+  meta: { ipAddress?: string; userAgent?: string },
+): Promise<AuthOutcome> {
+  if (outcome.kind !== 'pending' || outcome.pending.kind !== 'organization') return outcome;
+  const associationId = staffOrganizationChoice(outcome.pending.organizations, environment.WORKOS_ORGANIZATION_ID);
+  if (!associationId) return outcome;
+  return selectOrganization(client, environment, outcome.pending, associationId, meta);
 }
 
 /** Translate a thrown provider outcome into the next Spanish step. */
@@ -112,7 +200,7 @@ async function pendingOutcome(client: WorkOS, error: unknown, flow: FlowContext,
 }
 
 export async function signInWithPassword(
-  client: WorkOS, environment: AuthEnvironment,
+  client: WorkOS, environment: PortalAuthEnvironment,
   input: { email: string; password: string } & FlowContext & { meta: { ipAddress?: string; userAgent?: string } },
 ): Promise<AuthOutcome> {
   try {
@@ -120,33 +208,30 @@ export async function signInWithPassword(
       email: input.email, password: input.password,
       ...sessionOptions(environment, input.meta),
     });
-    return sessionOutcome(client, result, input);
+    return finishAuthentication(client, environment, result, input, input.meta);
   } catch (error) {
-    // Administration may be able to skip the organization chooser at once.
     const outcome = await pendingOutcome(client, error, input, 'password');
-    if (outcome.kind === 'pending' && outcome.pending.kind === 'organization' && input.destino === 'admin') {
-      const associationId = environment.WORKOS_ORGANIZATION_ID!.trim();
-      if (outcome.pending.organizations?.some(org => org.id === associationId)) {
-        return selectOrganization(client, environment, outcome.pending, associationId, input.meta);
-      }
-    }
-    return outcome;
+    return continueStaffOrganization(client, environment, outcome, input.meta);
   }
 }
 
 export async function completeWithCode(
-  client: WorkOS, environment: AuthEnvironment,
+  client: WorkOS, environment: PortalAuthEnvironment,
   pending: PendingAuth, code: string, meta: { ipAddress?: string; userAgent?: string },
 ): Promise<AuthOutcome> {
   const flow: FlowContext = { destino: pending.destino, next: pending.next, email: pending.email };
   // App-level TOTP step: the sealed session is only released by a valid code.
+  // The staff organization, when one was bound, was stored with that session.
   if (pending.sealedSession) {
     try {
       const verified = await client.multiFactorAuth.verifyChallenge({
         authenticationChallengeId: pending.challengeId!, code,
       });
       if (!verified.valid) return { kind: 'error', message: spanishAuthError(null, 'code') };
-      return { kind: 'session', sealedSession: pending.sealedSession };
+      return {
+        kind: 'session', sealedSession: pending.sealedSession,
+        userId: pending.userId ?? '', organizationId: pending.organizationId ?? null,
+      };
     } catch (error) {
       return { kind: 'error', message: spanishAuthError(error, 'code') };
     }
@@ -158,9 +243,10 @@ export async function completeWithCode(
       : pending.kind === 'radar_email'
         ? await client.userManagement.authenticateWithRadarEmailChallenge({ code, radarChallengeId: pending.challengeId!, pendingAuthenticationToken: pending.token, ...options })
         : await client.userManagement.authenticateWithTotp({ code, authenticationChallengeId: pending.challengeId!, pendingAuthenticationToken: pending.token, ...options });
-    return sessionOutcome(client, result, flow, pending.kind === 'mfa_totp');
+    return finishAuthentication(client, environment, result, flow, meta, pending.kind === 'mfa_totp');
   } catch (error) {
-    return pendingOutcome(client, error, flow, 'code');
+    const outcome = await pendingOutcome(client, error, flow, 'code');
+    return continueStaffOrganization(client, environment, outcome, meta);
   }
 }
 
@@ -170,7 +256,7 @@ export async function completeWithCode(
  * checks, locale pinning and session handling stay identical.
  */
 export async function signInWithGoogleCode(
-  client: WorkOS, environment: AuthEnvironment,
+  client: WorkOS, environment: PortalAuthEnvironment,
   input: { code: string; codeVerifier: string } & FlowContext & { meta: { ipAddress?: string; userAgent?: string } },
 ): Promise<AuthOutcome> {
   try {
@@ -178,14 +264,15 @@ export async function signInWithGoogleCode(
       code: input.code, codeVerifier: input.codeVerifier,
       ...sessionOptions(environment, input.meta),
     });
-    return sessionOutcome(client, result, { ...input, email: result.user.email });
+    return finishAuthentication(client, environment, result, { ...input, email: result.user.email }, input.meta);
   } catch (error) {
-    return pendingOutcome(client, error, input, 'generic');
+    const outcome = await pendingOutcome(client, error, input, 'generic');
+    return continueStaffOrganization(client, environment, outcome, input.meta);
   }
 }
 
 export async function selectOrganization(
-  client: WorkOS, environment: AuthEnvironment,
+  client: WorkOS, environment: PortalAuthEnvironment,
   pending: PendingAuth, organizationId: string, meta: { ipAddress?: string; userAgent?: string },
 ): Promise<AuthOutcome> {
   const flow: FlowContext = { destino: pending.destino, next: pending.next, email: pending.email };
@@ -193,14 +280,14 @@ export async function selectOrganization(
     const result = await client.userManagement.authenticateWithOrganizationSelection({
       organizationId, pendingAuthenticationToken: pending.token, ...sessionOptions(environment, meta),
     });
-    return sessionOutcome(client, result, flow);
+    return finishAuthentication(client, environment, result, flow, meta);
   } catch (error) {
     return pendingOutcome(client, error, flow, 'code');
   }
 }
 
 export async function registerWithPassword(
-  client: WorkOS, environment: AuthEnvironment,
+  client: WorkOS, environment: PortalAuthEnvironment,
   input: { firstName: string; lastName: string; email: string; password: string } & FlowContext & { meta: { ipAddress?: string; userAgent?: string } },
 ): Promise<AuthOutcome> {
   let userId: string;

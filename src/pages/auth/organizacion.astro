@@ -28,7 +28,7 @@ if (Astro.request.method === 'POST') {
       error = 'Elige una de las organizaciones de la lista.';
     } else {
       const outcome = await selectOrganization(auth.client, env, pending, organizationId, clientMeta(Astro.request));
-      const applied = await applyAuthOutcome(Astro, outcome, { destino: pending.destino, next: pending.next });
+      const applied = await applyAuthOutcome(Astro, outcome, { next: pending.next });
       if ('response' in applied) return applied.response;
       error = applied.error;
     }

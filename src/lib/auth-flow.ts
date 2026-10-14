@@ -26,24 +26,36 @@ export interface PendingAuth {
   verificationId?: string;
   /** Sealed session held back until an app-level TOTP step passes. */
   sealedSession?: string;
+  /** Staff organization already bound into the held session, when there is one. */
+  organizationId?: string;
   organizations?: PendingOrganization[];
 }
 
-export function parseDestino(value: string | null | undefined): AuthDestino {
-  return value === 'admin' ? 'admin' : 'familia';
-}
-
-/** Where a completed sign-in lands. An invitation always wins for families. */
+/**
+ * Where a completed sign-in lands. One door for everyone: an admin
+ * invitation wins, then a session that already carries staff access,
+ * then a family invitation, then the page the person was opening.
+ */
 export function afterLoginPath(
-  destino: AuthDestino,
   next: string | null | undefined,
   hasPendingInvitation: boolean,
   hasPendingAdminInvitation = false,
+  isAdmin = false,
 ): string {
   if (hasPendingAdminInvitation) return '/portal/admin-invitacion';
-  if (destino === 'admin') return '/admin';
+  if (isAdmin) return '/admin';
   if (hasPendingInvitation) return '/portal/invitacion';
   return safePortalReturnPath(next) ?? '/portal';
+}
+
+/** The staff organization, when this sign-in is allowed to choose it. */
+export function staffOrganizationChoice(
+  organizations: readonly { id: string }[] | undefined,
+  associationId: string | null | undefined,
+): string | null {
+  const id = associationId?.trim() ?? '';
+  if (!id || !organizations?.some((org) => org.id === id)) return null;
+  return id;
 }
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_\-.]{8,1024}$/;
@@ -113,6 +125,10 @@ export async function decodePendingAuth(raw: string | null | undefined, secret: 
   if (p.userId !== undefined) {
     if (typeof p.userId !== 'string' || !USER_PATTERN.test(p.userId)) return null;
     pending.userId = p.userId;
+  }
+  if (p.organizationId !== undefined) {
+    if (typeof p.organizationId !== 'string' || !ORG_PATTERN.test(p.organizationId)) return null;
+    pending.organizationId = p.organizationId;
   }
   if (p.verificationId !== undefined) {
     if (typeof p.verificationId !== 'string' || !/^email_verification_[A-Za-z0-9]+$/.test(p.verificationId)) return null;

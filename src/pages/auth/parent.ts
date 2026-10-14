@@ -15,6 +15,6 @@ export const GET: APIRoute = async context => {
     return stagingParentSignIn(context, env, service);
   }
   const next = safePortalReturnPath(context.url.searchParams.get('next'));
-  const target = next ? `/auth/entrar?destino=familia&next=${encodeURIComponent(next)}` : '/auth/entrar?destino=familia';
+  const target = next ? `/auth/entrar?next=${encodeURIComponent(next)}` : '/auth/entrar';
   return context.redirect(target, 302);
 };

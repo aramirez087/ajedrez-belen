@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 import { authUnavailableResponse } from '../../lib/auth';
-import { afterLoginPath, parseDestino } from '../../lib/auth-flow';
+import { afterLoginPath } from '../../lib/auth-flow';
 import { pendingInvitationEmail, setGoogleOAuthFlow, workosClient } from '../../lib/auth-pages';
-import { getPortalIdentity } from '../../lib/portal/access';
+import { getPortalIdentity, sessionGrantsAdmin, sessionOrganizationId } from '../../lib/portal/access';
 import { safePortalReturnPath } from '../../lib/portal/invitation-entry';
 import { portalResponse } from '../../lib/portal/http';
 export const prerender = false;
@@ -15,22 +15,25 @@ export const prerender = false;
  */
 export const GET: APIRoute = async (context) => {
   if (env.PORTAL_ENABLED !== 'true') return portalResponse('No encontrado.', 404);
-  const destino = parseDestino(context.url.searchParams.get('destino'));
   const next = safePortalReturnPath(context.url.searchParams.get('next'));
   const identity = getPortalIdentity(context, env);
-  if (identity) return context.redirect(afterLoginPath(destino, next, context.cookies.has('pending-invitation'), context.cookies.has('pending-admin-invitation')), 302);
+  if (identity) {
+    const isAdmin = await sessionGrantsAdmin(env, identity.id, sessionOrganizationId(context.locals.auth));
+    return context.redirect(afterLoginPath(next, context.cookies.has('pending-invitation'), context.cookies.has('pending-admin-invitation'), isAdmin), 302);
+  }
   const auth = workosClient();
   if (!auth) return authUnavailableResponse();
   try {
-    const invitedEmail = destino === 'familia' ? await pendingInvitationEmail(context.cookies) : null;
+    const invitedEmail = await pendingInvitationEmail(context.cookies);
     const { url, state, codeVerifier } = await auth.client.userManagement.getAuthorizationUrlWithPKCE({
       provider: 'GoogleOAuth',
       clientId: env.WORKOS_CLIENT_ID!.trim(),
       redirectUri: env.WORKOS_REDIRECT_URI!.trim(),
-      ...(destino === 'admin' ? { organizationId: env.WORKOS_ORGANIZATION_ID!.trim() } : {}),
       ...(invitedEmail ? { loginHint: invitedEmail } : {}),
     });
-    await setGoogleOAuthFlow(context.cookies, context.url, { state, codeVerifier, destino, next });
+    // The organization is attached after we know the account. Asking for it
+    // here would force every family through the staff organization.
+    await setGoogleOAuthFlow(context.cookies, context.url, { state, codeVerifier, destino: 'familia', next });
     return context.redirect(url, 302);
   } catch {
     return context.redirect('/auth/entrar?error=login_failed', 302);
