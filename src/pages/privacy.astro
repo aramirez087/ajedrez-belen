@@ -1,0 +1,11 @@
+---
+import ReviewPlain from '../components/ReviewPlain.astro';
+import PrivacyPolicy from '../components/PrivacyPolicy.astro';
+export const prerender = true;
+const canonical = 'https://ajedrezbelen.com/privacy/';
+---
+<ReviewPlain title="Privacy policy of Ajedrez Belén" description="Privacy policy of the application Ajedrez Belén: what Google user data it accesses, how it uses, stores, shares, protects, retains, and deletes that data." canonical={canonical}>
+  <h1>Privacy policy of Ajedrez Belén</h1>
+  <p>Updated 14 October 2026.</p>
+  <PrivacyPolicy home="https://ajedrezbelen.com/app/" />
+</ReviewPlain>

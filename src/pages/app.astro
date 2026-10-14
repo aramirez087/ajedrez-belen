@@ -1,0 +1,10 @@
+---
+import ReviewPlain from '../components/ReviewPlain.astro';
+import AppPurpose from '../components/AppPurpose.astro';
+export const prerender = true;
+const canonical = 'https://ajedrezbelen.com/app/';
+---
+<ReviewPlain title="Ajedrez Belén" description="Ajedrez Belén is the application of Asociación Ajedrez Belén. Families enroll athletes, see the monthly class fee, record a bank transfer, and see club events." canonical={canonical}>
+  <h1>Ajedrez Belén</h1>
+  <AppPurpose privacyHref="https://ajedrezbelen.com/privacy/" />
+</ReviewPlain>
