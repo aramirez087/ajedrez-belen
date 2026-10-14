@@ -10,6 +10,11 @@ export function monthLabel(value: string): string {
   if (!/^\d{4}-\d{2}$/.test(value)) return value;
   return new Intl.DateTimeFormat('es-CR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}-01T12:00:00Z`));
 }
+/** Declared transfer reference. Empty means OCR did not read one; the payment can still be registered. */
+export function referenceLabel(value: string | null | undefined): string {
+  const trimmed = value?.trim() ?? '';
+  return trimmed || 'Sin referencia leída';
+}
 export function dateLabel(value: string | null): string {
   if (!value) return 'Sin fecha';
   const parsed = new Date(value.length === 10 ? `${value}T12:00:00Z` : value);

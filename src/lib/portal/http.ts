@@ -45,6 +45,13 @@ export async function readPortalForm(request: Request, upload = false): Promise<
   }
 }
 
+/** Declared transfer reference. Empty is valid: OCR fills it and the registration field is read-only. */
+export function formBankReference(form: FormData): string {
+  const raw = form.get('bankReference');
+  if (typeof raw !== 'string' || !raw.trim()) return '';
+  return formText(form, 'bankReference', 128);
+}
+
 export function formText(form: FormData, key: string, max = 160, optional = false): string {
   const raw = form.get(key);
   const entry = typeof raw==='string' && ['reason','note','auditReason','discountReason'].includes(key)

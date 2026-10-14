@@ -14,7 +14,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
   <div class="portal-slip-preview" data-slip-preview hidden><div class="portal-slip-preview-image" data-slip-image-wrap hidden><button class="portal-slip-preview-button" type="button" data-slip-zoom aria-label="Ampliar imagen seleccionada"><img alt="Vista previa del archivo seleccionado" data-slip-image /><span class="portal-evidence-zoom">Ampliar imagen <span aria-hidden="true">↗</span></span></button></div><div class="portal-slip-preview-info"><span class="portal-private-label"><svg width="12" height="14" viewBox="0 0 12 14" fill="none" aria-hidden="true"><path d="M3 6V4a3 3 0 0 1 6 0v2M1 6h10v7H1z" stroke="currentColor"/></svg>Archivo privado</span><strong data-slip-name></strong><p data-slip-size></p><p class="portal-help" data-slip-preview-note></p></div></div>
   <p id={`${id}-status`} class="portal-slip-status" role="status" aria-live="polite" data-slip-status>El archivo se adjuntará al enviar el formulario.</p>
   <div class="portal-help" data-slip-auth-recovery hidden><a class="portal-link" href="/portal/acceso" target="_blank" rel="noopener noreferrer" data-slip-auth-link>Revisar acceso en otra pestaña <span aria-hidden="true">↗</span></a><p>Mantén esta pestaña abierta. Después de revisar tu acceso, vuelve aquí y reintenta guardar o leer el archivo. No se reintenta automáticamente.</p></div>
-  <div class="portal-ocr-controls" data-ocr-controls hidden><div class="portal-ocr-disclosure"><p class="portal-eyebrow">{mode === 'demo' ? 'Demostración · datos ficticios' : 'Lectura opcional'}</p><p data-ocr-disclosure>{mode === 'demo' ? 'La lectura simulada usa un ejemplo ficticio del sistema. No analiza tu archivo ni envía información a un servicio externo.' : 'Al pulsar Leer datos, se enviará la imagen de tu comprobante a Groq para sugerir los campos del formulario. Puedes completar todo manualmente.'}</p><p class="portal-help" data-ocr-pdf-note hidden>En un PDF se leerá únicamente la primera página convertida a imagen. El PDF original se conserva completo.</p></div><button class="portal-button portal-button-secondary" type="button" disabled data-slip-extract>{mode === 'demo' ? 'Probar lectura simulada' : 'Leer datos'}<span aria-hidden="true">↗</span></button><button class="portal-link portal-text-button" type="button" data-slip-retry hidden>Reintentar guardar archivo</button></div>
+  <div class="portal-ocr-controls" data-ocr-controls hidden><div class="portal-ocr-disclosure"><p class="portal-eyebrow">{mode === 'demo' ? 'Demostración · datos ficticios' : 'Lectura del comprobante'}</p><p data-ocr-disclosure>{mode === 'demo' ? 'Al adjuntar el comprobante, la lectura simulada completa la referencia con un ejemplo ficticio. No analiza tu archivo ni envía información a un servicio externo.' : 'Al adjuntar el comprobante, se envía la imagen a Groq para completar la referencia y sugerir los demás datos. La referencia no se escribe. Si no se lee, el pago se puede enviar igual.'}</p><p class="portal-help" data-ocr-pdf-note hidden>En un PDF se leerá únicamente la primera página convertida a imagen. El PDF original se conserva completo.</p></div><button class="portal-button portal-button-secondary" type="button" disabled data-slip-extract>{mode === 'demo' ? 'Probar lectura simulada' : 'Leer datos'}<span aria-hidden="true">↗</span></button><button class="portal-link portal-text-button" type="button" data-slip-retry hidden>Reintentar guardar archivo</button></div>
   <OcrReview interactive />
   <section class="portal-athlete-suggestions" aria-labelledby={`${id}-athlete-heading`} data-athlete-suggestions hidden>
     <p class="portal-eyebrow" data-athlete-description-label>Detalle detectado</p>
@@ -122,8 +122,9 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
         preview.hidden = true; previewWrap.hidden = true; review.hidden = true; retryButton.hidden = true;
         clearAthleteSuggestions();
         showStatus(emailedType === 'application/pdf'
-          ? 'Usaremos el PDF que enviaste por correo. Completa los datos a mano: la lectura automática solo funciona si adjuntas el PDF en esta página.'
-          : 'Usaremos el archivo que enviaste por correo. Completa los datos del pago abajo.');
+          ? 'Usaremos el PDF que enviaste por correo. La referencia no se puede leer desde un PDF recibido por correo; el pago se puede enviar igual. Completa el monto y la fecha abajo.'
+          : 'Usaremos el archivo que enviaste por correo. La referencia se lee sola; completa el monto y la fecha abajo.');
+        if (emailedType !== 'application/pdf') void readSlipData();
       } else {
         showStatus('El archivo se adjuntará al enviar el formulario.');
       }
@@ -273,6 +274,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
         }
       } else uploader.querySelector<HTMLElement>('[data-slip-dialog-note]')!.textContent = 'Vista previa del original';
       await saveRequest;
+      if (run === generation && !signal.aborted) void readSlipData();
     }
     input.addEventListener('change', () => { void selectFile(); });
     form.addEventListener('submit', () => {
@@ -289,9 +291,14 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
       if (event.dataTransfer?.files.length === 1) { input.files = event.dataTransfer.files; input.dispatchEvent(new Event('change', { bubbles: true })); }
       else showStatus('Adjunta un solo comprobante por pago. El archivo anterior se conserva hasta que elijas uno nuevo.', true);
     });
-    retryButton.addEventListener('click', () => { if (currentFile && controller) void saveFile(currentFile, generation, controller.signal); });
-    readButton.addEventListener('click', async () => {
-      if (!draft.value || !controller || !available || saving || reading) return;
+    retryButton.addEventListener('click', () => {
+      if (!currentFile || !controller) return;
+      const run = generation; const signal = controller.signal;
+      void saveFile(currentFile, run, signal).then(() => { if (run === generation && !signal.aborted) void readSlipData(); });
+    });
+    async function readSlipData() {
+      const pdfWithoutPreview = ((currentFile?.type === 'application/pdf') || emailedType === 'application/pdf') && !renderedPdf;
+      if (!draft.value || !controller || !available || saving || reading || pdfWithoutPreview) return;
       const run = generation; const signal = controller.signal;
       const data = new FormData(); if (renderedPdf) data.set('ocrImage', renderedPdf);
       clearAthleteSuggestions();
@@ -310,7 +317,8 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
           const valueOutput = review.querySelector<HTMLElement>(`[data-ocr-value="${name}"]`)!;
           const stateOutput = review.querySelector<HTMLElement>(`[data-ocr-field-status="${name}"]`)!;
           valueOutput.textContent = value ?? 'Sin detectar';
-          if (!value || (name === 'amount' && suggestions.currency !== 'CRC')) { stateOutput.textContent = 'Completa este dato manualmente'; return; }
+          if (!value || (name === 'amount' && suggestions.currency !== 'CRC')) { stateOutput.textContent = name === 'bankReference' ? 'Sin referencia leída · el pago se puede enviar igual' : 'Completa este dato manualmente'; return; }
+          if (name === 'bankReference' && field) { field.value = value; automatic.add(name); stateOutput.textContent = 'Leída del comprobante'; field.dispatchEvent(new Event('change', { bubbles: true })); return; }
           if (field && !dirty.has(name)) { field.value = value; automatic.add(name); stateOutput.textContent = 'Sugerido en el formulario · revísalo'; field.dispatchEvent(new Event('change', { bubbles: true })); }
           else stateOutput.textContent = 'Conservamos el dato que editaste';
         });
@@ -328,7 +336,8 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
       } finally {
         if (run === generation && !signal.aborted) { reading = false; updateReadButton(); readButton.textContent = mode === 'demo' ? 'Probar lectura simulada ↗' : 'Leer datos ↗'; }
       }
-    });
+    }
+    readButton.addEventListener('click', () => { void readSlipData(); });
     zoom.addEventListener('click', () => { if (!objectUrl || typeof dialog.showModal !== 'function') return; previousOverflow = document.documentElement.style.overflow; document.documentElement.style.overflow = 'hidden'; dialog.showModal(); close.focus(); });
     close.addEventListener('click', () => dialog.close());
     dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });

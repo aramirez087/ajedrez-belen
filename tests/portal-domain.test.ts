@@ -242,6 +242,28 @@ test("an explicit receipt identity is frozen and remains readable after a later 
   assert.deepEqual(voided.snapshot, issued.snapshot);
 });
 
+test("registering a payment does not require a bank reference", async () => {
+  const { db, charges } = await setup();
+  const data = { ...input([{ chargeId: charges[0].id, amountMinor: 100000 }]), bankReference: "   " };
+  const paymentId = await submitPayment(db, parent, data);
+  const registered = await getPaymentDetail(db, parent, paymentId);
+  assert.equal(registered.payment.bankReference, "");
+  assert.equal(registered.revisions[0]?.bankReference, "");
+  await assert.rejects(
+    submitPayment(db, parent, { ...data, submissionId: crypto.randomUUID(), bankReference: "ref\u0001" }),
+    { status: 400, code: "invalid_request" },
+  );
+  const reason = "Sin referencia leída.";
+  await reviewPayment(db, admin, paymentId, {
+    action: "needs_info", reason, expectedRevision: 1, expectedStatus: "pending", expectedReviewNote: null,
+  });
+  await revisePayment(db, parent, paymentId, {
+    ...data, bankReference: "", note: "Sigue sin referencia.", file: undefined,
+    expectedRevision: 1, expectedStatus: "needs_info", expectedReviewNote: reason,
+  });
+  assert.equal((await getPaymentDetail(db, parent, paymentId)).payment.bankReference, "");
+});
+
 test("a blocked confirmation still allows requesting a correction and rejecting the corrected proof", async () => {
   const { db, charges } = await setup();
   const data = input([{ chargeId: charges[0].id, amountMinor: 100000 }]);

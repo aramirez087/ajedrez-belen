@@ -44,6 +44,13 @@ function text(value: unknown, max = 160): string {
     fail("Texto inválido.");
   return (value as string).trim();
 }
+/** Empty is valid. Used for the declared bank reference, which OCR fills and families do not type. */
+function optionalText(value: unknown, max = 160): string {
+  if (value == null || value === "") return "";
+  if (typeof value !== "string" || value.length > max || /[\u0000-\u001f\u007f]/.test(value))
+    fail("Texto inválido.");
+  return value.trim();
+}
 function amount(value: unknown, allowZero = false): number {
   if (
     !Number.isSafeInteger(value) ||
@@ -1422,7 +1429,7 @@ function canonicalSubmission(actor: Actor, input: SubmissionRequest) {
     fail("Distribución inválida.", 400);
   return {
     payerName: text(input.payerName), amountMinor, transferDate: date(input.transferDate),
-    bankReference: text(input.bankReference, 128), allocations,
+    bankReference: optionalText(input.bankReference, 128), allocations,
     designatedAdultId, shareEvidence: staffAssisted ? Boolean(input.shareEvidence) : true,
     auditReason, note: input.note ? text(input.note, 500) : null,
     file: { type: input.file.type, size: input.file.size, sha256: input.file.sha256 },
@@ -1596,7 +1603,7 @@ export async function revisePayment(
   text(input.payerName);
   amount(input.amountMinor);
   date(input.transferDate);
-  text(input.bankReference, 128);
+  const bankReference = optionalText(input.bankReference, 128);
   if (input.file) validateSlip(input.file);
   await validateAllocations(
     db,
@@ -1616,7 +1623,7 @@ export async function revisePayment(
         input.payerName.trim(),
         input.amountMinor,
         input.transferDate,
-        input.bankReference.trim(),
+        bankReference,
         revision,
         now,
         token,

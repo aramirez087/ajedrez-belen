@@ -1,6 +1,6 @@
 ---
 import type { PaymentDetail } from '../../lib/portal/types';
-import { money, dateLabel } from './format';
+import { money, dateLabel, referenceLabel } from './format';
 interface Props { detail: PaymentDetail; admin?: boolean; }
 const { detail, admin = false } = Astro.props;
 const actionLabels: Record<string,string> = {submit:'Pago registrado',revise:'Información actualizada',verify:'Pago confirmado',needs_info:'Información adicional solicitada',reject:'Pago rechazado',void:'Pago anulado',apply_credit:'Saldo a favor aplicado'};
@@ -8,4 +8,4 @@ function eventReason(detail: string): string | null {
   try { const parsed = JSON.parse(detail); const reason = parsed.reason ?? parsed.note; return typeof reason === 'string' && reason.length <= 500 ? reason : null; } catch { return null; }
 }
 ---
-<section class="portal-section"><h2>Historial</h2><ol class="portal-history">{detail.revisions.map((revision,index) => <li><strong>{index === detail.revisions.length - 1 ? 'Registro inicial' : 'Información actualizada'}</strong><time datetime={revision.createdAt}>{dateLabel(revision.createdAt)}</time><p>{revision.payerName} · {money(revision.amountMinor)} · ref. {revision.bankReference}</p>{revision.note && <p>{revision.note}</p>}</li>)}{admin && detail.audit.filter(event=>event.action!=='submit'&&event.action!=='revise').map(event => <li><strong>{actionLabels[event.action] ?? 'Cambio registrado'}</strong><time datetime={event.createdAt}>{dateLabel(event.createdAt)}</time>{eventReason(event.detail) && <p>{eventReason(event.detail)}</p>}</li>)}</ol></section>
+<section class="portal-section"><h2>Historial</h2><ol class="portal-history">{detail.revisions.map((revision,index) => <li><strong>{index === detail.revisions.length - 1 ? 'Registro inicial' : 'Información actualizada'}</strong><time datetime={revision.createdAt}>{dateLabel(revision.createdAt)}</time><p>{revision.payerName} · {money(revision.amountMinor)} · ref. {referenceLabel(revision.bankReference)}</p>{revision.note && <p>{revision.note}</p>}</li>)}{admin && detail.audit.filter(event=>event.action!=='submit'&&event.action!=='revise').map(event => <li><strong>{actionLabels[event.action] ?? 'Cambio registrado'}</strong><time datetime={event.createdAt}>{dateLabel(event.createdAt)}</time>{eventReason(event.detail) && <p>{eventReason(event.detail)}</p>}</li>)}</ol></section>
