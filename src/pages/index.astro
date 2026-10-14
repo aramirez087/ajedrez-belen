@@ -30,6 +30,7 @@ const structuredData = {
 <!doctype html>
 <html lang="es-CR">
   <head>
+    <script is:inline>document.documentElement.classList.add('js')</script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="Ajedrez Belén. Un espacio en Belén, Heredia, para aprender ajedrez, seguir mejorando y compartir cada partida. Clases desde ₡12.000 al mes." />
@@ -60,7 +61,7 @@ const structuredData = {
           <a href="#reto">El reto</a>
           <a href="#niveles">Las clases</a>
           <a class="nav-fees" href="#preguntas">Preguntas</a>
-          <a href="/datos/">Privacidad</a>
+          <a href="https://ajedrezbelen.com/privacy/">Privacidad</a>
         </nav>
         <a href={contactUrl} target="_blank" rel="noopener noreferrer" class="nav-contact">Hablemos <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12" /></svg></a>
       </div>
@@ -222,8 +223,8 @@ const structuredData = {
     <footer class="frame">
       <a class="footer-brand" href="#inicio">Ajedrez Belén<span>El juego sigue.</span></a>
       <p class="footer-note">Belén, Heredia · Hecho entre partidas</p>
-      <p class="footer-app">La aplicación es para las familias del club: consultar las mensualidades, registrar el pago de las clases y ver los eventos. Si conectas Google, solo pedimos tu nombre y tu correo verificado.</p>
-      <div class="footer-links"><a href="https://ajedrezbelen.com/datos/">Política de privacidad</a><a href="/terminos/">Términos</a><a href="/familias/">La aplicación</a><a href="/portal">Portal de pagos</a><a href="https://www.facebook.com/ajedrezbelen" target="_blank" rel="noopener noreferrer">Facebook <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12" /></svg></a><a href="#inicio">Volver arriba <span aria-hidden="true">↑</span></a></div>
+      <p class="footer-app">La aplicación Ajedrez Belén sirve para que las familias inscriban atletas, consulten la mensualidad, registren el pago de las clases y vean los eventos. Si conectas Google, la aplicación pide solo tu nombre y tu correo verificado, para reconocerte y enviarte el comprobante.</p>
+      <div class="footer-links"><a href="https://ajedrezbelen.com/privacy/">Política de privacidad</a><a href="/terminos/">Términos</a><a href="/app/">La aplicación</a><a href="/portal">Portal de pagos</a><a href="https://www.facebook.com/ajedrezbelen" target="_blank" rel="noopener noreferrer">Facebook <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12" /></svg></a><a href="#inicio">Volver arriba <span aria-hidden="true">↑</span></a></div>
     </footer>
     <a class="mobile-cta" data-mobile-cta href={contactUrl} target="_blank" rel="noopener noreferrer"><span>Quiero aprender ajedrez</span><span class="mobile-cta-price">desde ₡12.000/mes →</span></a>
     <script>

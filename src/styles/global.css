@@ -64,11 +64,11 @@ img { max-width: 100%; }
 .section-index-light::after { border-color: var(--dark-line); }
 
 /* Motion */
-[data-hero] { opacity: 0; transform: translateY(22px); }
-.is-loaded [data-hero] { animation: hero-in .9s var(--ease) forwards; animation-delay: calc(var(--hero-step, 0) * 110ms); }
+.js [data-hero] { opacity: 0; transform: translateY(22px); }
+.js.is-loaded [data-hero] { animation: hero-in .9s var(--ease) forwards; animation-delay: calc(var(--hero-step, 0) * 110ms); }
 [data-hero="1"] { --hero-step: 0; } [data-hero="2"] { --hero-step: 1; } [data-hero="3"] { --hero-step: 2; } [data-hero="4"] { --hero-step: 3; } [data-hero="5"] { --hero-step: 4; }
 @keyframes hero-in { to { opacity: 1; transform: none; } }
-[data-reveal] { opacity: 0; transform: translateY(26px); transition: opacity .8s var(--ease), transform .8s var(--ease); }
+.js [data-reveal] { opacity: 0; transform: translateY(26px); transition: opacity .8s var(--ease), transform .8s var(--ease); }
 [data-reveal].is-in { opacity: 1; transform: none; }
 tr[data-reveal] { transform: none; }
 

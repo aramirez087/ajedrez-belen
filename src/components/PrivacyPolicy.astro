@@ -1,79 +1,70 @@
 ---
 interface Props { home?: string }
-const { home = 'https://ajedrezbelen.com/familias/' } = Astro.props;
+const { home = 'https://ajedrezbelen.com/app/' } = Astro.props;
 ---
-<p lang="en">This is the privacy policy of the application Ajedrez Belén, operated by Asociación Ajedrez Belén in Belén, Heredia, Costa Rica. It describes how that application accesses, uses, stores, shares, protects, retains, and deletes Google user data. The home page of the application is <a href={home}>{home}</a>. This page is public.</p>
+<p lang="en">This privacy policy belongs to the application Ajedrez Belén, operated by Asociación Ajedrez Belén, a chess club in Belén, Heredia, Costa Rica. It is not a sample policy. The home page of the application is <a href={home}>{home}</a>. This page is public. If the way Ajedrez Belén uses Google user data changes, this page will be updated before that change takes effect.</p>
 
 <h2 lang="en">What Google user data this application accesses</h2>
-<p lang="en">Our application will access the data you have provided to us, including your name and your verified email address. The Google scopes requested are openid, userinfo.email, and userinfo.profile. From those scopes Ajedrez Belén receives your name, your verified email address, and a stable identifier. It does not access Gmail, Google Drive, Google Calendar, contacts, photos, or any other Google user data. It does not receive a Google password, and it does not store or display a Google profile photo.</p>
+<p lang="en">Ajedrez Belén accesses Google user data only when a parent chooses to connect Google. The Google user data accessed is:</p>
+<ul lang="en">
+  <li>the parent's name;</li>
+  <li>the parent's verified email address;</li>
+  <li>a stable identifier for that person.</li>
+</ul>
+<p lang="en">Those three items come from the Google scopes openid, userinfo.email, and userinfo.profile. Ajedrez Belén does not access Gmail, Google Drive, Google Calendar, contacts, photos, or any other Google user data.</p>
 
 <h2 lang="en">How this application uses Google user data</h2>
-<p lang="en">We will use your data to provide you with the services you requested, such as recognizing you when you return, matching an invitation sent to your email address, showing your name inside the application, and sending the club receipt and club notices by email. Ajedrez Belén does not use Google user data for advertising. It does not use Google user data for credit-worthiness or lending. Google user data is not used to develop, improve, or train non-personalized AI or machine learning models. If the way Google user data is used changes, this page will be updated before the change takes effect.</p>
+<p lang="en">Ajedrez Belén uses the name, the verified email address, and the identifier only to provide the application the parent asked for. The name is shown inside the application. The identifier recognizes the same parent on a later visit and matches an invitation sent to that email address. The email address receives the club receipt and club notices. Ajedrez Belén does not use Google user data for anything else.</p>
 
 <h2 lang="en">How this application stores and protects Google user data</h2>
-<p lang="en">We use encryption to protect your information. Security procedures are in place to protect the confidentiality of your data. The name and verified email address are stored in the association’s database, hosted by Cloudflare, for as long as the membership is active. The site is served over HTTPS. The session is kept in an encrypted cookie that page scripts cannot read. Bank-transfer receipts are stored in private storage. The association will not ask for a password by WhatsApp or by email.</p>
+<p lang="en">Ajedrez Belén uses encryption to protect this information. Security procedures are in place to protect the confidentiality of this data. The site is served over HTTPS. The name and verified email address are kept for the association, on Cloudflare, for as long as the family remains enrolled. Receipt files are kept in private storage.</p>
 
 <h2 lang="en">With whom this application shares Google user data</h2>
-<p lang="en">We do not transfer or disclose your information to third parties for purposes other than the ones provided. We will not sell your data to third parties, but we may share it with our partners who help us provide our services. Those partners, and only for this service, are:</p>
+<p lang="en">Ajedrez Belén does not sell Google user data. Ajedrez Belén does not transfer or disclose Google user data to third parties for purposes other than providing this application. The services that receive the data, and only so they can provide Ajedrez Belén, are:</p>
 <ul lang="en">
-  <li>WorkOS, which processes the Google connection and email verification.</li>
-  <li>Cloudflare, which hosts the site, the database, and the receipt files.</li>
-  <li>Brevo, which sends transactional email, such as receipts and club notices, to the email address. If that address is a Gmail address, Brevo receives it only to deliver the message.</li>
+  <li>WorkOS, which connects Google and checks the email address.</li>
+  <li>Cloudflare, which hosts the site and stores the receipt files.</li>
+  <li>Brevo, which delivers the club receipt and club notices to the parent's email address. If that address is a Gmail address, Brevo receives it only to deliver the message.</li>
 </ul>
-<p lang="en">Ajedrez Belén does not sell Google user data and does not disclose it to advertisers, data brokers, or information resellers. Administrators of Asociación Ajedrez Belén can see the name and email address because they operate the club. Each family sees only the athletes linked to that family.</p>
+<p lang="en">Staff of Asociación Ajedrez Belén can see the parent's name and email address because they operate the club. Each family sees only the athletes linked to that family.</p>
 
 <h2 lang="en">How long Google user data is kept, and how to delete it</h2>
-<p lang="en">We will retain your personal information for the length of time needed to fulfill the purposes outlined in this privacy policy unless a longer retention period is required or permitted by law. Name, email address, and athlete records are kept while the membership is active. Payment history and receipts are kept as the association’s accounting record. When the data retention period expires for a given type of data, we will delete or destroy it. You may request for your data to be deleted by writing to Asociación Ajedrez Belén on WhatsApp at +506 8768 6102. The association then removes the family links and deletes, or stops identifying, personal data it is not required to keep for accounting. You may also remove this application’s access from Google at any time. That stops future connections and does not by itself erase payment records already kept for accounting.</p>
+<p lang="en">Ajedrez Belén retains the name, the email address, and the athlete records for the length of time needed to fulfill the purposes in this policy: while the family is enrolled. Payment history and receipts are retained for the association's accounting, which can be longer when the law requires it. When the retention period expires for a given type of data, Ajedrez Belén deletes or destroys it. A parent may request for this data to be deleted by writing to Asociación Ajedrez Belén on WhatsApp at +506 8768 6102. The association then removes the family links and deletes, or stops identifying, personal data it is not required to keep for accounting. Removing Ajedrez Belén from the parent's Google settings stops future connections. It does not by itself erase payment records already kept for accounting.</p>
 
 <h2 lang="en">Limited Use</h2>
-<p lang="en">Ajedrez Belén’s use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. Google user data is used only to provide and improve the user-facing features described on this page.</p>
+<p lang="en">Ajedrez Belén's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. Google user data is used only to provide the user-facing features described on this page.</p>
 
-<h2>Datos de tu cuenta de Google</h2>
-<p>Esta política es de la aplicación Ajedrez Belén, el portal de familias operado por la Asociación Ajedrez Belén, en Belén, Heredia, Costa Rica. Conectar Google es opcional. Si la persona conecta su cuenta de Google, la aplicación accede únicamente a estos datos:</p>
+<div lang="es">
+<h2>Qué datos de Google accede esta aplicación</h2>
+<p>Esta política es de la aplicación Ajedrez Belén, de la Asociación Ajedrez Belén, el club de ajedrez de Belén, Heredia, Costa Rica. No es un modelo de ejemplo. Ajedrez Belén accede a datos de Google solo si la persona encargada elige conectar Google. Los datos de Google a los que accede son:</p>
 <ul>
-  <li>el nombre;</li>
-  <li>la dirección de correo electrónico verificada;</li>
-  <li>un identificador estable de esa cuenta, para reconocer a la misma persona la próxima vez.</li>
+  <li>el nombre de la persona encargada;</li>
+  <li>su correo electrónico verificado;</li>
+  <li>un identificador estable de esa persona.</li>
 </ul>
-<p>El perfil básico puede incluir la dirección de una foto. La aplicación no la guarda ni la muestra. No pide permiso para leer Gmail, Google Drive, Google Calendar, contactos, fotos ni ningún otro contenido de la cuenta de Google. Nunca recibe ni ve la clave de Google.</p>
-<p>Usa esos datos de Google solo para operar la aplicación: crear la cuenta de la persona encargada o reconocerla cuando vuelve, vincular una invitación enviada a ese correo, mostrar el nombre dentro de la aplicación y enviar a ese correo los comprobantes y avisos del club.</p>
-<p>No vende los datos de Google. No los usa para publicidad, para decidir crédito ni para entrenar modelos de inteligencia artificial o de aprendizaje automático. No los transfiere a terceros, salvo a los proveedores nombrados más abajo, y solo para que ellos presten este mismo servicio.</p>
+<p>Esos tres datos vienen de los permisos de Google openid, userinfo.email y userinfo.profile. Ajedrez Belén no accede a Gmail, Google Drive, Google Calendar, contactos, fotos ni ningún otro dato de Google.</p>
 
-<h2>Qué otros datos tratamos</h2>
+<h2>Cómo usa esos datos</h2>
+<p>Ajedrez Belén usa el nombre, el correo verificado y el identificador solo para prestar la aplicación que la persona encargada pidió. El nombre se muestra dentro de la aplicación. El identificador reconoce a la misma persona cuando vuelve y vincula una invitación enviada a ese correo. El correo recibe el comprobante del club y los avisos. Ajedrez Belén no usa los datos de Google para nada más.</p>
+
+<h2>Cómo los guarda y los protege</h2>
+<p>Ajedrez Belén usa cifrado para proteger esta información. Hay medidas de seguridad para cuidar su confidencialidad. El sitio se sirve por HTTPS. El nombre y el correo se conservan para la Asociación, en Cloudflare, mientras la familia siga inscrita. Los comprobantes se guardan en almacenamiento privado.</p>
+
+<h2>Con quién los comparte</h2>
+<p>Ajedrez Belén no vende los datos de Google. No los transfiere ni los divulga a terceros para fines distintos de prestar esta aplicación. Los servicios que los reciben, y solo para prestar Ajedrez Belén, son:</p>
 <ul>
-  <li><strong>La cuenta:</strong> el nombre y el correo con los que se registra la familia, sea con Google o con correo y una clave propia. Si se crea una clave, la guarda el servicio que procesa el registro; la Asociación no la ve.</li>
-  <li><strong>Los atletas:</strong> nombre, fecha de nacimiento, centro educativo, grupo y, solo desde los 12 años, el número de cédula. Estos datos los escribe la persona encargada al inscribir. No vienen de Google.</li>
-  <li><strong>Los pagos:</strong> monto, fecha y referencia de la transferencia, y la foto o el PDF del comprobante bancario que se adjunta.</li>
-  <li><strong>Los comprobantes:</strong> el detalle del pago confirmado y el correo al que se envía.</li>
+  <li>WorkOS, que conecta Google y comprueba el correo.</li>
+  <li>Cloudflare, que aloja el sitio y guarda los comprobantes.</li>
+  <li>Brevo, que entrega el comprobante del club y los avisos al correo de la persona encargada. Si ese correo es de Gmail, Brevo lo recibe solo para entregar el mensaje.</li>
 </ul>
+<p>El personal de la Asociación puede ver el nombre y el correo porque opera el club. Cada familia ve solo a los atletas vinculados a ella.</p>
 
-<h2>Para qué los usamos</h2>
-<p>Solo para operar el club y la aplicación: identificar la cuenta, vincular a los atletas con la persona encargada, calcular y cobrar las mensualidades, verificar los pagos en el banco, emitir comprobantes y avisar de eventos y vencimientos. No vendemos datos ni los usamos para publicidad de terceros.</p>
+<h2>Cuánto tiempo los guarda y cómo pedir que se borren</h2>
+<p>Ajedrez Belén conserva el nombre, el correo y los datos de los atletas durante el tiempo necesario para los fines de esta política: mientras la familia esté inscrita. El historial de pagos y los comprobantes se conservan para la contabilidad de la Asociación, y por más tiempo cuando la ley lo exige. Cuando vence el plazo de un dato, Ajedrez Belén lo borra o lo destruye. Se puede pedir el borrado escribiendo a la Asociación Ajedrez Belén por WhatsApp al +506 8768 6102. La Asociación quita los vínculos de la familia y borra, o deja de identificar, los datos personales que no deba conservar para la contabilidad. Quitar Ajedrez Belén desde la configuración de Google impide conexiones nuevas. Eso no borra por sí solo los pagos ya guardados para la contabilidad.</p>
 
-<h2>Con quién los compartimos</h2>
-<p>No vendemos datos ni los compartimos con anunciantes, corredores de datos ni redes publicitarias. Para operar la aplicación, estos proveedores tratan datos por cuenta nuestra y solo para prestar el servicio:</p>
-<ul>
-  <li><strong>WorkOS</strong> procesa la conexión con Google y la verificación del correo.</li>
-  <li><strong>Cloudflare</strong> aloja el sitio, la base de datos y los archivos de los comprobantes bancarios.</li>
-  <li><strong>Brevo</strong> envía al correo de la cuenta los comprobantes y avisos del club. Si ese correo es de Gmail, el envío lleva esa dirección a Brevo únicamente para entregar el mensaje.</li>
-</ul>
-<p>La administración de la Asociación puede ver el nombre y el correo de la cuenta, y los datos de los atletas y de los pagos, porque opera el club. Cada persona encargada entra con su propia cuenta y solo ve a los atletas vinculados a ella.</p>
+<h2>Uso limitado</h2>
+<p>El uso que Ajedrez Belén hace de la información recibida de las API de Google, y cualquier transferencia de esa información a otra aplicación, cumple la <a href="https://developers.google.com/terms/api-services-user-data-policy">Política de datos de usuario de los servicios de las API de Google</a>, incluidos los requisitos de uso limitado. Los datos de Google se usan solo para prestar las funciones descritas en esta página.</p>
 
-<h2>Cómo los protegemos</h2>
-<p>El sitio se sirve por HTTPS. La sesión vive en una cookie cifrada que el código de la página no puede leer. Los comprobantes bancarios se guardan en almacenamiento privado y solo los puede ver la administración autorizada y la cuenta de la familia cuando corresponde. Nadie de la Asociación pedirá una clave por WhatsApp ni por correo.</p>
-
-<h2>Cuánto tiempo los guardamos</h2>
-<p>Conservamos el nombre, el correo y los datos de los atletas mientras la membresía esté activa. El historial de pagos y los comprobantes se conservan como respaldo contable de la Asociación. Cuando ese respaldo ya no haga falta, los borramos o dejamos de identificarlos.</p>
-<p>Se puede pedir eliminar la cuenta. Desactivamos los vínculos y borramos, o dejamos de identificar, los datos personales que no debamos conservar para ese respaldo contable. También se puede retirar el acceso de esta aplicación desde la cuenta de Google: eso impide nuevas conexiones con Google y no borra por sí solo el historial de pagos ya registrado.</p>
-
-<h2>Cookies</h2>
-<p>La aplicación usa únicamente cookies indispensables para mantener la sesión y recordar una invitación en curso. No usamos cookies de publicidad ni de seguimiento entre sitios.</p>
-
-<h2>Datos de menores</h2>
-<p>Google no entrega datos de los atletas. Esos datos los inscriben sus padres, madres o personas encargadas, que administran la cuenta familiar. La conexión con Google identifica a la persona adulta, no al atleta.</p>
-
-<h2>Tus derechos</h2>
-<p>Se puede pedir ver, corregir o eliminar los datos personales, y revocar el vínculo de la cuenta con un atleta, escribiendo por WhatsApp. Atendemos las solicitudes en un plazo razonable y confirmamos cuando estén listas. Si un dato de pago parece incorrecto, también se puede escribir y lo revisamos.</p>
-
-<h2>Cambios a esta página</h2>
-<p>Si cambiamos la forma en que usamos los datos recibidos de Google, actualizaremos esta página y la fecha de arriba antes de aplicar el cambio. La versión vigente es siempre la publicada en esta dirección.</p>
+<h2>Otros datos que no vienen de Google</h2>
+<p>La persona encargada escribe, al inscribir, el nombre del atleta, su fecha de nacimiento, su centro educativo, su grupo y, solo desde los 12 años, el número de cédula. También escribe el monto, la fecha y la referencia de la transferencia, y adjunta el comprobante del banco. Google no entrega esos datos.</p>
+</div>

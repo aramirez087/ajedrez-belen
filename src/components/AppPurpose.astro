@@ -1,24 +1,35 @@
 ---
 interface Props { privacyHref?: string }
-const { privacyHref = 'https://ajedrezbelen.com/datos/' } = Astro.props;
+const { privacyHref = 'https://ajedrezbelen.com/privacy/' } = Astro.props;
 ---
-<p lang="en"><strong>Purpose of this application.</strong> Ajedrez Belén is the application of Asociación Ajedrez Belén, a chess club in Belén, Heredia, Costa Rica. Families use Ajedrez Belén to enroll their athletes, see the monthly class fee, record a bank transfer for those classes, receive the club receipt when that payment is confirmed, and see club events. This page is public. Anyone can read it.</p>
-<p lang="en"><strong>Why this application requests Google user data.</strong> Our application will access the Google user data you provide, including your name and your verified email address. We will use your data to provide you with the services you requested, such as recognizing the same parent on a later visit and sending the club receipt to that email address. Ajedrez Belén does not request Gmail, Google Drive, Google Calendar, contacts, or photos.</p>
 <p lang="en"><a href={privacyHref}>Privacy policy</a></p>
+<h2 lang="en">What this application does</h2>
+<p lang="en">Ajedrez Belén is the application of Asociación Ajedrez Belén, a chess club in Belén, Heredia, Costa Rica. This page is public.</p>
+<p lang="en">A parent uses Ajedrez Belén to:</p>
+<ul lang="en">
+  <li>Enroll a child in the club and see that child's group.</li>
+  <li>See the monthly class fee for each child.</li>
+  <li>Record a bank transfer that pays those classes, and attach the bank's receipt.</li>
+  <li>Receive the club's own receipt after the association confirms the transfer.</li>
+  <li>See the club's events.</li>
+</ul>
+<p lang="en">Class fees are paid by bank transfer. Ajedrez Belén does not charge a card, and it does not connect to a family's bank.</p>
+<h2 lang="en">Why Ajedrez Belén requests Google user data</h2>
+<p lang="en">Ajedrez Belén requests Google user data only so the club can tell parents apart. The data requested is the parent's name and verified email address. The name is shown inside the application. The email address receives the club receipt and club notices. Ajedrez Belén does not request Gmail, Google Drive, Google Calendar, contacts, or photos.</p>
 
 <div lang="es">
-<p>Ajedrez Belén es la aplicación de la Asociación Ajedrez Belén, el club de ajedrez de Belén, Heredia, Costa Rica. Las familias la usan para inscribir a sus atletas, consultar la mensualidad de las clases, registrar una transferencia, recibir el comprobante del club cuando el pago queda confirmado y ver los eventos del club. Esta página es pública.</p>
-<p>Si conectas Google, la aplicación solo pide tu nombre y tu correo verificado. Los usa para reconocerte cuando vuelves y para enviarte el comprobante del club. No pide Gmail, Google Drive, Google Calendar, contactos ni fotos.</p>
 <p><a href={privacyHref}>Política de privacidad</a></p>
-
-<h2>Para qué sirve</h2>
+<h2>Qué hace esta aplicación</h2>
+<p>Ajedrez Belén es la aplicación de la Asociación Ajedrez Belén, el club de ajedrez de Belén, Heredia, Costa Rica. Esta página es pública.</p>
+<p>Una madre, un padre o una persona encargada usa Ajedrez Belén para:</p>
 <ul>
-  <li>Identificar a la persona encargada.</li>
-  <li>Inscribir a los atletas de la familia y ver su grupo.</li>
-  <li>Consultar las mensualidades de las clases.</li>
-  <li>Registrar una transferencia y adjuntar el comprobante del banco.</li>
-  <li>Recibir el comprobante cuando la Asociación confirma el pago.</li>
+  <li>Inscribir a un hijo o a una hija en el club y ver su grupo.</li>
+  <li>Consultar la mensualidad de las clases.</li>
+  <li>Registrar la transferencia que paga esas clases y adjuntar el comprobante del banco.</li>
+  <li>Recibir el comprobante del club cuando la Asociación confirma la transferencia.</li>
   <li>Ver los eventos del club.</li>
 </ul>
-<p>Las clases se pagan por transferencia. La aplicación no cobra con tarjeta y no entra al banco de la familia: la persona encargada sube el comprobante y la Asociación lo verifica.</p>
+<p>Las clases se pagan por transferencia. Ajedrez Belén no cobra con tarjeta y no se conecta al banco de la familia.</p>
+<h2>Por qué Ajedrez Belén pide datos de Google</h2>
+<p>Ajedrez Belén pide datos de Google solo para distinguir a las personas encargadas. Pide el nombre y el correo verificado. El nombre se muestra dentro de la aplicación. El correo recibe el comprobante del club y los avisos. No pide Gmail, Google Drive, Google Calendar, contactos ni fotos.</p>
 </div>
