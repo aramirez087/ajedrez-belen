@@ -611,7 +611,7 @@ test("normalized bank transfer cannot be credited twice, distinct transfer seque
   const duplicate = await submitPayment(db, parent, input(data.allocations));
   await assert.rejects(
     reviewPayment(db, admin, duplicate, verification(data)),
-    (e) => (e as { status: number }).status === 409,
+    (e) => (e as { status: number; code: string }).status === 409 && (e as { code: string }).code === "duplicate_transfer",
   );
   assert.equal(
     (

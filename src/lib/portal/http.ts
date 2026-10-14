@@ -106,7 +106,7 @@ const errorCodes = new Set([
   'invalid_period','invalid_discount','invalid_invitation','invitation_expired','email_mismatch',
   'recipient_missing','recipient_pending','existing_receipt_email',
   'bank_check_required','inactive_user','limit_reached','no_changes','not_retryable','setup_required',
-  'invalid_request','limit','invitation_invalid','bank_unconfirmed','allocation_exceeds_balance',
+  'invalid_request','limit','invitation_invalid','already_admin','bank_unconfirmed','allocation_exceeds_balance',
   'draft_not_found','draft_expired','draft_limit','ocr_disabled','ocr_busy','ocr_limit',
   'ocr_pdf_preview_required','invalid_image','original_missing','draft_mismatch',
   'invalid_event','invalid_recurrence','invalid_location','invalid_event_image',

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { ensureUser } from "../src/lib/portal/domain";
 import {
   buildIcs, cancelOccurrence, createEvent, deleteEvent, detectEventImageType, expandOccurrences, getEvent,
-  listOccurrences, normalizeEventInput, occurrenceState, recurrenceLabel, resolveOccurrence,
+  getEventAnyStatus, listOccurrences, normalizeEventInput, occurrenceState, recurrenceLabel, resolveOccurrence,
   restoreOccurrence, setEventStatus, updateEvent, upcomingOccurrences,
   type EventInput,
 } from "../src/lib/portal/events";
@@ -45,9 +45,17 @@ class SQLiteD1 {
 }
 const admin: Actor = { id: "demo-admin", email: "admin@example.invalid", name: "Admin", isAdmin: true, mode: "demo" };
 const parent: Actor = { id: "demo-parent-a", email: "ana@example.invalid", name: "Ana", isAdmin: false, mode: "demo" };
+const stranger: Actor = { id: "demo-stranger", email: "extra@example.invalid", name: "Extra", isAdmin: false, mode: "demo" };
 async function setup() {
   const adapter = new SQLiteD1(); const db = adapter.db();
-  await ensureUser(db, admin); await ensureUser(db, parent);
+  await ensureUser(db, admin); await ensureUser(db, parent); await ensureUser(db, stranger);
+  const now = new Date().toISOString();
+  await db.prepare(
+    "INSERT INTO athletes(id,name,category,fee_minor,discount_minor,active,start_period,created_at,updated_at) VALUES(?,?,?,?,0,1,?,?,?)",
+  ).bind("ath-parent", "Hijo", "Cadetes", 1500000, "2026-10", now, now).run();
+  await db.prepare(
+    "INSERT INTO guardian_links(user_id,athlete_id,active,receipt_opt_in,linked_by,created_at,updated_at) VALUES(?,?,1,0,?,?,?)",
+  ).bind(parent.id, "ath-parent", admin.id, now, now).run();
   return db;
 }
 const zoom = (over: Partial<EventInput> = {}): EventInput => ({
@@ -68,6 +76,7 @@ test("location rules: online needs URL, in_person needs address, hybrid needs bo
   assert.throws(() => normalizeEventInput(zoom({ locationType: "in_person", locationUrl: null, locationAddress: null })), { code: "invalid_location" });
   assert.throws(() => normalizeEventInput(zoom({ locationType: "hybrid", locationAddress: null })), { code: "invalid_location" });
   assert.throws(() => normalizeEventInput(zoom({ locationUrl: "javascript:alert(1)" })), { code: "invalid_location" });
+  assert.throws(() => normalizeEventInput(zoom({ locationUrl: "http://zoom.us/j/123" })), { code: "invalid_location" });
   const ok = normalizeEventInput(zoom({ locationType: "hybrid", locationAddress: "Belén, Heredia" }));
   assert.equal(ok.locationAddress, "Belén, Heredia");
   assert.match(ok.locationUrl!, /^https:/);
@@ -97,6 +106,20 @@ test("families see only published; drafts/cancelled hidden, no RSVP surface", as
   assert.equal((await listOccurrences(db, parent, "2026-10-01T00:00:00.000Z", "2026-11-01T00:00:00.000Z")).length, 0);
   assert.equal(await getEvent(db, published.id, parent), null);
   assert.notEqual(await getEvent(db, published.id, admin), null);
+});
+
+test("an account with no active guardian link cannot see published events or cancelled tombstones", async () => {
+  const db = await setup();
+  const published = await createEvent(db, admin, zoom({ recurrenceFreq: "none", recurrenceCount: null }));
+  assert.equal(await getEvent(db, published.id, stranger), null);
+  assert.equal((await listOccurrences(db, stranger, "2026-10-01T00:00:00.000Z", "2026-11-01T00:00:00.000Z")).length, 0);
+  assert.equal((await upcomingOccurrences(db, stranger, 5, "2026-10-01T00:00:00.000Z")).length, 0);
+  await setEventStatus(db, admin, published.id, "cancelled");
+  assert.equal(await getEventAnyStatus(db, published.id, stranger), null);
+  assert.equal((await getEventAnyStatus(db, published.id, parent))?.status, "cancelled");
+  await db.prepare("UPDATE guardian_links SET active=0 WHERE user_id=?").bind(parent.id).run();
+  assert.equal(await getEventAnyStatus(db, published.id, parent), null);
+  assert.equal((await getEvent(db, published.id, admin))?.status, "cancelled");
 });
 
 test("only admins mutate; update edits whole series; delete returns image", async () => {

@@ -146,8 +146,9 @@ test('parent entry has exact methods and origin; invitations, email, demo and lo
       assert.deepEqual(stagingAuthSetupGate(new Request(`${badOrigin}/auth/parent`), env), { status: 403 });
     }
     for (const path of ['/auth/parent/', '/auth/parent/extra', '/auth/Parent', '/auth/%70arent', '/auth//parent',
-      '/auth/parents', '/login', '/portal/acceso', '/portal/invitacion', '/api/admin/invitations',
-      '/api/portal/invitations/redeem', '/api/admin/email', '/api/portal/demo', '/prototype']) {
+      '/auth/parents', '/login', '/portal/acceso', '/portal/invitacion', '/portal/admin-invitacion',
+      '/api/admin/invitations', '/api/admin/administradores',
+      '/api/portal/invitations/redeem', '/api/portal/admin-invitations/redeem', '/api/admin/email', '/api/portal/demo', '/prototype']) {
       assert.deepEqual(stagingAuthSetupGate(request(path), env), { status: 404 }, path);
     }
     assert.deepEqual(stagingAuthSetupGate(request('/api/portal/payments', 'POST'), env), { status: 403 });

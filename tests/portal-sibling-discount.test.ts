@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import {
-  enrollAthlete, ensureUser, getMonthlyPreview, linkGuardian, publishMonth, seedDemo,
+  enrollAthlete, ensureUser, getMonthlyPreview, linkGuardian, publishMonth, seedDemo, setAthletePaused,
 } from "../src/lib/portal/domain";
 import type { Actor } from "../src/lib/portal/types";
 
@@ -91,4 +91,25 @@ test("published sibling charges persist the combined discount and reason", async
     assert.equal(row.d, 375000);
     assert.match(row.r, /hermanos 25%/i);
   }
+});
+
+test("a paused sibling keeps the family rate; a deactivated sibling does not", async () => {
+  const { adapter, db } = await familyDb();
+  const kid1 = await enrollAthlete(db, admin, { name: "Hermana Uno", category: "Avanzados", feeMinor: 1500000, discountMinor: 0, startPeriod: "2027-01" });
+  const kid2 = await enrollAthlete(db, admin, { name: "Hermano Dos", category: "Avanzados", feeMinor: 1500000, discountMinor: 0, startPeriod: "2027-01" });
+  await linkGuardian(db, admin, { userId: parentA.id, athleteId: kid1 });
+  await linkGuardian(db, admin, { userId: parentA.id, athleteId: kid2 });
+  await setAthletePaused(db, admin, kid2, true);
+  const paused = await getMonthlyPreview(db, "2027-02");
+  const pausedBilled = paused.athletes.find((a) => a.id === kid1);
+  assert.equal(paused.athletes.some((a) => a.id === kid2), false);
+  assert.equal(pausedBilled?.familySize, 2);
+  assert.equal(pausedBilled?.totalMinor, 1125000);
+  await setAthletePaused(db, admin, kid2, false);
+  adapter.sqlite.prepare("UPDATE athletes SET active=0 WHERE id=?").run(kid2);
+  const left = await getMonthlyPreview(db, "2027-02");
+  const leftBilled = left.athletes.find((a) => a.id === kid1);
+  assert.equal(left.athletes.some((a) => a.id === kid2), false);
+  assert.equal(leftBilled?.familySize, 1);
+  assert.equal(leftBilled?.totalMinor, 1500000);
 });

@@ -17,7 +17,8 @@ const destino = parseDestino(Astro.url.searchParams.get('destino'));
 const next = safePortalReturnPath(Astro.url.searchParams.get('next'));
 const hasInvitation = Astro.cookies.has('pending-invitation');
 const identity = getPortalIdentity(Astro, env);
-if (identity) return Astro.redirect(afterLoginPath(destino, next, hasInvitation), 302);
+const hasAdminInvitation = Astro.cookies.has('pending-admin-invitation');
+if (identity) return Astro.redirect(afterLoginPath(destino, next, hasInvitation, hasAdminInvitation), 302);
 
 // From an invitation link the correo is already known: prefilled, not typed.
 const invitedEmail = destino === 'familia' ? await pendingInvitationEmail(Astro.cookies) : null;

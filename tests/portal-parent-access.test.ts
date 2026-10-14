@@ -98,7 +98,9 @@ test('verified ordinary parents and wrong-organization allowlisted users cannot 
     assert.equal(denied.ok, false);
     if (!denied.ok) assert.equal(denied.response.status, 403);
   }
-  assert.deepEqual(f.queries, [], 'Admin denial happens before user synchronization or business access');
+  assert.deepEqual(f.queries, [
+    'SELECT 1 AS ok FROM admin_grants WHERE user_id=? AND active=1',
+  ], 'A staff-organization session checks an invited-admin grant and does not write a user');
   const allowed = await authorizePortal(context(auth('user_synthetic_staff', 'org_synthetic_staff'), '/admin'), f.env, { admin: true });
   assert.ok(allowed.ok && allowed.actor.isAdmin);
 });

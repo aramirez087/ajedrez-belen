@@ -74,6 +74,8 @@ test('after login: invitation wins, admin is fixed, external paths fall back', (
   assert.equal(afterLoginPath('familia', null, false), '/portal');
   assert.equal(afterLoginPath('admin', '/portal/pagos/nuevo', true), '/admin');
   assert.equal(afterLoginPath('admin', null, false), '/admin');
+  assert.equal(afterLoginPath('admin', null, false, true), '/portal/admin-invitacion');
+  assert.equal(afterLoginPath('familia', '/portal/pagos/nuevo', true, true), '/portal/admin-invitacion');
 });
 
 test('provider authentication errors expose only the documented step fields', () => {

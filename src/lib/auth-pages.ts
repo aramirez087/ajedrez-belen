@@ -9,8 +9,9 @@ import {
   type AuthDestino, type GoogleOAuthFlow, type PendingAuth,
 } from './auth-flow';
 
+import { getAdminInvitationPreview } from './portal/admin-access';
 import { getInvitationPreview, type InvitationPreview } from './portal/domain';
-import { INVITATION_TOKEN_PATTERN } from './portal/invitation-entry';
+import { ADMIN_INVITATION_COOKIE, INVITATION_TOKEN_PATTERN } from './portal/invitation-entry';
 import { hashInvitationToken } from './portal/routes';
 
 type Cookies = APIContext['cookies'];
@@ -29,7 +30,11 @@ export async function pendingInvitation(cookies: Cookies): Promise<InvitationPre
 /** The correo of a still-usable pending invitation, or null when there is none. */
 export async function pendingInvitationEmail(cookies: Cookies): Promise<string | null> {
   const preview = await pendingInvitation(cookies);
-  return preview?.status === 'ready' ? preview.email : null;
+  if (preview?.status === 'ready' && preview.email) return preview.email;
+  const token = cookies.get(ADMIN_INVITATION_COOKIE)?.value;
+  if (!token || !INVITATION_TOKEN_PATTERN.test(token) || !env.DB) return null;
+  const adminInvite = await getAdminInvitationPreview(env.DB, await hashInvitationToken(token)).catch(() => null);
+  return adminInvite?.status === 'ready' ? adminInvite.email : null;
 }
 
 /** The WorkOS client behind the auth service, or null when unconfigured. */
@@ -91,6 +96,10 @@ export async function applyAuthOutcome(
   if (!service) return { error: 'El acceso no está disponible en este momento. Vuelve a intentarlo más tarde.' };
   clearPendingAuth(context.cookies);
   await service.saveSession(context.cookies, outcome.sealedSession);
-  const destination = afterLoginPath(flow.destino, flow.next, context.cookies.has('pending-invitation'));
+  const destination = afterLoginPath(
+    flow.destino, flow.next,
+    context.cookies.has('pending-invitation'),
+    context.cookies.has(ADMIN_INVITATION_COOKIE),
+  );
   return { response: context.redirect(destination, 303) };
 }

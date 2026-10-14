@@ -3,7 +3,8 @@ import { getAuthConfigurationStatus } from '../auth';
 import { allowPortalDemo, getDemoIdentity } from './demo-policy';
 import { portalMessagePage, portalResponse } from './http';
 import { ensureUser, needsAthleteRegistration } from './domain';
-import { safePortalReturnPath } from './invitation-entry';
+import { hasActiveAdminGrant } from './admin-access';
+import { ADMIN_INVITATION_COOKIE, safePortalReturnPath } from './invitation-entry';
 import type { Actor } from './types';
 import { isStagingPortalActor, restrictedModeRequested, stagingPortalTestRequested } from '../staging-auth-policy';
 
@@ -24,7 +25,7 @@ export function getPortalIdentity(context: Pick<APIContext,'locals'>, env: Cloud
   };
 }
 
-const athleteStepExempt = ['/portal/inscribir', '/portal/invitacion', '/portal/acceso'];
+const athleteStepExempt = ['/portal/inscribir', '/portal/invitacion', '/portal/admin-invitacion', '/portal/acceso'];
 
 /** Family pages that stay closed until the first athlete is enrolled. */
 export function portalPageNeedsAthleteStep(pathname: string, method: string): boolean {
@@ -60,7 +61,7 @@ export async function authorizePortal(context: APIContext, env: Cloudflare.Env, 
     }
     // Arriving from an invitation link: straight to the sign-in form, which
     // already knows their correo. No instructions page in between.
-    if (context.cookies?.has('pending-invitation')) {
+    if (context.cookies?.has('pending-invitation') || context.cookies?.has(ADMIN_INVITATION_COOKIE)) {
       return {ok:false,response:portalResponse(null,302,{Location:'/auth/entrar'})};
     }
     // Remember where the person was headed (e.g. a payment link from WhatsApp).
@@ -69,6 +70,20 @@ export async function authorizePortal(context: APIContext, env: Cloudflare.Env, 
     return {ok:false,response:portalResponse(null,302,{Location:location})};
   }
   const browserPage = context.request.method === 'GET' && !context.url.pathname.startsWith('/api/');
+  // A portal grant counts only together with the staff organization, so the
+  // session still has to pass that organization's MFA. The principal
+  // allowlist is already on actor.isAdmin and does not need this read.
+  const session = context.locals.auth;
+  const sessionOrganizationId = session?.user ? session.organizationId : undefined;
+  if (!actor.isAdmin && actor.mode === 'workos' && sessionOrganizationId === env.WORKOS_ORGANIZATION_ID?.trim()) {
+    try {
+      if (await hasActiveAdminGrant(env.DB, actor.id)) actor = { ...actor, isAdmin: true };
+    } catch {
+      return {ok:false,response:browserPage
+        ? portalMessagePage('El acceso no está disponible.', 'El acceso no está disponible. Revisa la inscripción y la configuración del portal, o contacta a la Asociación.', 403, '/portal/acceso', 'Volver al acceso')
+        : portalResponse('El acceso no está disponible. Revisa la inscripción y la configuración del portal.',403)};
+    }
+  }
   if (options.admin && !actor.isAdmin) return {ok:false,response:browserPage
     ? portalMessagePage('Esta sección es de administración.', 'Tu cuenta familiar no tiene acceso a las herramientas de administración. Tu cuenta, tus mensualidades y tus comprobantes siguen disponibles en tu portal.', 403)
     : portalResponse('Administrator access required',403)};

@@ -5,18 +5,19 @@ import PageHeader from '../../components/portal/PageHeader.astro';
 import { allowPortalDemo } from '../../lib/portal/demo-policy';
 import { portalResponse } from '../../lib/portal/http';
 import { getPortalIdentity } from '../../lib/portal/access';
-import { safePortalReturnPath } from '../../lib/portal/invitation-entry';
+import { ADMIN_INVITATION_COOKIE, ADMIN_INVITATION_PATH, safePortalReturnPath } from '../../lib/portal/invitation-entry';
 export const prerender = false;
 if (env.PORTAL_ENABLED !== 'true') return portalResponse('No encontrado.', 404);
 const demo = allowPortalDemo(Astro.url, import.meta.env.DEV, env);
 const pendingInvitation = Astro.cookies.has('pending-invitation');
+const pendingAdminInvitation = Astro.cookies.has(ADMIN_INVITATION_COOKIE);
 const next = safePortalReturnPath(Astro.url.searchParams.get('next'));
 // Already signed in? This page has nothing for you: go where you were headed.
 const identity = getPortalIdentity(Astro, env);
-if (identity) return portalResponse(null, 302, { Location: pendingInvitation ? '/portal/invitacion' : (next ?? '/portal') });
+if (identity) return portalResponse(null, 302, { Location: pendingAdminInvitation ? ADMIN_INVITATION_PATH : pendingInvitation ? '/portal/invitacion' : (next ?? '/portal') });
 // Coming from an invitation link? Straight to the one sign-in form — it
 // already shows your correo. No steps to read first.
-if (pendingInvitation && !Astro.url.searchParams.has('error') && !Astro.url.searchParams.has('notice')) {
+if ((pendingInvitation || pendingAdminInvitation) && !Astro.url.searchParams.has('error') && !Astro.url.searchParams.has('notice')) {
   return portalResponse(null, 302, { Location: '/auth/entrar' });
 }
 const parentHref = next ? `/auth/entrar?next=${encodeURIComponent(next)}` : '/auth/entrar';

@@ -45,6 +45,9 @@ export const GET: APIRoute = async (context) => {
     const result = await service.handleCallback(context.cookies, context.cookies, { code, state });
     // A pending invitation wins over the generic landing page no matter which
     // sign-in button the person tapped; the invitation page explains the rest.
+    if (result.returnPathname !== '/prototype' && context.cookies.has('pending-admin-invitation')) {
+      return context.redirect('/portal/admin-invitacion', 302);
+    }
     if (result.returnPathname !== '/prototype' && context.cookies.has('pending-invitation')) {
       return context.redirect('/portal/invitacion', 302);
     }

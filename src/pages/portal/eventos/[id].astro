@@ -4,13 +4,13 @@ import PortalLayout from "../../../layouts/PortalLayout.astro";
 import PageHeader from "../../../components/portal/PageHeader.astro";
 import EventCard from "../../../components/portal/EventCard.astro";
 import { authorizePortal } from "../../../lib/portal/access";
-import { crDateTimeLabel, crRangeLabel, expandOccurrences, getEvent, getEventAnyStatus, googleCalendarUrl, mapsUrl, nextOccurrence, occurrenceState, recurrenceLabel, resolveOccurrence, whatsAppShareUrl } from "../../../lib/portal/events";
+import { canViewFamilyEvents, crDateTimeLabel, crRangeLabel, expandOccurrences, getEvent, getEventAnyStatus, googleCalendarUrl, mapsUrl, nextOccurrence, occurrenceState, recurrenceLabel, resolveOccurrence, whatsAppShareUrl } from "../../../lib/portal/events";
 export const prerender = false;
 const access = await authorizePortal(Astro, env);
 if (!access.ok) return access.response;
 const { actor } = access;
 const nowIso = new Date().toISOString();
-const rawEvent = await getEventAnyStatus(env.DB, Astro.params.id!).catch(() => null);
+const rawEvent = await getEventAnyStatus(env.DB, Astro.params.id!, actor).catch(() => null);
 // Drafts never leak to families; cancelled events get a tombstone so a
 // bookmarked/shared link explains itself instead of a bare 404.
 const tombstone = rawEvent && rawEvent.status === "cancelled" && !actor.isAdmin ? rawEvent : null;
@@ -26,6 +26,7 @@ const nextDates = event && occurrence ? expandOccurrences(event, occurrence.star
   .filter((o) => o.startsAt > occurrence.startsAt && o.endsAt > nowIso).slice(0, 4) : [];
 const firstUpcoming = event ? (occurrence && resolved?.requestedCancelled ? nextOccurrence(event, nowIso) : null) : null;
 if (!event && !tombstone) Astro.response.status = 404;
+const eventsLocked = !event && !tombstone && !actor.isAdmin && !(await canViewFamilyEvents(env.DB, actor));
 ---
 {event && occurrence ? (
 <PortalLayout title={event.title} actor={actor} active="events">
@@ -83,7 +84,7 @@ if (!event && !tombstone) Astro.response.status = 404;
 <PortalLayout title="Evento no encontrado" actor={actor} active="events">
   <PageHeader title="No encontramos ese evento." eyebrow="Evento" backHref="/portal/eventos" backLabel="Volver a eventos" />
   <section class="portal-section portal-event-tombstone">
-    <p>Puede que el enlace esté incompleto o que el evento ya no exista. Revisa la lista de eventos: ahí están todas las actividades vigentes.</p>
+    <p>{eventsLocked ? "Las clases, los enlaces para entrar y las direcciones se muestran cuando tu cuenta tiene un atleta. Acepta la invitación de la Asociación y vuelve a abrir este enlace." : "Puede que el enlace esté incompleto o que el evento ya no exista. Revisa la lista de eventos: ahí están todas las actividades vigentes."}</p>
     <p><a class="portal-button" href="/portal/eventos">Ir a eventos <span aria-hidden="true">→</span></a></p>
   </section>
 </PortalLayout>

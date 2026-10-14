@@ -3,7 +3,7 @@ import { env } from 'cloudflare:workers';
 import { getAuthConfigurationStatus, isSameOriginMutation } from './lib/auth';
 import { getAuthService } from './lib/workos-runtime';
 import { isStagingSetupOwner, isStagingPortalActor, stagingParentTestConfiguration, restrictedModeRequested, stagingAuthSetupGate } from './lib/staging-auth-policy';
-import { INVITATION_TOKEN_PATTERN } from './lib/portal/invitation-entry';
+import { ADMIN_INVITATION_COOKIE, ADMIN_INVITATION_PATH, INVITATION_TOKEN_PATTERN } from './lib/portal/invitation-entry';
 
 function isPrototypeRoute(pathname: string): boolean {
   return pathname === '/prototype' || pathname.startsWith('/prototype/') ||
@@ -101,6 +101,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
       path:'/', httpOnly:true, sameSite:'lax', secure:context.url.protocol === 'https:', maxAge:7 * 86400,
     });
     return privateResponse(context.redirect('/portal/invitacion',302));
+  }
+
+  if (context.request.method === 'GET' && context.url.pathname === ADMIN_INVITATION_PATH && context.url.searchParams.has('token')) {
+    const token = context.url.searchParams.get('token') ?? '';
+    if (!INVITATION_TOKEN_PATTERN.test(token)) return privateResponse(context.redirect('/portal/acceso?error=invitation_invalid',302));
+    context.cookies.set(ADMIN_INVITATION_COOKIE, token, {
+      path:'/', httpOnly:true, sameSite:'lax', secure:context.url.protocol === 'https:', maxAge:7 * 86400,
+    });
+    return privateResponse(context.redirect(ADMIN_INVITATION_PATH,302));
   }
 
   // The account-free local lab has its own DEV + loopback guard in its routes.

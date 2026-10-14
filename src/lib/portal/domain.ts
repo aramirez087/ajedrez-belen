@@ -151,6 +151,12 @@ async function batch(db: D1Database, statements: D1PreparedStatement[]) {
     return await db.batch(statements);
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
+    if (/bank_match/i.test(message))
+      fail(
+        "Esa referencia bancaria ya está registrada.",
+        409,
+        "duplicate_transfer",
+      );
     if (
       /UNIQUE|allocation_exceeds|allocation_guardian_revoked|adjustment_below_paid|payment_not_verified|constraint|pending_payment_limit|daily_payment_limit|storage_limit|athlete_limit/i.test(
         message,
@@ -245,12 +251,21 @@ export function siblingFamilySizes(links: Array<{ userId: string; athleteId: str
 }
 async function siblingDiscounts(db: D1Database, athletes: Athlete[]): Promise<Map<string, { siblingMinor: number; familySize: number }>> {
   if (!athletes.length) return new Map();
+  const billedIds = athletes.map((a) => a.id);
+  // A paused athlete is still enrolled, so the sibling who is billed this month
+  // keeps the family rate. A baja (active=0) has left and does not.
+  const paused = await rows<{ id: string }>(
+    db,
+    `SELECT id FROM athletes WHERE active=1 AND paused=1 AND id NOT IN (${billedIds.map(() => "?").join(",")})`,
+    billedIds,
+  );
+  const countingIds = [...billedIds, ...paused.map((athlete) => athlete.id)];
   const links = await rows<{ userId: string; athleteId: string }>(
     db,
-    `SELECT user_id AS userId, athlete_id AS athleteId FROM guardian_links WHERE active=1 AND athlete_id IN (${athletes.map(() => "?").join(",")})`,
-    athletes.map((a) => a.id),
+    `SELECT user_id AS userId, athlete_id AS athleteId FROM guardian_links WHERE active=1 AND athlete_id IN (${countingIds.map(() => "?").join(",")})`,
+    countingIds,
   );
-  const sizes = siblingFamilySizes(links, athletes.map((a) => a.id));
+  const sizes = siblingFamilySizes(links, countingIds);
   return new Map(athletes.map((a) => {
     const familySize = sizes.get(a.id) ?? 1;
     const siblingMinor = familySize > 1 ? Math.round(a.feeMinor * 0.25) : 0;
@@ -867,6 +882,12 @@ export async function createInvitation(
  * person gets exactly the athletes the inviter is linked to — never more —
  * through the same link invitation an administrator would create.
  */
+const GUARDIAN_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** True when the optional other-parent address cannot receive an invitation. */
+export function coGuardianEmailProblem(email: string, actorEmail: string): boolean {
+  const value = email.trim().toLowerCase();
+  return value.length === 0 || value.length > 254 || !GUARDIAN_EMAIL.test(value) || value === actorEmail.trim().toLowerCase();
+}
 export async function createGuardianInvitation(
   db: D1Database,
   actor: Actor,
@@ -875,8 +896,7 @@ export async function createGuardianInvitation(
   await requireActor(db, actor);
   const email = text(input.email, 254).toLowerCase();
   if (
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-    email === actor.email.toLowerCase() ||
+    coGuardianEmailProblem(email, actor.email) ||
     !input.athleteIds.length ||
     input.athleteIds.length > 10 ||
     new Set(input.athleteIds).size !== input.athleteIds.length ||
@@ -1141,6 +1161,33 @@ export async function registerAthletes(
   return ids;
 }
 
+/**
+ * Enrollment and the optional other-parent invite. The address is checked
+ * before any athlete row is written, so a bad email can be corrected and resent.
+ */
+export async function registerAthletesWithOptionalGuardian(
+  db: D1Database,
+  actor: Actor,
+  athletes: SelfAthleteInput[],
+  coGuardian?: { email: string; tokenHash: string },
+): Promise<string[]> {
+  if (coGuardian) {
+    const email = coGuardian.email.trim().toLowerCase();
+    if (coGuardianEmailProblem(email, actor.email)) {
+      fail(email === actor.email.trim().toLowerCase() ? "Usa el correo de la otra persona encargada." : "Invitación inválida.");
+    }
+  }
+  const athleteIds = await registerAthletes(db, actor, athletes);
+  if (coGuardian) {
+    await createGuardianInvitation(db, actor, {
+      email: coGuardian.email,
+      athleteIds,
+      tokenHash: coGuardian.tokenHash,
+    });
+  }
+  return athleteIds;
+}
+
 export interface AthleteProfile { birthDate: string | null; nationalId: string | null; school: string | null; paused: boolean }
 
 export async function listAthleteProfiles(db: D1Database): Promise<Map<string, AthleteProfile>> {
@@ -1149,6 +1196,21 @@ export async function listAthleteProfiles(db: D1Database): Promise<Map<string, A
     "SELECT id,birth_date AS birthDate,national_id AS nationalId,school,paused FROM athletes",
   );
   return new Map(profiles.map(({ id: athleteId, paused, ...profile }) => [athleteId, { ...profile, paused: !!paused }]));
+}
+
+/** Profiles for athletes this guardian can still manage. Cédula stays off this page. */
+export async function listOwnAthleteProfiles(db: D1Database, actor: Actor): Promise<Map<string, AthleteProfile>> {
+  const profiles = await rows<{ id: string; birthDate: string | null; school: string | null; paused: number }>(
+    db,
+    `SELECT a.id,a.birth_date AS birthDate,a.school,a.paused
+     FROM athletes a JOIN guardian_links l ON l.athlete_id=a.id
+     WHERE l.user_id=? AND l.active=1`,
+    [actor.id],
+  );
+  return new Map(profiles.map(({ id: athleteId, paused, birthDate, school }) => [
+    athleteId,
+    { birthDate, school, nationalId: null, paused: !!paused },
+  ]));
 }
 
 /**
@@ -1188,7 +1250,7 @@ export async function setOwnAthleteActive(
   await requireActor(db, actor);
   const link = await one(
     db,
-    "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND athlete_id=? LIMIT 1",
+    "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND athlete_id=? AND active=1 LIMIT 1",
     [actor.id, athleteId],
   );
   if (!link) fail("Atleta no disponible.", 404, "not_found");

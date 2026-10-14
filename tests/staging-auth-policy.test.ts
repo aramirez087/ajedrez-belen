@@ -109,8 +109,10 @@ test('portal-test business routes reach their own handlers only with the matchin
 
 test('portal-test mode blocks signup, invitations, email, demo, prototype and ambiguous paths for every method', () => {
   for (const path of ['/', '/portal/acceso', '/portal/acceso/', '/portal/acceso/child', '/portal/ACCESO',
-    '/portal/invitacion?token=synthetic', '/portal/invitacion/child', '/api/admin/invitations',
+    '/portal/invitacion?token=synthetic', '/portal/invitacion/child', '/portal/admin-invitacion',
+    '/portal/admin-invitacion/child', '/api/admin/invitations', '/api/admin/administradores',
     '/api/admin/invitations/child', '/api/portal/invitations/redeem', '/api/portal/invitations/redeem/child',
+    '/api/portal/admin-invitations/redeem',
     '/api/admin/email', '/api/admin/email/prepare', '/api/portal/demo', '/api/portal/demo/child',
     '/demo', '/demo/child', '/prototype', '/api/prototype/run', '/login', '/login/child',
     '/auth/parent', '/auth/login', '/auth/admin/child', '/auth/setup/', '/auth/%73etup',

@@ -123,7 +123,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
         clearAthleteSuggestions();
         showStatus(emailedType === 'application/pdf'
           ? 'Usaremos el PDF que enviaste por correo. La referencia no se puede leer desde un PDF recibido por correo; el pago se puede enviar igual. Completa el monto y la fecha abajo.'
-          : 'Usaremos el archivo que enviaste por correo. La referencia se lee sola; completa el monto y la fecha abajo.');
+          : 'Usaremos el archivo que enviaste por correo. Si ya lo leímos, el monto y la referencia se completan solos. Revísalos antes de enviar.');
         if (emailedType !== 'application/pdf') void readSlipData();
       } else {
         showStatus('El archivo se adjuntará al enviar el formulario.');

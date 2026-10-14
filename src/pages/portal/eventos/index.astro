@@ -6,7 +6,7 @@ import EventCard from "../../../components/portal/EventCard.astro";
 import EventCalendar from "../../../components/portal/EventCalendar.astro";
 import { MONTHS_ES } from "../../../components/portal/format";
 import { authorizePortal } from "../../../lib/portal/access";
-import { crDateKey, crWallToUtcIso, listOccurrences, upcomingOccurrences } from "../../../lib/portal/events";
+import { canViewFamilyEvents, crDateKey, crWallToUtcIso, listOccurrences, upcomingOccurrences } from "../../../lib/portal/events";
 export const prerender = false;
 const access = await authorizePortal(Astro, env);
 if (!access.ok) return access.response;
@@ -25,10 +25,11 @@ const monthEnd = crWallToUtcIso(nextY, nextM, 1, 0, 0);
 const pad = (n: number) => String(n).padStart(2, "0");
 const prevMonth = `${prevY}-${pad(prevM)}`, nextMonth = `${nextY}-${pad(nextM)}`;
 const viewingCurrentMonth = yearMonth === todayKey.slice(0, 7);
-const [occurrences, upcoming] = await Promise.all([
+const familyEvents = await canViewFamilyEvents(env.DB, actor);
+const [occurrences, upcoming] = familyEvents ? await Promise.all([
   listOccurrences(env.DB, actor, monthStart, monthEnd),
   upcomingOccurrences(env.DB, actor, 5, nowIso),
-]);
+]) : [[], []];
 // Never show the same occurrence twice on this page: the month list skips
 // what "Lo que viene" already showed (relevant when viewing this month).
 const shownKeys = new Set(upcoming.map((o) => `${o.event.id}|${o.startsAt}`));
@@ -36,10 +37,11 @@ const monthList = occurrences.filter((o) => !shownKeys.has(`${o.event.id}|${o.st
 const monthListDeduped = monthList.length !== occurrences.length;
 ---
 <PortalLayout title="Eventos" actor={actor} active="events">
-  <PageHeader title="Eventos y actividades." eyebrow="Calendario" description="Clases, torneos y la llamada semanal por Zoom. Las horas son de Costa Rica. Toca un evento para entrar o ver la dirección."><a class="portal-button portal-button-secondary" href="/portal">Mi cuenta <span aria-hidden="true">→</span></a></PageHeader>
-  {monthAdjusted && <div class="portal-notice" role="status"><p>Ese mes no se pudo leer, así que te mostramos <strong>este mes</strong>.</p></div>}
+  <PageHeader title="Eventos y actividades." eyebrow="Calendario" description={familyEvents ? "Clases, torneos y la llamada semanal por Zoom. Las horas son de Costa Rica. Toca un evento para entrar o ver la dirección." : "Las clases, los enlaces para entrar y las direcciones se muestran cuando tu cuenta tiene un atleta."}><a class="portal-button portal-button-secondary" href="/portal">Mi cuenta <span aria-hidden="true">→</span></a></PageHeader>
+  {monthAdjusted && familyEvents && <div class="portal-notice" role="status"><p>Ese mes no se pudo leer, así que te mostramos <strong>este mes</strong>.</p></div>}
   {actor.isAdmin && <p class="portal-section-caption">Eres administración: <a class="portal-link" href="/admin/eventos">crear y editar eventos <span aria-hidden="true">→</span></a></p>}
-  <section class="portal-section" aria-labelledby="upcoming-title">
+  {!familyEvents && <section class="portal-section" aria-labelledby="events-locked-title"><div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3 id="events-locked-title">Los eventos aparecen cuando tu cuenta tiene un atleta.</h3><p>Las clases, los enlaces para entrar y las direcciones son para las familias inscritas. Acepta la invitación de la Asociación y el calendario se muestra aquí.</p><p><a class="portal-link" href="/portal/invitacion">Ya tengo mi enlace <span aria-hidden="true">→</span></a></p></div></div></section>}
+  {familyEvents && <><section class="portal-section" aria-labelledby="upcoming-title">
     <div class="portal-section-heading"><h2 id="upcoming-title">Lo que viene</h2><p>Próximos eventos primero</p></div>
     {upcoming.length ? <div class="portal-event-list">{upcoming.map((o) => <EventCard occurrence={o} nowIso={nowIso} />)}</div> : <div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3>No hay eventos próximos.</h3><p>Cuando la Asociación publique actividades, aparecerán aquí. Mientras tanto, puedes revisar otros meses abajo.</p></div></div>}
   </section>
@@ -62,5 +64,5 @@ const monthListDeduped = monthList.length !== occurrences.length;
     </>) : (
       <div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3>No hay eventos en {MONTHS_ES[mm - 1]}.</h3><p><a class="portal-link" href={`/portal/eventos?month=${nextMonth}`}>Ver el mes siguiente <span aria-hidden="true">→</span></a></p></div></div>
     )}
-  </section>
+  </section></>}
 </PortalLayout>

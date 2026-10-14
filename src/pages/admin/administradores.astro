@@ -1,0 +1,65 @@
+---
+import { env } from 'cloudflare:workers';
+import PortalLayout from '../../layouts/PortalLayout.astro';
+import PageHeader from '../../components/portal/PageHeader.astro';
+import { dateLabel } from '../../components/portal/format';
+import { authorizePortal } from '../../lib/portal/access';
+import { listAdminAccess, type AdminGrantRow, type PendingAdminInvitation } from '../../lib/portal/admin-access';
+import { adminInvitationWhatsAppMessage, adminInvitationWhatsAppUrl } from '../../lib/portal/invitation-entry';
+export const prerender = false;
+const access = await authorizePortal(Astro, env, { admin: true });
+if (!access.ok) return access.response;
+const { actor } = access;
+const stagingTest = env.STAGING_PORTAL_TEST === 'true' || env.STAGING_AUTH_SETUP === 'true';
+const principalIds = new Set((env.ADMIN_USER_IDS ?? '').split(',').map(id => id.trim()).filter(Boolean));
+const inviteLink = Astro.cookies.get('portal-admin-invite-link')?.value;
+if (inviteLink) Astro.cookies.delete('portal-admin-invite-link', { path: '/admin/administradores' });
+let grants: AdminGrantRow[] = [];
+let pending: PendingAdminInvitation[] = [];
+let storageReady = true;
+if (!stagingTest) {
+  try {
+    ({ grants, pending } = await listAdminAccess(env.DB));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (!/no such table/i.test(message)) throw error;
+    storageReady = false;
+  }
+}
+const others = grants.filter(grant => grant.userId !== actor.id && !principalIds.has(grant.userId));
+const selfGrant = grants.some(grant => grant.userId === actor.id) && !principalIds.has(actor.id);
+---
+<PortalLayout title="Administradores" actor={actor} active="admins">
+  <PageHeader title="Quién administra." eyebrow="Administradores" description="Invita a otra persona del equipo. Recibe las mismas herramientas: familias, pagos, mensualidades y comprobantes. Creas un enlace, se lo envías por WhatsApp, y solo abre con ese correo." />
+  {stagingTest && <section class="portal-panel"><p class="portal-section-caption">Las invitaciones de administración no están disponibles en esta prueba con una sola cuenta autorizada.</p></section>}
+  {!stagingTest && !storageReady && <section class="portal-panel"><p class="portal-section-caption">Esta sección todavía no está lista en la base de datos. Falta aplicar la migración de administradores.</p></section>}
+  {!stagingTest && storageReady && inviteLink && <section class="portal-guidance" aria-labelledby="admin-invite-heading" data-copy-scope><h3 id="admin-invite-heading">Enlace listo</h3><p>Envíalo por WhatsApp o cópialo. Vence en siete días y solo abre con ese correo.</p><div class="portal-copy-row" style="margin-top:15px"><a class="portal-button" href={adminInvitationWhatsAppUrl(inviteLink)} target="_blank" rel="noopener">Enviar por WhatsApp <span aria-hidden="true">↗</span></a><span class="portal-help" data-copy-feedback role="status"></span></div><label class="visually-hidden" for="admin-invite-link">Enlace de invitación</label><input class="portal-invitation-link" id="admin-invite-link" type="text" value={inviteLink} readonly style="margin-top:15px" /><div class="portal-copy-row"><button class="portal-link portal-text-button" type="button" data-copy-invite>Copiar enlace <span aria-hidden="true">↗</span></button><button class="portal-link portal-text-button" type="button" data-copy-value={adminInvitationWhatsAppMessage(inviteLink)}>Copiar mensaje <span aria-hidden="true">↗</span></button></div><p class="portal-help">Cópialo o envíalo antes de salir: no vuelve a mostrarse.</p></section>}
+  {!stagingTest && storageReady && <div class="portal-two-columns">
+    <section class="portal-panel" id="invitar"><h2>Invitar a un administrador</h2><p class="portal-section-caption">Escribe su correo. Al abrir el enlace entra con esa cuenta y queda con acceso de administración.</p><form class="portal-form" id="admin-invite-form" action="/api/admin/administradores" method="post"><input type="hidden" name="action" value="invite" /><div class="portal-field"><label for="admin-invite-email">Correo</label><input id="admin-invite-email" name="email" type="email" maxlength="254" autocomplete="off" spellcheck="false" placeholder="equipo@ejemplo.com…" required /></div><button class="portal-button" id="admin-invite-submit" type="submit" disabled>Crear enlace <span aria-hidden="true">→</span></button><p class="portal-help" id="admin-invite-hint" role="status">Falta el correo.</p></form></section>
+    <section class="portal-panel" id="cuentas"><h2>Con acceso ahora</h2><article class="portal-family-card"><header><div><h3>{actor.name}</h3><p class="portal-help">{actor.email}</p></div><span class="portal-status portal-status-approved">{principalIds.has(actor.id) ? 'Cuenta principal' : 'Administrador'}</span></header>{selfGrant && <form action="/api/admin/administradores" method="post" data-confirm="¿Dejar de administrar el portal? Tu cuenta familiar, si tienes una, sigue igual."><input type="hidden" name="action" value="revoke" /><input type="hidden" name="userId" value={actor.id} /><button class="portal-link portal-text-button" type="submit">Dejar de administrar</button></form>}</article>{others.map(grant => <article class="portal-family-card"><header><div><h3>{grant.name}</h3><p class="portal-help">{grant.email}</p></div><span class="portal-status portal-status-approved">Administrador</span></header><form action="/api/admin/administradores" method="post" data-confirm={`¿Quitar el acceso de administración a ${grant.email}? Su cuenta familiar, si tiene una, no cambia.`}><input type="hidden" name="action" value="revoke" /><input type="hidden" name="userId" value={grant.userId} /><button class="portal-link portal-text-button" type="submit">Revocar acceso</button></form></article>)}{principalIds.has(actor.id) && <p class="portal-help">La cuenta principal sigue autorizada aunque se revoquen las demás.</p>}
+      {principalIds.size > 0 && !principalIds.has(actor.id) && <p class="portal-help">La cuenta principal sigue con acceso. No se quita desde aquí.</p>}</section>
+  </div>}
+  {!stagingTest && storageReady && <section class="portal-section" id="pendientes"><div class="portal-section-heading"><h2>Enlaces pendientes</h2><p>{pending.length === 0 ? 'Ninguno' : `${pending.length} ${pending.length === 1 ? 'enlace' : 'enlaces'}`}</p></div>{pending.length === 0 ? <p class="portal-section-caption">Cuando crees un enlace, aparece aquí hasta que lo usen o venza.</p> : pending.map(invite => <article class="portal-family-card"><header><div><h3>{invite.email}</h3><p class="portal-help">Vence el {dateLabel(invite.expiresAt)}</p></div><span class="portal-status portal-status-pending">Pendiente</span></header><form action="/api/admin/administradores" method="post" data-confirm="¿Anular este enlace? La persona ya no podrá usarlo."><input type="hidden" name="action" value="cancel" /><input type="hidden" name="invitationId" value={invite.id} /><button class="portal-link portal-text-button" type="submit">Anular enlace</button></form></article>)}</section>}
+</PortalLayout>
+<script>
+  const form = document.querySelector<HTMLFormElement>('#admin-invite-form');
+  if (form) {
+    const email = form.querySelector<HTMLInputElement>('#admin-invite-email');
+    const submit = form.querySelector<HTMLButtonElement>('#admin-invite-submit');
+    const hint = form.querySelector<HTMLElement>('#admin-invite-hint');
+    const refresh = () => {
+      const emailOk = !!email && email.value.trim() !== '' && email.checkValidity();
+      if (submit) submit.disabled = !emailOk;
+      if (hint) hint.textContent = emailOk ? 'El enlace queda listo para WhatsApp.' : 'Falta el correo.';
+    };
+    form.addEventListener('input', refresh);
+    refresh();
+  }
+  const inviteInput = document.querySelector<HTMLInputElement>('#admin-invite-link');
+  document.querySelector<HTMLButtonElement>('[data-copy-invite]')?.addEventListener('click', async () => {
+    const feedback = document.querySelector<HTMLElement>('[data-copy-feedback]');
+    if (!inviteInput) return;
+    try { await navigator.clipboard.writeText(inviteInput.value); if (feedback) feedback.textContent = 'Enlace copiado.'; }
+    catch { inviteInput.select(); if (feedback) feedback.textContent = 'Selecciona y copia el enlace.'; }
+  });
+</script>

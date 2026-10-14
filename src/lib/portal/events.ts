@@ -165,7 +165,7 @@ export function normalizeEventInput(input: EventInput): NormalizedEvent {
   if (locationUrlRaw) {
     let parsed: URL;
     try { parsed = new URL(locationUrlRaw); } catch { fail("El enlace del evento no es una URL válida.", "invalid_location"); }
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") fail("El enlace debe empezar con https://.", "invalid_location");
+    if (parsed.protocol !== "https:") fail("El enlace debe empezar con https://.", "invalid_location");
     locationUrl = parsed.toString();
   }
   if ((input.locationType === "online" || input.locationType === "hybrid") && !locationUrl) fail("Los eventos en línea necesitan el enlace (Zoom, Meet…).", "invalid_location");
@@ -458,22 +458,32 @@ export async function deleteEvent(db: D1Database, actor: Actor, eventId: string)
   await db.prepare("DELETE FROM events WHERE id=?").bind(eventId).run();
   return existing.image;
 }
+/** Published meeting links and addresses are for staff and enrolled families. */
+export async function canViewFamilyEvents(db: D1Database, actor: Actor): Promise<boolean> {
+  if (actor.isAdmin) return true;
+  const link = await db.prepare(
+    "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND active=1 LIMIT 1",
+  ).bind(actor.id).first();
+  return !!link;
+}
 export async function getEvent(db: D1Database, eventId: string, actor?: Actor): Promise<PortalEvent | null> {
   const row = await db.prepare(`SELECT ${COLS} FROM events WHERE id=?`).bind(eventId).first<EventRow>();
   if (!row) return null;
   const [event] = await hydrate(db, [row]);
   if (!actor?.isAdmin && event.status !== "published") return null;
+  if (actor && !actor.isAdmin && !(await canViewFamilyEvents(db, actor))) return null;
   return event;
 }
-/** Unfiltered lookup for tombstones: lets the detail page distinguish "cancelled"
-    from "never existed" without leaking drafts (caller must handle status). */
-export async function getEventAnyStatus(db: D1Database, eventId: string): Promise<PortalEvent | null> {
+/** Lookup for tombstones. Drafts stay unrendered by the caller. Unenrolled accounts see neither. */
+export async function getEventAnyStatus(db: D1Database, eventId: string, actor?: Actor): Promise<PortalEvent | null> {
   const row = await db.prepare(`SELECT ${COLS} FROM events WHERE id=?`).bind(eventId).first<EventRow>();
   if (!row) return null;
   const [event] = await hydrate(db, [row]);
+  if (actor && !actor.isAdmin && !(await canViewFamilyEvents(db, actor))) return null;
   return event;
 }
 export async function listEvents(db: D1Database, actor: Actor): Promise<PortalEvent[]> {
+  if (!actor.isAdmin && !(await canViewFamilyEvents(db, actor))) return [];
   const all = actor.isAdmin
     ? await rows<EventRow>(db, `SELECT ${COLS} FROM events ORDER BY starts_at DESC LIMIT 200`)
     : await rows<EventRow>(db, `SELECT ${COLS} FROM events WHERE status='published' ORDER BY starts_at ASC LIMIT 200`);

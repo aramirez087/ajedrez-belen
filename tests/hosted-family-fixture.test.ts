@@ -172,15 +172,31 @@ test('existing local session loses linked data immediately and inactive account 
   assert.deepEqual((await getParentDashboard(f.db, parentA)).athletes.map(athlete => athlete.id), [f.athleteA]);
 });
 
-test('shared endpoint authorization denies non-admin or invalid identities before touching DB or storage', async t => {
+test('shared endpoint authorization denies non-admin or invalid identities before business reads', async t => {
+  // A staff-organization session may look up admin_grants once. That is the
+  // authorization read. Anything else (users, athletes, storage) is forbidden.
   let bindingTouches = 0;
-  const forbidden = new Proxy({}, { get() { bindingTouches++; throw new Error('Forbidden binding touched'); } });
+  const queries: string[] = [];
+  const grantLookup = 'SELECT 1 AS ok FROM admin_grants WHERE user_id=? AND active=1';
+  const forbidden = new Proxy({}, {
+    get(_target, property) {
+      bindingTouches++;
+      if (property !== 'prepare') throw new Error(`Forbidden binding touched: ${String(property)}`);
+      return (sql: string) => {
+        queries.push(sql);
+        throw new Error('no such table: admin_grants');
+      };
+    },
+  });
   const env = { ...environment, DB: forbidden, SLIPS: forbidden } as Cloudflare.Env;
   for (const path of ['/admin', '/api/admin/export', '/api/admin/links']) {
     for (const actor of [parentA, parentB]) {
       const result = await authorizePortal(context(actor, path, environment.WORKOS_ORGANIZATION_ID), env, { admin: true });
       assert.equal(result.ok, false);
-      if (!result.ok) assert.equal(result.response.status, 403);
+      if (!result.ok) {
+        assert.equal(result.response.status, 403);
+        if (path.startsWith('/api/')) assert.equal(await result.response.text(), 'Administrator access required');
+      }
     }
   }
   const wrongOrganization = await authorizePortal(context(owner, '/api/admin/export', 'org_Foreign'), env, { admin: true });
@@ -191,10 +207,12 @@ test('shared endpoint authorization denies non-admin or invalid identities befor
   const deniedIdentity = await authorizePortal(invalid, env);
   assert.equal(deniedIdentity.ok, false);
   if (!deniedIdentity.ok) assert.equal(deniedIdentity.response.status, 401);
-  assert.equal(bindingTouches, 0);
+  assert.deepEqual(queries, Array(6).fill(grantLookup));
+  assert.equal(bindingTouches, 6, 'Each staff-organization non-admin checks admin_grants once and nothing else');
   await assert.rejects(enrollAthlete(forbidden as D1Database, parentA, athleteInput('LOCAL UNAUTHORIZED')), denied(403));
   await assert.rejects(linkGuardian(forbidden as D1Database, parentA, { userId: parentA.id, athleteId: 'fictional-target' }), denied(403));
-  assert.equal(bindingTouches, 0, 'Domain admin guards also run before database access');
+  assert.equal(queries.length, 6);
+  assert.equal(bindingTouches, 6, 'Domain admin guards also run before database access');
   const f = await fixture(t);
   const allowed = await authorizePortal(context(owner, '/admin'), { ...environment, DB: f.db } as Cloudflare.Env, { admin: true });
   assert.ok(allowed.ok && allowed.actor.isAdmin);

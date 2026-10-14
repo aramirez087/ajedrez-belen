@@ -87,7 +87,7 @@ test('a new account cannot leave athlete enrollment for the rest of the family p
   for (const path of ['/portal', '/portal/pagos/nuevo', '/portal/pagos/abc', '/portal/eventos', '/portal/eventos/abc', '/portal/comprobantes/abc']) {
     assert.equal(portalPageNeedsAthleteStep(path, 'GET'), true, path);
   }
-  for (const path of ['/portal/inscribir', '/portal/inscribir/', '/portal/invitacion', '/portal/acceso', '/admin', '/admin/familias', '/auth/registro']) {
+  for (const path of ['/portal/inscribir', '/portal/inscribir/', '/portal/invitacion', '/portal/admin-invitacion', '/portal/acceso', '/admin', '/admin/familias', '/auth/registro']) {
     assert.equal(portalPageNeedsAthleteStep(path, 'GET'), false, path);
   }
   assert.equal(portalPageNeedsAthleteStep('/portal', 'POST'), false);

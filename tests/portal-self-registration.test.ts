@@ -15,7 +15,11 @@ import {
   publishCurrentMonth,
   redeemInvitation,
   registerAthletes,
+  registerAthletesWithOptionalGuardian,
+  listAthleteProfiles,
+  listOwnAthleteProfiles,
   createGuardianInvitation,
+  revokeGuardian,
   enrollAthlete,
   getParentDashboard,
   linkGuardian,
@@ -175,6 +179,11 @@ test("a linked family can add athletes at any time, and the guardian controls ba
   assert.deepEqual(preview.athletes.map((a) => a.name), ["Segundo"]);
   await setOwnAthleteActive(db, parent, first, true);
   assert.equal((await getMonthlyPreview(db, "2027-01")).athletes.length, 2);
+  await setOwnAthleteActive(db, parent, first, false);
+  await revokeGuardian(db, admin, { userId: parent.id, athleteId: first });
+  await assert.rejects(setOwnAthleteActive(db, parent, first, true),
+    (error: unknown) => (error as { status: number }).status === 404);
+  assert.equal((await getMonthlyPreview(db, "2027-01")).athletes.length, 1);
 });
 
 test("a guardian invites the other guardian to exactly their own athletes, during or after registration", async () => {
@@ -254,12 +263,52 @@ test("admin pause stops new charges without touching history, and only admins ca
   ).all() as Array<{ athleteId: string; total: number }>;
   assert.equal(febCharges.length, 1);
   assert.equal(febCharges[0].athleteId, siblingId);
-  assert.equal(febCharges[0].total, 1500000); // charged alone: no sibling discount that month
+  assert.equal(febCharges[0].total, 1125000); // paused sibling still counts for the 25% rate
   const januaryCount = adapter.sqlite.prepare("SELECT count(*) AS n FROM charges WHERE period='2027-01'").get() as { n: number };
   assert.equal(januaryCount.n, 2); // history untouched
   await setAthletePaused(db, admin, pausedId, false);
   const march = await publishCurrentMonth(db, "2027-03-01T06:00:00.000Z");
   assert.equal(march.created, 2);
+});
+
+test("a malformed co-guardian email does not save the athletes", async () => {
+  const { adapter, db } = await setup();
+  const athletes = [{ name: "No Debe Quedar", birthDate: birthForAge(9), school: "Escuela", category: "Cadetes" as const }];
+  const count = () => (adapter.sqlite.prepare("SELECT count(*) AS n FROM athletes").get() as { n: number }).n;
+  await assert.rejects(
+    registerAthletesWithOptionalGuardian(db, parent, athletes, { email: "no-es-correo", tokenHash: hash("tok-bad-mail") }),
+    (error: unknown) => (error as { status: number }).status === 400,
+  );
+  assert.equal(count(), 0);
+  await assert.rejects(
+    registerAthletesWithOptionalGuardian(db, parent, athletes, { email: parent.email, tokenHash: hash("tok-self-mail") }),
+    /otra persona/,
+  );
+  assert.equal(count(), 0);
+  const ids = await registerAthletesWithOptionalGuardian(db, parent, athletes, { email: "otro@example.test", tokenHash: hash("tok-ok-mail") });
+  assert.equal(ids.length, 1);
+  const invite = adapter.sqlite.prepare("SELECT email FROM invitations WHERE token_hash=?").get(hash("tok-ok-mail")) as { email: string };
+  assert.equal(invite.email, "otro@example.test");
+});
+
+test("a parent profile list includes only that family's athletes and omits cédula", async () => {
+  const { db } = await setup();
+  const [own] = await registerAthletes(db, parent, [
+    { name: "Mio", birthDate: birthForAge(13), nationalId: "1-0234-0567", school: "Colegio", category: "Cadetes" },
+  ]);
+  const foreign = await enrollAthlete(db, admin, {
+    name: "Ajeno", category: "Cadetes", feeMinor: 1500000, discountMinor: 0, startPeriod: billingPeriod(new Date().toISOString()),
+  });
+  const ownProfiles = await listOwnAthleteProfiles(db, parent);
+  assert.equal(ownProfiles.has(own), true);
+  assert.equal(ownProfiles.get(own)?.school, "Colegio");
+  assert.equal(ownProfiles.get(own)?.nationalId, null);
+  assert.equal(ownProfiles.has(foreign), false);
+  const all = await listAthleteProfiles(db);
+  assert.equal(all.has(foreign), true);
+  assert.equal(all.get(own)?.nationalId, "102340567");
+  await revokeGuardian(db, admin, { userId: parent.id, athleteId: own });
+  assert.equal((await listOwnAthleteProfiles(db, parent)).has(own), false);
 });
 
 const portalEnv = {

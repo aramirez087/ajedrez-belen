@@ -9,7 +9,9 @@
   "preview_urls": false,
   "observability": { "enabled": true, "head_sampling_rate": 1 },
   "vars": {
-    "ADMIN_USER_IDS": "user_01M4SQMQKETQMKM1254C25V224"
+    "ADMIN_USER_IDS": "user_01M4SQMQKETQMKM1254C25V224",
+    "OCR_MODE": "groq",
+    "GROQ_TIMEOUT_MS": "15000"
   },
   "d1_databases": [{
     "binding": "DB",

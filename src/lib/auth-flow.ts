@@ -34,7 +34,13 @@ export function parseDestino(value: string | null | undefined): AuthDestino {
 }
 
 /** Where a completed sign-in lands. An invitation always wins for families. */
-export function afterLoginPath(destino: AuthDestino, next: string | null | undefined, hasPendingInvitation: boolean): string {
+export function afterLoginPath(
+  destino: AuthDestino,
+  next: string | null | undefined,
+  hasPendingInvitation: boolean,
+  hasPendingAdminInvitation = false,
+): string {
+  if (hasPendingAdminInvitation) return '/portal/admin-invitacion';
   if (destino === 'admin') return '/admin';
   if (hasPendingInvitation) return '/portal/invitacion';
   return safePortalReturnPath(next) ?? '/portal';

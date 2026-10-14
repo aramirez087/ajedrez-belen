@@ -15,6 +15,7 @@ export const POST: APIRoute = async (context) => {
   if (stagingAuthSetupRequested(env)) return stagingSignOut(context, env, service);
   // A shared phone must not hand the next person a saved invitation.
   context.cookies.delete('pending-invitation', { path: '/' });
+  context.cookies.delete('pending-admin-invitation', { path: '/' });
   context.cookies.delete('wos-pending-auth', { path: '/auth' });
   const auth = context.locals.auth;
   if (!auth?.user) {

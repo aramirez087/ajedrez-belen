@@ -296,7 +296,10 @@ test("a new token is a separate submission even for the same bank reference, whi
   assert.equal(await recoverPaymentSubmission(db, parent, fresh), null);
   const secondId = await submitPayment(db, parent, fresh);
   assert.notEqual(secondId, first);
-  await assert.rejects(reviewPayment(db, admin, secondId, verification(fresh)), isConflict);
+  await assert.rejects(
+    reviewPayment(db, admin, secondId, verification(fresh)),
+    (error: unknown) => error instanceof PortalError && error.status === 409 && error.code === "duplicate_transfer",
+  );
   assert.equal(adapter.sqlite.prepare("SELECT count(*) AS n FROM payments").get()!.n, 2);
   assert.equal(adapter.sqlite.prepare("SELECT count(*) AS n FROM payments WHERE status='verified'").get()!.n, 1);
   assert.equal(adapter.sqlite.prepare("SELECT count(*) AS n FROM receipts").get()!.n, 1);

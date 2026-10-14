@@ -19,7 +19,8 @@ const destino = parseDestino(Astro.url.searchParams.get('destino'));
 const next = safePortalReturnPath(Astro.url.searchParams.get('next'));
 const hasInvitation = Astro.cookies.has('pending-invitation');
 const identity = getPortalIdentity(Astro, env);
-if (identity) return Astro.redirect(afterLoginPath(destino, next, hasInvitation), 302);
+const hasAdminInvitation = Astro.cookies.has('pending-admin-invitation');
+if (identity) return Astro.redirect(afterLoginPath(destino, next, hasInvitation, hasAdminInvitation), 302);
 
 // Arriving from an invitation link: we already know the correo. Prefill it,
 // and when that correo has no account yet skip this form entirely and go
@@ -78,6 +79,7 @@ const adminHref = `/auth/entrar?destino=admin${next ? `&next=${encodeURIComponen
       ? `Esta invitación es para ${invitedEmail}. Escribe tu contraseña.`
       : 'Entra con el correo que la Asociación vinculó a tus atletas para consultar mensualidades, registrar pagos y ver tus comprobantes.'}
   error={error}
+  notice={Astro.url.searchParams.get('notice') === 'admin_ready' ? 'Ya quedaste como administrador. Entra con el mismo correo. La primera vez, la Asociación pide el código de tu aplicación de autenticación.' : undefined}
 >
   <GoogleButton href={googleHref} />
   {!invitedEmail && <div class="portal-role-switch portal-auth-switch" role="navigation" aria-label="Tipo de ingreso">

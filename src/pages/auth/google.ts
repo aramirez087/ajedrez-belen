@@ -18,7 +18,7 @@ export const GET: APIRoute = async (context) => {
   const destino = parseDestino(context.url.searchParams.get('destino'));
   const next = safePortalReturnPath(context.url.searchParams.get('next'));
   const identity = getPortalIdentity(context, env);
-  if (identity) return context.redirect(afterLoginPath(destino, next, context.cookies.has('pending-invitation')), 302);
+  if (identity) return context.redirect(afterLoginPath(destino, next, context.cookies.has('pending-invitation'), context.cookies.has('pending-admin-invitation')), 302);
   const auth = workosClient();
   if (!auth) return authUnavailableResponse();
   try {

@@ -89,8 +89,10 @@ export function stagingParentTestConfiguration(environment: StagingAuthEnvironme
 }
 
 const blockedBusinessPaths = [
-  '/portal/acceso', '/portal/invitacion', '/api/admin/invitations',
-  '/api/portal/invitations/redeem', '/api/admin/email', '/api/portal/demo',
+  '/portal/acceso', '/portal/invitacion', '/portal/admin-invitacion',
+  '/api/admin/invitations', '/api/admin/administradores',
+  '/api/portal/invitations/redeem', '/api/portal/admin-invitations',
+  '/api/admin/email', '/api/portal/demo',
 ];
 
 function isBusinessPath(pathname: string): boolean {

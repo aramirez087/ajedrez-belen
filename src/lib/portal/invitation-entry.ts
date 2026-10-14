@@ -2,6 +2,10 @@
 
 export const INVITATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,128}$/;
 
+/** Cookie left by an administrator invitation link. Path `/` so sign-in can read it. */
+export const ADMIN_INVITATION_COOKIE = 'pending-admin-invitation';
+export const ADMIN_INVITATION_PATH = '/portal/admin-invitacion';
+
 /**
  * Where a family member was headed before being sent to sign in. Only plain
  * family-portal pathnames survive; anything else (external sites, admin,
@@ -44,6 +48,15 @@ export function invitationWhatsAppMessage(link: string): string {
 /** Opens WhatsApp's share picker with the invitation message ready to send. */
 export function invitationWhatsAppUrl(link: string): string {
   return `https://wa.me/?text=${encodeURIComponent(invitationWhatsAppMessage(link))}`;
+}
+
+/** Same shape as a family invitation: the link is the whole instruction. */
+export function adminInvitationWhatsAppMessage(link: string): string {
+  return `Tu acceso de administración en Ajedrez Belén (vence en 7 días): ${link}`;
+}
+
+export function adminInvitationWhatsAppUrl(link: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(adminInvitationWhatsAppMessage(link))}`;
 }
 
 /** Where a person lands the moment their invitation is accepted. */
