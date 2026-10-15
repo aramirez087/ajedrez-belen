@@ -1,5 +1,7 @@
 # Configuration recipe — incomplete decisions cannot become a deployment
 
+**Later production state:** The repository now contains `wrangler.production.jsonc` with active portal, email, and OCR settings, and the production D1 has migrations `0001`–`0010` applied. This document preserves the earlier preparation recipe; it does not describe or validate the current deployed Worker. See [the 0010 production migration record](PRODUCTION-D1-MIGRATION-0010-2026-10-14.md) for the verified database change. Review the live Worker and Git pipeline before another code deployment.
+
 Use the [manifest](production-release-plan.template.json) to resolve decisions
 before generating a dedicated production configuration. No deployable config or
 production artifact is supplied here. The verified configuration candidate was

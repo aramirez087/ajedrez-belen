@@ -1,4 +1,6 @@
-# Production migration and release checklist — no actions executed
+# Production migration and release checklist — historical preparation plan
+
+**Later production state:** D1 `ffa2abc9-acce-44e0-ab96-c2cf68a13f13` now has migrations `0001`–`0010` applied. The administrator migration and its verification are recorded in [the 0010 production migration record](PRODUCTION-D1-MIGRATION-0010-2026-10-14.md). The unchecked preparation items below are historical planning evidence, not a current inventory of the deployed portal.
 
 Record evidence beside each completed item. A checked document is not an action
 approval: retain the exact owner approval, target and allowed consequence for
