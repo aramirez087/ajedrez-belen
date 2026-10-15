@@ -516,7 +516,10 @@ test("global/day, per-adult/day and minute budgets are enforced without another 
     2,
   );
 });
-test("failed extraction does not lose original or retry automatically, and each draft is bounded to three attempts", async () => {
+test("failed extraction does not lose original or retry automatically, and each draft is bounded to three attempts", async (t) => {
+  // This test advances three minutes inside one daily retry budget. Pin the
+  // whole fixture to midday so running near UTC midnight cannot reset it.
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-10-14T12:00:00Z") });
   const ctx = await setup(),
     record = await draft(ctx);
   let calls = 0;

@@ -6,8 +6,13 @@ import { successRedirect } from "../../../../lib/portal/http";
 import { portalMutation } from "../../../../lib/portal/routes";
 
 export const prerender = false;
-export const POST: APIRoute = (context) =>
-  portalMutation(context, env, { admin: true, upload: true, back: "/admin/eventos/nuevo" }, async (actor, form) => {
+export const POST: APIRoute = (context) => {
+  // Keep a copied event in its own form/draft after validation or upload errors.
+  // The source is only a return location; event creation still uses the submitted data.
+  const source = context.url.searchParams.get("from") ?? "";
+  const back = /^[\w-]{1,80}$/.test(source)
+    ? `/admin/eventos/nuevo?from=${encodeURIComponent(source)}` : "/admin/eventos/nuevo";
+  return portalMutation(context, env, { admin: true, upload: true, back }, async (actor, form) => {
     const parsed = await parseEventForm(form, null);
     const eventId = crypto.randomUUID();
     let uploadedKey: string | null = null;
@@ -27,3 +32,4 @@ export const POST: APIRoute = (context) =>
     }
     return successRedirect("/admin/eventos", "event_created");
   });
+};

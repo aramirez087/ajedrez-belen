@@ -26,6 +26,7 @@ if (identity) {
 const invitedEmail = await pendingInvitationEmail(Astro.cookies);
 
 let error = '';
+let errorField = '';
 let fullName = '';
 let email = invitedEmail ?? '';
 if (Astro.request.method === 'POST') {
@@ -42,12 +43,16 @@ if (Astro.request.method === 'POST') {
     const password = String(form.get('password') ?? '');
     if (!names || fullName.length > 160) {
       error = 'Escribe tu nombre completo.';
+      errorField = 'fullName';
     } else if (!validAuthEmail(email)) {
       error = 'Ese correo no se ve completo. Revísalo e inténtalo de nuevo.';
+      errorField = 'email';
     } else if (password.length < 10) {
       error = 'La contraseña debe tener al menos 10 caracteres, mezclando letras y números.';
+      errorField = 'password';
     } else if (password.length > 256) {
-      error = 'La contraseña es demasiado larga. Usa una de menos de 256 caracteres.';
+      error = 'La contraseña es demasiado larga. Usa hasta 256 caracteres.';
+      errorField = 'password';
     } else {
       const outcome = await registerWithPassword(auth.client, env, {
         firstName: names.firstName, lastName: names.lastName, email, password, destino: 'familia', next, meta: clientMeta(Astro.request),
@@ -70,21 +75,24 @@ const entrarHref = `/auth/entrar${next ? `?next=${encodeURIComponent(next)}` : '
     ? `Este registro es para ${invitedEmail}. Escribe tu nombre y una contraseña. Te enviamos un código a ese correo para confirmarlo.`
     : 'Escribe tu nombre, tu correo y una contraseña. Te enviamos un código al correo para confirmarlo.'}
   error={error}
+  errorFields={errorField ? [{ id: errorField, label: errorField === 'fullName' ? 'Revisar nombre completo' : errorField === 'email' ? 'Revisar correo electrónico' : 'Revisar contraseña' }] : []}
 >
   {!invitedEmail && !hasInvitation && <p class="portal-section-caption">¿Todavía no tienes invitación? Crea tu cuenta igual y pide tu enlace por WhatsApp; al tocarlo, tus atletas aparecen en tu cuenta.</p>}
   <GoogleButton href={googleHref} />
   <form class="portal-form" method="post">
     <div class="portal-field">
       <label for="fullName">Nombre completo</label>
-      <input id="fullName" name="fullName" type="text" autocomplete="name" maxlength="160" value={fullName} placeholder="Tu nombre y apellidos…" required />
+      <input id="fullName" name="fullName" type="text" autocomplete="name" maxlength="160" value={fullName} placeholder="Tu nombre y apellidos…" aria-invalid={errorField === 'fullName' ? 'true' : undefined} aria-describedby={errorField === 'fullName' ? 'fullName-error' : undefined} required />
+      {errorField === 'fullName' && <p class="portal-help portal-field-error" id="fullName-error">{error}</p>}
     </div>
     <div class="portal-field">
       <label for="email">Correo electrónico</label>
-      <input id="email" name="email" type="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" value={email} placeholder="tucorreo@ejemplo.com" required />
-      {invitedEmail && <p class="portal-help">Es el correo de la invitación.</p>}
+      <input id="email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" maxlength="254" value={email} placeholder="tucorreo@ejemplo.com" aria-invalid={errorField === 'email' ? 'true' : undefined} aria-describedby={[invitedEmail && 'email-help', errorField === 'email' && 'email-error'].filter(Boolean).join(' ') || undefined} required />
+      {invitedEmail && <p class="portal-help" id="email-help">Usa el correo de la invitación para vincularla con tu cuenta.</p>}
+      {errorField === 'email' && <p class="portal-help portal-field-error" id="email-error">{error}</p>}
     </div>
-    <PasswordField id="password" name="password" label="Contraseña" autocomplete="new-password" toggle help="Al menos 10 caracteres, mezclando letras y números." />
-    <button class="portal-button portal-button-wide" type="submit">Crear mi cuenta y entrar <span aria-hidden="true">→</span></button>
+    <PasswordField id="password" name="password" label="Contraseña" autocomplete="new-password" minlength={10} toggle help="Al menos 10 caracteres, mezclando letras y números." error={errorField === 'password' ? error : undefined} />
+    <button class="portal-button portal-button-wide" type="submit">Crear mi cuenta <span aria-hidden="true">→</span></button>
   </form>
   <div class="portal-auth-links">
     <a class="portal-link" href={entrarHref}>¿Ya tienes cuenta? Inicia sesión <span aria-hidden="true">↗</span></a>

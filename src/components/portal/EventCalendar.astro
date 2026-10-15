@@ -9,7 +9,10 @@ const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
 // Multi-day events appear on every CR day they touch, not only the start day.
 const byDay = new Map<string, EventOccurrence[]>();
 for (const occ of occurrences) {
-  let cursor = new Date(occ.startsAt).getTime();
+  // Step at CR midnight, not at the event's start time: a 23:00–01:00
+  // event belongs to both dates, and an event ending at midnight does not
+  // belong to the following day.
+  let cursor = new Date(`${crDateKey(occ.startsAt)}T00:00:00-06:00`).getTime();
   const end = new Date(occ.endsAt).getTime();
   for (let guard = 0; guard < 32 && cursor < end; guard++) {
     const key = crDateKey(new Date(cursor).toISOString());
@@ -40,7 +43,7 @@ const chipHref = (occ: EventOccurrence) => admin ? `/admin/eventos/${occ.event.i
             {(byDay.get(cell.key) ?? []).slice(0, 2).map((occ) => (
               <a class:list={["portal-calendar-event", { "is-cancelled": occ.cancelled }]} href={chipHref(occ)} aria-label={`${occ.event.title}, ${cell.day} de ${monthName}${occ.cancelled ? ", fecha cancelada" : ""}`}><span class="portal-calendar-dot" aria-hidden="true"></span><span class="portal-calendar-event-title">{occ.event.title}</span></a>
             ))}
-            {(byDay.get(cell.key) ?? []).length > 2 && <a class="portal-calendar-more" href={`#dia-${cell.key}`}>+{(byDay.get(cell.key) ?? []).length - 2} más</a>}
+            {(byDay.get(cell.key) ?? []).length > 2 && <details class="portal-calendar-overflow"><summary class="portal-calendar-more">+{(byDay.get(cell.key) ?? []).length - 2} más<span class="visually-hidden"> el {cell.day} de {monthName}</span></summary>{(byDay.get(cell.key) ?? []).slice(2).map(occ => <a class:list={["portal-calendar-event", { "is-cancelled": occ.cancelled }]} href={chipHref(occ)} aria-label={`${occ.event.title}, ${cell.day} de ${monthName}${occ.cancelled ? ", fecha cancelada" : ""}`}><span class="portal-calendar-dot" aria-hidden="true"></span><span class="portal-calendar-event-title">{occ.event.title}</span></a>)}</details>}
           </td>
         ))}
       </tr>

@@ -15,5 +15,5 @@ const errorCode = Astro.url.searchParams.get("error") ?? "";
 ---
 <PortalLayout title={template ? "Duplicar evento" : "Nuevo evento"} actor={actor} active="events">
   <PageHeader title={template ? "Copia del evento." : "Nuevo evento."} eyebrow="Administración · Eventos" description={template ? "Trajimos los datos del evento original. Ajusta la fecha y publica: es una serie nueva, no toca la anterior." : "Para la llamada semanal: elige En línea, pega el enlace de Zoom y marca «Cada semana». Revisa la vista previa de fechas antes de publicar."} backHref="/admin/eventos" backLabel="Volver a eventos" />
-  <section class="portal-section"><EventForm action="/api/admin/events" event={template ?? undefined} duplicate={!!template} errorCode={errorCode} /></section>
+  <section class="portal-section"><EventForm action={template ? `/api/admin/events?from=${encodeURIComponent(template.id)}` : "/api/admin/events"} event={template ?? undefined} duplicate={!!template} errorCode={errorCode} /></section>
 </PortalLayout>

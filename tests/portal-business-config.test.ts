@@ -210,3 +210,12 @@ test('unrelated historical/corrective mutations are not globally disabled by rea
   assert.equal(response.status, 200);
   assert.equal(called, true);
 });
+
+
+test('assisted payment return context requires administration before reading a submission', async () => {
+  const parent = fixture('/api/portal/payments?context=admin&adult=user_family');
+  const response = await paymentRoute.POST(parent.ctx);
+  assert.equal(response.status, 403);
+  assert.equal(parent.ctx.request.bodyUsed, false);
+  assert.deepEqual(parent.touched, []);
+});

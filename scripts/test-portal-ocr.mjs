@@ -11,6 +11,8 @@ assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(base.hostname), 'OCR chec
 assert.equal(base.username + base.password, '', 'The fixture URL must not contain credentials');
 const cookies = new Map();
 const timings = [];
+let demoReaderVerified = false;
+let safeRetryCount = 0;
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAE0lEQVR4nGN49+6dhoYGAxADWQAtqgaFoI3S5gAAAABJRU5ErkJggg==', 'base64');
 const jpeg = Buffer.from('/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAAqADAAQAAAABAAAAAgAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgAAgACAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAAf/aAAwDAQACEQMRAD8A/Qv4MfBj4PeMPg94F8W+LfAug63rmt6Dpl9f399plrc3d3d3NrHLNPPNLGzyyyuzO7uSzMSSSTmvSv8Ahnb9n7/omPhf/wAEtl/8ao/Z2/5N++GP/Yr6L/6RRV7HQB//2Q==', 'base64');
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -44,7 +46,7 @@ const parts = new Intl.DateTimeFormat('en', { timeZone: 'America/Costa_Rica', ye
 const datePart = name => parts.find(item => item.type === name).value;
 const transferDate = `${datePart('year')}-${datePart('month')}-${datePart('day')}`;
 const future = new Date(Date.UTC(Number(datePart('year')), Number(datePart('month')), 1));
-const period = `${future.getUTCFullYear()}-${String(future.getUTCMonth() + 1).padStart(2, '0')}`;
+let period = `${future.getUTCFullYear()}-${String(future.getUTCMonth() + 1).padStart(2, '0')}`;
 const nonce = `${Date.now()}${randomUUID().replaceAll('-', '')}`;
 const reference = version => `0000OCR${nonce}${version}`;
 const payerName = 'Familia sintética · campo corregido por el encargado';
@@ -58,7 +60,23 @@ async function request(path, role = null, init = {}) {
     assert.ok(cookies.has(role), `The ${role} demo identity must be initialized`);
     headers.set('cookie', cookies.get(role));
   }
-  return fetch(url, { ...init, headers, redirect: 'manual', signal: AbortSignal.timeout(20_000) });
+  const readOnly = ['GET', 'HEAD'].includes((init.method ?? 'GET').toUpperCase());
+  const cachedDemoRead = demoReaderVerified && init.method === 'POST'
+    && /^\/api\/portal\/slips\/[a-f0-9-]{36}\/extract$/.test(url.pathname);
+  const safeToRetry = readOnly || cachedDemoRead;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await fetch(url, { ...init, headers, redirect: 'manual', signal: AbortSignal.timeout(20_000) });
+      // Miniflare occasionally drops a dispatch. Retry only reads and cached
+      // fixed-demo extraction; uploads and financial mutations are not replayed.
+      if (!safeToRetry || response.status !== 500 || attempt >= 2) return response;
+      await response.arrayBuffer();
+    } catch (error) {
+      if (!safeToRetry || attempt >= 2 || !(error instanceof TypeError)) throw error;
+    }
+    safeRetryCount++;
+    await new Promise(resolve => setTimeout(resolve, 150 * (attempt + 1)));
+  }
 }
 function post(path, role, body, headers = {}) {
   return request(path, role, { method: 'POST', headers: { origin: base.origin, accept: 'application/json', ...headers }, body });
@@ -120,6 +138,7 @@ async function upload(bytes, type) {
   privateHeaders(response);
   const result = await response.json();
   assert.deepEqual(result.ocr, { mode: 'demo', available: true }, 'STOP: extraction is permitted only for the fixed synthetic demo reader');
+  demoReaderVerified = true;
   assert.match(result.draft.id, /^[a-f0-9-]{36}$/);
   assert.equal(result.draft.type, type);
   assert.equal(result.draft.size, bytes.length);
@@ -162,8 +181,44 @@ const fixtureAthletes = {
   'demo-athlete-3': 'Alex independiente',
 };
 function expectAthletes(html, ids) {
+  if (ids.length === 0) {
+    assert.doesNotMatch(html, /data-authorized-athletes=/, 'An unlinked or unselected account must not expose an uploader');
+    assert.doesNotMatch(html, /name="allocationChargeId\[\]"/, 'An empty account cannot submit another household’s charges');
+    return;
+  }
   assert.deepEqual(authorizedAthletes(html), ids.map(id => ({ id, name: fixtureAthletes[id] })).sort((left, right) => left.id.localeCompare(right.id)));
   assert.doesNotMatch(html, /name="(?:suggestedAthleteId|ocrAthleteId|athleteSuggestion|athleteMatch)"/, 'A suggestion is not submitted as allocation authority');
+}
+// Publication must precede all payment-form assertions. Earlier suites can
+// settle any existing month, so reuse an unpaid future fixture when possible
+// and otherwise publish the next suitable month. Existing history is retained.
+async function ensureFixtureCharges() {
+  const names = Object.values(fixtureAthletes);
+  const remaining = charge => charge.base_minor - charge.discount_minor + charge.adjustments_minor - charge.paid_minor;
+  const enough = rows => names.every(name => rows.some(charge => charge.athlete === name && remaining(charge) >= 100_000));
+  const existing = await exported('charges');
+  for (let offset = 0; offset < 36; offset++) {
+    const candidate = new Date(Date.UTC(future.getUTCFullYear(), future.getUTCMonth() + offset, 1));
+    const month = `${candidate.getUTCFullYear()}-${String(candidate.getUTCMonth() + 1).padStart(2, '0')}`;
+    const rows = existing.filter(charge => charge.period === month);
+    if (enough(rows)) { period = month; return; }
+    // Publishing preserves existing charges. Skip months whose exact demo
+    // athletes are already settled instead of changing their financial history.
+    if (names.some(name => rows.some(charge => charge.athlete === name && remaining(charge) < 100_000))) continue;
+    const monthlyPage = await request(`/admin/mensualidades?month=${month}`, 'admin');
+    assert.equal(monthlyPage.status, 200);
+    const expectedSnapshot = (await monthlyPage.text()).match(/name="expectedSnapshot"[^>]*value="([a-f0-9]{64})"/)?.[1];
+    assert.ok(expectedSnapshot, 'Monthly publication requires the displayed fee and roster snapshot');
+    const response = await post('/api/admin/charges', 'admin', new URLSearchParams({ action: 'publish', month, expectedSnapshot }));
+    // A failed local response can arrive after the transaction committed. Read
+    // back before deciding failure; never blindly replay this mutation.
+    if (response.status !== 500) redirect(response, 'month_published');
+    const published = (await exported('charges')).filter(charge => charge.period === month);
+    assert.ok(enough(published), `OCR fixtures need outstanding charges for all three demo athletes in ${month}; keep those synthetic athletes active`);
+    period = month;
+    return;
+  }
+  assert.fail('No suitable future fixture month found; existing demo financial history was left intact');
 }
 async function exactFile(fileId, bytes, type, inline = false) {
   const response = await request(`/api/portal/files/${fileId}${inline ? '?view=inline' : ''}`, 'parent-a');
@@ -205,13 +260,14 @@ await checked('local demo guard and unauthorized/cross-origin requests fail clos
     assert.match(cookie, /HttpOnly/i);
     cookies.set(role, cookie.split(';')[0]);
   }
+  assert.match(await (await request('/admin/comprobantes', 'admin')).text(), /Correo en modo simulado/, 'STOP if live email is configured');
+  await ensureFixtureCharges();
   const formPage = await request('/portal/pagos/nuevo', 'parent-a');
   assert.equal(formPage.status, 200);
   const html = await formPage.text();
   assert.match(html, /data-ocr-mode="demo"/);
   assert.match(html, /data-ocr-available="true"/);
   assert.match(html, /No analiza tu archivo ni envía información a un servicio externo/);
-  assert.match(await (await request('/admin/comprobantes', 'admin')).text(), /Correo en modo simulado/, 'STOP if live email is configured');
   for (const origin of [null, 'https://unrelated.example']) {
     const headers = { accept: 'application/json', ...(origin ? { origin } : {}) };
     await expectError(await request('/api/portal/slips', 'parent-a', { method: 'POST', headers, body: fileForm(png, 'image/png') }), 403);
@@ -239,11 +295,6 @@ await checked('family-name candidate lists stay within the current parent or sel
 });
 
 await checked('original PNG is saved before OCR; ownership, origin and hashes are enforced', async () => {
-  const monthlyPage = await request(`/admin/mensualidades?month=${period}`, 'admin');
-  assert.equal(monthlyPage.status, 200);
-  const expectedSnapshot = (await monthlyPage.text()).match(/name="expectedSnapshot"[^>]*value="([a-f0-9]{64})"/)?.[1];
-  assert.ok(expectedSnapshot, 'Monthly publication requires the displayed fee and roster snapshot');
-  redirect(await post('/api/admin/charges', 'admin', new URLSearchParams({ action: 'publish', month: period, expectedSnapshot })), 'month_published');
   const all = (await exported('charges')).filter(charge => charge.period === period);
   const html = await (await request('/portal/pagos/nuevo', 'parent-a')).text();
   const allowed = new Set(Array.from(html.matchAll(/name="allocationChargeId\[\]"[^>]*value="([^"]+)"/g), match => match[1]));
@@ -390,4 +441,4 @@ await checked('synthetic pending payment is rejected; no bank approval, receipt 
   }
 }
 
-console.log(JSON.stringify({ result: 'passed', mode: 'demo', providerRequests: 0, paymentId, period, originals: originalFiles.length, timings }, null, 2));
+console.log(JSON.stringify({ result: 'passed', mode: 'demo', providerRequests: 0, safeRetryCount, paymentId, period, originals: originalFiles.length, timings }, null, 2));

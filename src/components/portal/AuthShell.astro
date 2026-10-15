@@ -1,15 +1,61 @@
 ---
 import PortalLayout from '../../layouts/PortalLayout.astro';
 import PageHeader from './PageHeader.astro';
-interface Props { title: string; heading: string; description: string; error?: string; notice?: string }
-const { title, heading, description, error, notice } = Astro.props;
+interface Props { title: string; heading: string; description: string; error?: string; notice?: string; errorFields?: { id: string; label: string }[] }
+const { title, heading, description, error, notice, errorFields = [] } = Astro.props;
 ---
 <PortalLayout title={title} hideNav>
   <div class="portal-auth">
     <PageHeader title={heading} eyebrow="Portal de pagos" description={description} />
-    {error && <div class="portal-notice portal-notice-error" role="alert"><strong><span aria-hidden="true">✗</span> No se pudo completar.</strong><p>{error}</p></div>}
-    {notice && <div class="portal-notice portal-notice-success" role="status"><strong><span aria-hidden="true">✓</span> Listo.</strong><p>{notice}</p></div>}
+    {error && <div class="portal-notice portal-notice-error" role="alert" tabindex="-1" data-auth-error><strong><span aria-hidden="true">✗</span> Revisa este paso.</strong><p>{error}</p>{errorFields.length > 0 && <ul>{errorFields.map(field => <li><a class="portal-link" href={`#${field.id}`} data-auth-error-link>{field.label}</a></li>)}</ul>}</div>}
+    {notice && <div class="portal-notice portal-notice-success" role="status" tabindex="-1" data-auth-status><strong><span aria-hidden="true">✓</span> Listo.</strong><p>{notice}</p></div>}
     <section class="portal-auth-card"><slot /></section>
-    <p class="portal-help" style="margin-top:18px">¿Algo no sale? <a class="portal-link" href="https://wa.me/50687686102">Escríbenos por WhatsApp <span aria-hidden="true">↗</span></a> y te ayudamos paso a paso.</p>
   </div>
 </PortalLayout>
+<script>
+  // A failed round trip must bring keyboard and screen-reader users to the
+  // explanation. Keep passwords and verification codes out of draft storage.
+  const authMessage = document.querySelector<HTMLElement>('[data-auth-error], [data-auth-status]');
+  authMessage?.focus();
+  document.querySelectorAll<HTMLAnchorElement>('[data-auth-error-link]').forEach(link => {
+    link.addEventListener('click', event => {
+      const field = document.getElementById(link.hash.slice(1));
+      if (!field) return;
+      event.preventDefault();
+      field.focus();
+    });
+  });
+  document.querySelectorAll<HTMLInputElement>('.portal-auth input:not([type="hidden"])').forEach(input => {
+    const field = input.closest('.portal-field');
+    if (!field) return;
+    const errorId = `${input.id}-error`;
+    let message = document.getElementById(errorId);
+    const showError = () => {
+      if (!message) {
+        message = document.createElement('p');
+        message.id = errorId;
+        message.className = 'portal-help portal-field-error';
+        field.appendChild(message);
+      }
+      message.textContent = input.validity.valueMissing ? 'Completa este campo para continuar.'
+        : input.validity.typeMismatch ? 'Escribe un correo completo, por ejemplo: nombre@ejemplo.com.'
+        : input.validity.tooShort ? `Usa al menos ${input.minLength} caracteres.`
+        : input.validity.patternMismatch ? (input.dataset.formatError ?? 'Revisa el formato de este dato.')
+        : input.validationMessage;
+      message.hidden = false;
+      input.setAttribute('aria-invalid', 'true');
+      const descriptions = new Set((input.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean));
+      descriptions.add(errorId);
+      input.setAttribute('aria-describedby', [...descriptions].join(' '));
+    };
+    input.addEventListener('invalid', showError);
+    input.addEventListener('input', () => {
+      queueMicrotask(() => {
+        if (input.validity.valid) {
+          input.removeAttribute('aria-invalid');
+          if (message) message.hidden = true;
+        }
+      });
+    });
+  });
+</script>

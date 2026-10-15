@@ -36,11 +36,12 @@ const pendingAdminInvitation = Boolean(actor) && Astro.cookies.has('pending-admi
 const nav = admin && !familyContext
   ? [['/admin', 'Resumen', 'overview'], ['/admin/familias', 'Familias', 'families'], ['/admin/administradores', 'Administradores', 'admins'], ['/admin/mensualidades', 'Mensualidades', 'charges'], ['/admin/comprobantes', 'Comprobantes', 'receipts'], ['/admin/pagos/nuevo', 'Registrar pago', 'new-payment'], ['/admin/eventos', 'Eventos', 'events']]
   : [['/portal', 'Mi cuenta', 'overview'], ['/portal/eventos', 'Eventos', 'events'], ['/portal/pagos/nuevo', 'Registrar pago', 'new-payment'], ['/portal/inscribir', 'Mis atletas', 'my-athletes']];
+const currentSection = nav.find(([, , key]) => key === active)?.[1] ?? (familyContext ? 'Mi cuenta' : 'Administración');
 ---
 <!doctype html>
 <html lang="es">
   <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="robots" content="noindex,nofollow" /><meta name="referrer" content="same-origin" /><link rel="icon" type="image/png" href="/media/favicon.png" /><link rel="manifest" href="/manifest.webmanifest" /><meta name="theme-color" content="#8c302f" /><title>{title} · Ajedrez Belén</title></head>
-  <body class="portal-page">
+  <body class="portal-page" data-portal-account={actor?.id ?? 'guest'} data-portal-notice={Astro.url.searchParams.get('notice') ?? ''} data-portal-error={Astro.url.searchParams.get('error') ?? ''}>
     <a class="skip-link" href="#portal-main">Saltar al contenido</a>
     {stagingTest && <aside class="portal-test-banner" aria-label="Entorno de prueba"><div class="portal-shell"><strong>Entorno de prueba</strong><span>Solo registros ficticios. No realices transferencias. Correos simulados · OCR desactivado.</span></div></aside>}
     {actor?.mode === 'demo' && <div class="portal-demo-banner"><span class="checker-mark" aria-hidden="true"></span>Demostración local · datos ficticios<a href="/demo">Cambiar cuenta</a></div>}
@@ -51,13 +52,14 @@ const nav = admin && !familyContext
       </header>
       {!hideNav && admin && <div class="portal-role-switch" role="navigation" aria-label="Cambiar entre administración y mi familia"><a href="/admin" aria-current={!familyContext ? 'page' : undefined}>Administración</a><a href="/portal" aria-current={familyContext ? 'page' : undefined}>Mi familia</a></div>}
       {!hideNav && <nav class="portal-navigation" aria-label={admin && !familyContext ? 'Administración de pagos' : 'Mi cuenta'}>{nav.map(([href, label, key]) => <a href={href} aria-current={active === key ? 'page' : undefined}>{label}</a>)}</nav>}
+      {!hideNav && <details class="portal-mobile-navigation"><summary><span>{currentSection}</span><span>Menú <span aria-hidden="true">+</span></span></summary><nav aria-label="Secciones del portal">{nav.map(([href, label, key]) => <a href={href} aria-current={active === key ? 'page' : undefined}>{label}</a>)}</nav></details>}
       <main id="portal-main" tabindex="-1">{stagingNotice ? <div class="portal-notice" role="status"><p>{stagingNotice}</p></div> : <Notice />}{pendingAdminInvitation && <div class="portal-alert" role="status" style="margin-top:25px"><span class="checker-mark" aria-hidden="true"></span><div class="portal-alert-text"><strong>Tienes una invitación de administración.</strong><p>Ábrela para terminar el acceso.</p></div><a class="portal-button portal-button-secondary" href="/portal/admin-invitacion">Abrir invitación <span aria-hidden="true">→</span></a></div>}{pendingInvitation && <div class="portal-alert" role="status" style="margin-top:25px"><span class="checker-mark" aria-hidden="true"></span><div class="portal-alert-text"><strong>Tienes una invitación pendiente.</strong><p>Acéptala para ver a tus atletas.</p></div><a class="portal-button portal-button-secondary" href="/portal/invitacion">Aceptar mi invitación <span aria-hidden="true">→</span></a></div>}<slot /></main>
       <aside class="portal-help-bar"><p><strong>¿Necesitas ayuda?</strong> Escríbenos por WhatsApp al <a href="https://wa.me/50687686102">8768-6102 <span aria-hidden="true">↗</span></a> y te guiamos paso a paso.</p></aside>
       <footer class="portal-footer"><span>Ajedrez Belén · Belén, Heredia</span><a href="https://ajedrezbelen.com/privacy/">Política de privacidad <span aria-hidden="true">↗</span></a><a href="https://wa.me/50687686102">¿Dudas con un pago? Escríbenos por WhatsApp <span aria-hidden="true">↗</span></a><a href="/">Volver al sitio <span aria-hidden="true">↗</span></a></footer>
     </div>
-    <dialog class="portal-confirm-dialog" id="portal-confirm" aria-labelledby="portal-confirm-title">
+    <dialog class="portal-confirm-dialog" id="portal-confirm" aria-labelledby="portal-confirm-title" aria-describedby="portal-confirm-message">
       <h2 id="portal-confirm-title">Confirma esta acción</h2>
-      <p data-confirm-message></p>
+      <p id="portal-confirm-message" data-confirm-message></p>
       <div class="portal-form-actions">
         <button class="portal-button portal-button-danger" type="button" data-confirm-yes>Sí, continuar <span aria-hidden="true">→</span></button>
         <button class="portal-button portal-button-secondary" type="button" data-confirm-no>Volver</button>
@@ -121,7 +123,13 @@ const nav = admin && !familyContext
       const yes = confirmDialog.querySelector<HTMLButtonElement>('[data-confirm-yes]');
       const no = confirmDialog.querySelector<HTMLButtonElement>('[data-confirm-no]');
       const cleanup = () => { yes?.removeEventListener('click', onYes); no?.removeEventListener('click', onNo); confirmDialog.removeEventListener('cancel', cleanup); };
-      const onYes = () => { cleanup(); confirmDialog.close(); form.dataset.confirmed = 'true'; form.requestSubmit((event as SubmitEvent).submitter as HTMLElement | undefined); };
+      const onYes = () => {
+        cleanup(); confirmDialog.close(); form.dataset.confirmed = 'true';
+        const submitter = (event as SubmitEvent).submitter;
+        form.requestSubmit(submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement ? submitter : undefined);
+        // Approval belongs to this attempt, even if later validation cancels it.
+        delete form.dataset.confirmed;
+      };
       const onNo = () => { cleanup(); confirmDialog.close(); };
       yes?.addEventListener('click', onYes);
       no?.addEventListener('click', onNo);
@@ -136,67 +144,106 @@ const nav = admin && !familyContext
     let dirty = false;
     form.addEventListener('input', () => { dirty = true; });
     form.addEventListener('change', () => { dirty = true; });
-    form.addEventListener('submit', () => { dirty = false; });
+    form.addEventListener('submit', event => {
+      queueMicrotask(() => { if (!event.defaultPrevented) dirty = false; });
+    });
     form.addEventListener('reset', () => { dirty = false; });
     window.addEventListener('beforeunload', event => { if (dirty) event.preventDefault(); });
-    window.addEventListener('pageshow', () => { dirty = false; });
+    form.addEventListener('portal:draft-restored', () => { dirty = true; });
   });
-  // Payment forms keep a same-tab draft: if sending fails or the person
-  // leaves by accident, coming back restores what they typed (files already
-  // saved by the uploader are relinked through their draft id).
-  const DRAFT_PREFIX = 'portal-draft:';
-  if (new URLSearchParams(window.location.search).has('notice')) {
-    Object.keys(sessionStorage).filter(key => key.startsWith(DRAFT_PREFIX)).forEach(key => sessionStorage.removeItem(key));
-  }
-  type DraftField = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
-  document.querySelectorAll<HTMLFormElement>('form[data-draft-key]').forEach(form => {
-    const storageKey = DRAFT_PREFIX + (form.dataset.draftKey ?? '');
-    const skip = new Set(['submissionId', 'operationId', 'expectedRevision', 'expectedStatus', 'expectedReviewNote', 'expectedSnapshot']);
-    const fields = (): DraftField[] => Array.from(form.elements)
-      .map(element => element as unknown as DraftField)
-      .filter(field => field.name && field.type !== 'file' && field.type !== 'submit' && field.type !== 'button' && !skip.has(field.name));
-    const keyOf = (field: DraftField, list: DraftField[]) =>
-      `${field.name}#${list.filter(item => item.name === field.name).indexOf(field)}`;
-    const save = () => {
-      const list = fields();
-      const data: Record<string, string | boolean> = {};
-      list.forEach(field => { data[keyOf(field, list)] = field.type === 'checkbox' || field.type === 'radio' ? (field as HTMLInputElement).checked : field.value; });
-      try { sessionStorage.setItem(storageKey, JSON.stringify({ at: Date.now(), data })); } catch { /* private mode: the form simply works without drafts */ }
-    };
+  // Same-tab drafts are scoped to the signed-in account and form. Only the
+  // successful submission clears its draft; unrelated notices never erase work.
+  const initializeDrafts = () => {
+    const prefix = `portal-draft:v2:${document.body.dataset.portalAccount}:`;
+    const pendingKey = `${prefix}pending`;
     try {
-      const raw = sessionStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { at?: number; data?: Record<string, string | boolean> };
-        if (parsed.data && Date.now() - (parsed.at ?? 0) < 30 * 60 * 1000) {
-          const list = fields();
-          let restored = false;
-          list.forEach(field => {
-            const value = parsed.data?.[keyOf(field, list)];
-            if (value === undefined) return;
-            if (field.type === 'checkbox' || field.type === 'radio') { (field as HTMLInputElement).checked = value === true; restored = true; }
-            else if (typeof value === 'string' && value !== '' && field.value !== value) { field.value = value; restored = true; }
-          });
-          if (restored) {
-            const draftId = form.querySelector<HTMLInputElement>('input[name="draftId"]');
-            const fileInput = form.querySelector<HTMLInputElement>('input[type="file"][name="slip"]');
-            const slipStatus = form.querySelector<HTMLElement>('[data-slip-status]');
-            if (draftId?.value && fileInput) {
-              fileInput.required = false;
-              const savedSelect = form.querySelector('[data-slip-saved]') as unknown as HTMLSelectElement | null;
-              const emailed = savedSelect ? Array.from(savedSelect.options).some(option => option.value === draftId.value) : false;
-              if (emailed && savedSelect) {
-                savedSelect.value = draftId.value;
-                savedSelect.dispatchEvent(new Event('change', { bubbles: true }));
-              } else if (slipStatus) slipStatus.textContent = 'Recuperamos el archivo que ya habías adjuntado. Si quieres cambiarlo, adjunta uno nuevo.';
-            }
-            form.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        } else sessionStorage.removeItem(storageKey);
+      const pending = JSON.parse(sessionStorage.getItem(pendingKey) ?? 'null') as { key: string; notices: string[]; at: number } | null;
+      const notice = document.body.dataset.portalNotice ?? '';
+      if (pending && Date.now() - pending.at < 30 * 60 * 1000 && pending.key.startsWith(prefix)
+        && !document.body.dataset.portalError && pending.notices.includes(notice)) {
+        sessionStorage.removeItem(pending.key);
+        sessionStorage.removeItem(pendingKey);
       }
-    } catch { /* a broken draft must never break the form */ }
-    form.addEventListener('input', save);
-    form.addEventListener('change', save);
-  });
+      if (document.body.dataset.portalError || (pending && Date.now() - pending.at >= 30 * 60 * 1000)) sessionStorage.removeItem(pendingKey);
+    } catch { /* Storage may be unavailable; forms still work. */ }
+    type DraftField = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+    document.querySelectorAll<HTMLFormElement>('form[data-draft-key]').forEach(form => {
+      const storageKey = prefix + form.dataset.draftKey;
+      const fields = (): DraftField[] => Array.from(form.elements)
+        .filter(field => field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)
+        .map(field => field as unknown as DraftField)
+        // Never restore server identity, concurrency tokens, actions, passwords,
+        // or positional charge IDs from stale browser storage.
+        .filter(field => field.name && !['file', 'submit', 'button', 'password'].includes(field.type)
+          && (field.type !== 'hidden' || field.name === 'draftId'));
+      const keyOf = (field: DraftField, list: DraftField[]) =>
+        field.name === 'allocationAmount[]' ? `allocation:${field.id}`
+          : `${field.name}#${list.filter(item => item.name === field.name).indexOf(field)}`;
+      const save = () => {
+        const list = fields();
+        const data: Record<string, string | boolean> = {};
+        list.forEach(field => { data[keyOf(field, list)] = field.type === 'checkbox' || field.type === 'radio' ? (field as HTMLInputElement).checked : field.value; });
+        try { sessionStorage.setItem(storageKey, JSON.stringify({ at: Date.now(), data })); } catch { /* optional enhancement */ }
+      };
+      try {
+        const raw = sessionStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { at?: number; data?: Record<string, string | boolean> };
+          if (parsed.data && Date.now() - (parsed.at ?? 0) < 30 * 60 * 1000) {
+            form.dispatchEvent(new CustomEvent('portal:before-draft-restore', { detail: parsed.data }));
+            const list = fields();
+            let restored = false;
+            list.forEach(field => {
+              const value = parsed.data?.[keyOf(field, list)];
+              if (value === undefined) return;
+              if (field.type === 'checkbox' || field.type === 'radio') {
+                const checked = value === true;
+                if ((field as HTMLInputElement).checked !== checked) { (field as HTMLInputElement).checked = checked; restored = true; }
+              } else if (typeof value === 'string' && field.value !== value) {
+                // Empty text is intentional too (e.g. a cleared optional note).
+                field.value = value; restored = true;
+              }
+            });
+            if (restored) {
+              const draftId = form.querySelector<HTMLInputElement>('input[name="draftId"]');
+              const fileInput = form.querySelector<HTMLInputElement>('input[type="file"][name="slip"]');
+              const slipStatus = form.querySelector<HTMLElement>('[data-slip-status]');
+              if (draftId?.value && fileInput) {
+                fileInput.required = false;
+                const savedSelect = form.querySelector('[data-slip-saved]') as unknown as HTMLSelectElement | null;
+                const emailed = savedSelect && Array.from(savedSelect.options).some(option => option.value === draftId.value);
+                if (emailed && savedSelect) {
+                  savedSelect.value = draftId.value;
+                  savedSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                } else if (slipStatus) slipStatus.textContent = 'Recuperamos el archivo que ya habías adjuntado. Si quieres cambiarlo, adjunta uno nuevo.';
+              }
+              form.dispatchEvent(new CustomEvent('portal:draft-restored', { bubbles: true }));
+              form.dispatchEvent(new Event('input', { bubbles: true }));
+              const status = document.createElement('p');
+              status.className = 'portal-draft-status';
+              status.setAttribute('role', 'status');
+              status.textContent = 'Recuperamos tus datos sin enviar. Revísalos antes de continuar.';
+              form.insertBefore(status, form.firstChild);
+            }
+          } else sessionStorage.removeItem(storageKey);
+        }
+      } catch { /* A broken draft must never break the form. */ }
+      form.addEventListener('input', save);
+      form.addEventListener('change', save);
+      form.addEventListener('submit', event => {
+        queueMicrotask(() => {
+          if (event.defaultPrevented) return;
+          save();
+          try {
+            sessionStorage.setItem(pendingKey, JSON.stringify({ key: storageKey, notices: (form.dataset.draftSuccess ?? '').split(','), at: Date.now() }));
+          } catch { /* optional enhancement */ }
+        });
+      });
+    });
+  };
+  // Let page components register their dynamic-field restoration hooks first.
+  if (document.readyState !== 'complete') document.addEventListener('DOMContentLoaded', initializeDrafts, { once: true });
+  else initializeDrafts();
   // Copy-to-clipboard helpers (payment destination, invitation links).
   document.querySelectorAll<HTMLButtonElement>('[data-copy-value]').forEach(button => {
     button.addEventListener('click', async () => {

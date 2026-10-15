@@ -30,7 +30,7 @@ const mustRegister = window?.via === 'invitation' && !(dashboard?.athletes.lengt
   {dashboard && dashboard.athletes.length > 0 && <section class="portal-panel" id="compartir" style="margin-bottom:22px"><h2>Dar acceso al otro padre</h2><p class="portal-section-caption">Escribe su correo y crea el enlace. Lo envías por WhatsApp y entra con su propia cuenta. Si no lo haces al inscribir, puedes hacerlo aquí cuando quieras.</p><form class="portal-form" action="/api/portal/invitations" method="post"><div class="portal-field"><label for="co-guardian-invite-email">Correo</label><input id="co-guardian-invite-email" name="email" type="email" maxlength="254" autocomplete="off" spellcheck="false" placeholder="otro@ejemplo.com" required /></div><fieldset class="portal-fieldset"><legend>Atletas</legend>{dashboard.athletes.map(athlete => <label class="portal-checkbox" style="margin-bottom:11px"><input type="checkbox" name="athleteId[]" value={athlete.id} checked /><span>{athlete.name}</span></label>)}</fieldset><button class="portal-button" type="submit">Crear enlace <span aria-hidden="true">→</span></button><p class="portal-help">El enlace aparece arriba. Vence en siete días y solo abre con ese correo.</p></form></section>}
   {dashboard && dashboard.athletes.length > 0 && <section class="portal-section"><div class="portal-section-heading"><h2>Atletas en mi cuenta</h2><p>{dashboard.athletes.length} {dashboard.athletes.length === 1 ? 'atleta' : 'atletas'}</p></div>{dashboard.athletes.map(athlete => { const profile = profiles.get(athlete.id); const paused = profile?.paused ?? false; return <article class="portal-family-card"><header><div><h3>{athlete.name}</h3><p class="portal-help">{athlete.category}{profile?.birthDate ? ` · ${ageOn(profile.birthDate, today)} años` : ''}{profile?.school ? ` · ${profile.school}` : ''}</p></div><span class:list={['portal-status', !athlete.active ? 'portal-status-cancelled' : paused ? 'portal-status-pending' : 'portal-status-approved']}>{!athlete.active ? 'Dado de baja' : paused ? 'Membresía en pausa' : 'Activo'}</span></header>{paused && athlete.active && <p class="portal-help">La administración pausó esta membresía: no se generan mensualidades nuevas hasta que se reactive. Los cargos anteriores se mantienen.</p>}<form action={`/api/portal/athletes/${athlete.id}`} method="post" data-confirm={athlete.active ? '¿Dar de baja a este atleta? Dejará de generar mensualidades nuevas; el historial y los cargos anteriores se conservan.' : undefined} style="margin-top:12px"><input type="hidden" name="action" value={athlete.active ? 'deactivate' : 'reactivate'} /><button class="portal-link portal-text-button" type="submit">{athlete.active ? 'Dar de baja' : 'Reactivar atleta'}</button></form></article>; })}</section>}
   {window ? <section class="portal-panel"><h2>{mustRegister ? 'Datos del atleta' : 'Inscribir un atleta'}</h2><p class="portal-section-caption">{fees ? `La mensualidad sale sola según el grupo: Iniciación ${money(fees['Iniciación'])} al mes; Cadetes, Intermedios y Avanzados ${money(fees['Cadetes'])} al mes. Si inscribes hermanos, el descuento del 25 % se ve reflejado cuando se publique el mes.` : 'La mensualidad sale sola según el grupo. Si inscribes hermanos, el descuento del 25 % se ve reflejado cuando se publique el mes.'}</p>
-    <form class="portal-form" id="self-register-form" action="/api/portal/athletes" method="post" data-unsaved-guard data-draft-key="inscribir-atleta">
+    <form class="portal-form" id="self-register-form" action="/api/portal/athletes" method="post" data-unsaved-guard data-draft-key="inscribir-atleta" data-draft-success="athletes_registered">
       <div id="athlete-blocks">
         {[0].map(i => <fieldset class="portal-fieldset athlete-block" data-block={i}><legend>Atleta {i + 1}</legend>
           <div class="portal-field"><label for={`name-${i}`}>Nombre y apellidos del atleta</label><input id={`name-${i}`} name={`name-${i}`} type="text" maxlength="160" autocomplete="off" placeholder="Nombre y apellidos…" required /></div>
@@ -38,7 +38,7 @@ const mustRegister = window?.via === 'invitation' && !(dashboard?.athletes.lengt
           <div class="portal-form-row"><div class="portal-field"><label for={`nationalId-${i}`}>Número de cédula</label><input id={`nationalId-${i}`} name={`nationalId-${i}`} type="text" maxlength="30" autocomplete="off" spellcheck="false" placeholder="Solo si tiene 12 años o más…" /><p class="portal-help" data-cedula-hint>Obligatoria desde los 12 años; antes no hace falta.</p></div><div class="portal-field"><label for={`school-${i}`}>Centro educativo</label><input id={`school-${i}`} name={`school-${i}`} type="text" maxlength="160" autocomplete="off" placeholder="Escuela o colegio…" required /></div></div>
         </fieldset>)}
       </div>
-      <div class="portal-copy-row"><button class="portal-button portal-button-secondary" type="button" id="add-athlete">Agregar otro atleta <span aria-hidden="true">+</span></button><span class="portal-help" id="add-athlete-note">Puedes inscribir hermanos en el mismo envío.</span></div>
+      <div class="portal-copy-row"><button class="portal-button portal-button-secondary" type="button" id="add-athlete" aria-controls="athlete-blocks">Agregar otro atleta <span aria-hidden="true">+</span></button><span class="portal-help" id="add-athlete-note" role="status">Puedes inscribir hermanos en el mismo envío.</span></div>
       <div class="portal-field" style="margin-top:20px"><label for="co-guardian-email">Correo del otro padre (opcional)</label><input id="co-guardian-email" name="coGuardianEmail" type="email" maxlength="254" autocomplete="off" spellcheck="false" placeholder="otro@ejemplo.com" /><p class="portal-help">Si lo dejas vacío, lo agregas después en «Dar acceso al otro padre», en esta misma página.</p></div>
       <button class="portal-button portal-button-wide" type="submit" style="margin-top:18px">{mustRegister ? 'Inscribir a mi atleta' : 'Inscribir'} <span aria-hidden="true">→</span></button>
       <p class="portal-help">Al inscribir, el atleta queda activo en tu cuenta y su primera mensualidad se genera sola: si inscribes del 1 al 8, corresponde a este mes; del 9 en adelante, la primera mensualidad es la del mes siguiente y lo que queda de este mes no se cobra. Si algo cambia, puedes darlo de baja aquí mismo.</p>
@@ -61,6 +61,7 @@ const mustRegister = window?.via === 'invitation' && !(dashboard?.athletes.lengt
     const addButton = form.querySelector<HTMLButtonElement>('#add-athlete');
     const note = form.querySelector<HTMLElement>('#add-athlete-note');
     const MAX = 6;
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Costa_Rica', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const refreshCedula = (block: HTMLElement) => {
       const part = (suffix: string) => (block.querySelector(`select[name^="birthDate-"][name$="${suffix}"]`) as HTMLSelectElement | null)?.value ?? '';
       const birthValue = part('Year') && part('Month') && part('Day') ? `${part('Year')}-${part('Month')}-${part('Day')}` : '';
@@ -70,38 +71,80 @@ const mustRegister = window?.via === 'invitation' && !(dashboard?.athletes.lengt
       let required = false;
       if (birthValue) {
         const [y, m, d] = birthValue.split('-').map(Number);
-        const now = new Date();
-        let age = now.getFullYear() - y;
-        if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) age--;
+        const [nowYear, nowMonth, nowDay] = today.split('-').map(Number);
+        let age = nowYear - y;
+        if (nowMonth < m || (nowMonth === m && nowDay < d)) age--;
         required = age >= 12;
         hint.textContent = required ? `Tiene ${age} años: la cédula es obligatoria.` : `Tiene ${age} años: la cédula no hace falta todavía.`;
       } else hint.textContent = 'Obligatoria desde los 12 años; antes no hace falta.';
       cedula.required = required;
     };
-    container?.addEventListener('input', (event) => {
+    const refreshBlock = (event: Event) => {
       const block = (event.target as HTMLElement).closest<HTMLElement>('.athlete-block');
       if (block) refreshCedula(block);
-    });
-    addButton?.addEventListener('click', () => {
+    };
+    container?.addEventListener('input', refreshBlock);
+    container?.addEventListener('change', refreshBlock);
+    const renameBlock = (block: HTMLElement, index: number) => {
+      block.dataset.block = String(index);
+      const legend = block.querySelector('legend'); if (legend) legend.textContent = `Atleta ${index + 1}`;
+      // Update labels, date-group names and described-by references together.
+      // Renaming only inputs leaves sibling date groups pointing to athlete 1.
+      block.querySelectorAll<HTMLElement>('*').forEach(element => {
+        for (const attribute of ['id', 'name', 'for', 'aria-labelledby', 'aria-describedby']) {
+          const value = element.getAttribute(attribute);
+          if (value) element.setAttribute(attribute, value.replace(/(name|birthDate|category|nationalId|school)-\d+/g, `$1-${index}`));
+        }
+      });
+      const remove = block.querySelector<HTMLButtonElement>('[data-remove-athlete]');
+      if (remove) { remove.hidden = index === 0; remove.setAttribute('aria-label', `Quitar atleta ${index + 1} de este formulario`); }
+    };
+    const refreshCount = () => {
+      const blocks = Array.from(container?.querySelectorAll<HTMLElement>('.athlete-block') ?? []);
+      blocks.forEach(renameBlock);
+      if (addButton) addButton.disabled = blocks.length >= MAX;
+      if (note) note.textContent = blocks.length >= MAX ? 'Máximo seis atletas por envío; puedes agregar más después.' : blocks.length > 1 ? `${blocks.length} atletas en este envío. Puedes quitar los que agregaste por error.` : 'Puedes inscribir hermanos en el mismo envío.';
+    };
+    const addBlock = (focus = false) => {
       if (!container) return;
-      const blocks = container.querySelectorAll('.athlete-block');
-      if (blocks.length >= MAX) { if (note) note.textContent = 'Máximo seis atletas por envío; puedes agregar más después.'; return; }
-      const next = blocks.length;
+      const blocks = container.querySelectorAll<HTMLElement>('.athlete-block');
+      if (blocks.length >= MAX || !blocks[0]) return;
       const clone = blocks[0].cloneNode(true) as HTMLElement;
-      clone.dataset.block = String(next);
-      const legend = clone.querySelector('legend'); if (legend) legend.textContent = `Atleta ${next + 1}`;
-      clone.querySelectorAll('input, select').forEach(node => {
-        const field = node as HTMLInputElement;
-        field.name = field.name.replace(/-\d+(Day|Month|Year)?$/, (_match, part) => `-${next}${part ?? ''}`);
-        field.id = field.id.replace(/-\d+(-day|-month|-year)?$/, (_match, part) => `-${next}${part ?? ''}`);
-        field.value = '';
+      clone.querySelectorAll('input, select').forEach(element => {
+        const field = element as unknown as HTMLInputElement | HTMLSelectElement;
+        field.value = ''; field.setCustomValidity(''); field.removeAttribute('aria-invalid');
       });
-      clone.querySelectorAll<HTMLLabelElement>('label').forEach(label => {
-        label.htmlFor = label.htmlFor.replace(/-\d+(-day|-month|-year)?$/, (_match, part) => `-${next}${part ?? ''}`);
-      });
+      clone.querySelectorAll<HTMLElement>('[data-date-error]').forEach(error => { error.hidden = true; error.textContent = ''; });
+      const remove = document.createElement('button');
+      remove.type = 'button'; remove.className = 'portal-link portal-text-button'; remove.dataset.removeAthlete = ''; remove.textContent = 'Quitar este atleta';
+      clone.appendChild(remove);
       container.appendChild(clone);
+      refreshCount();
       refreshCedula(clone);
-      if (next + 1 >= MAX && note) note.textContent = 'Máximo seis atletas por envío; puedes agregar más después.';
+      clone.dispatchEvent(new CustomEvent('portal:fields-added', { bubbles: true }));
+      if (focus) clone.querySelector<HTMLInputElement>('input')?.focus();
+    };
+    addButton?.addEventListener('click', () => {
+      addBlock(true);
+      form.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    container?.addEventListener('click', event => {
+      const remove = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-remove-athlete]');
+      if (!remove) return;
+      remove.closest('.athlete-block')?.remove();
+      refreshCount();
+      addButton?.focus();
+      form.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    form.addEventListener('portal:before-draft-restore', event => {
+      const data = (event as CustomEvent<Record<string, unknown>>).detail;
+      const indexes = Object.keys(data ?? {}).flatMap(key => { const match = key.match(/^name-(\d+)#0$/); return match ? [Number(match[1])] : []; });
+      const count = Math.min(MAX, Math.max(1, ...indexes.map(index => index + 1)));
+      while (container && container.querySelectorAll('.athlete-block').length < count) addBlock();
+    });
+    form.addEventListener('portal:draft-restored', () => {
+      container?.querySelectorAll<HTMLElement>('.athlete-block').forEach(refreshCedula);
+      refreshCount();
     });
   }
 </script>

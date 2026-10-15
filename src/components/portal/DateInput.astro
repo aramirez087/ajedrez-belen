@@ -17,7 +17,7 @@ const groupAttrs = dataOriginal ? { 'data-date-group': name, 'data-original': da
   <span class="portal-label" id={`${id}-label`}>{label}</span>
   <div class="portal-date-row portal-date-row-date" role="group" aria-labelledby={`${id}-label`} {...groupAttrs}>
     <label class="visually-hidden" for={`${id}-day`}>Día</label>
-    <select id={`${id}-day`} name={`${name}Day`} required>
+    <select id={`${id}-day`} name={`${name}Day`} aria-describedby={`${id}-error`} required>
       <option value="" selected={selectedDay === 0}>Día</option>
       {days.map(day => <option value={day} selected={selectedDay === day}>{day}</option>)}
     </select>
@@ -33,10 +33,12 @@ const groupAttrs = dataOriginal ? { 'data-date-group': name, 'data-original': da
     </select>
   </div>
   {quickToday && <button class="portal-quick-fill" type="button" data-set-today>Usar la fecha de hoy <span aria-hidden="true">↓</span></button>}
-  <p class="portal-help portal-field-error" data-date-error role="status" hidden></p>
+  <p class="portal-help portal-field-error" id={`${id}-error`} data-date-error role="status" hidden></p>
 </div>
 <script>
-  document.querySelectorAll<HTMLElement>('.portal-date-row-date').forEach(row => {
+  const dateChecks = new WeakMap<HTMLElement, () => void>();
+  const initializeDates = () => document.querySelectorAll<HTMLElement>('.portal-date-row-date').forEach(row => {
+    if (dateChecks.has(row)) return;
     const selects = Array.from(row.querySelectorAll('select')).map(element => element as unknown as HTMLSelectElement);
     const [daySelect, monthSelect, yearSelect] = selects;
     const error = row.parentElement?.querySelector<HTMLElement>('[data-date-error]');
@@ -49,8 +51,11 @@ const groupAttrs = dataOriginal ? { 'data-date-group': name, 'data-original': da
         if (day > lastDay) message = `Ese mes solo tiene ${lastDay} días. Elige un día válido.`;
       }
       daySelect.setCustomValidity(message);
+      if (message) daySelect.setAttribute('aria-invalid', 'true');
+      else daySelect.removeAttribute('aria-invalid');
       if (error) { error.hidden = !message; error.textContent = message; }
     };
+    dateChecks.set(row, check);
     selects.forEach(select => select.addEventListener('change', check));
     row.parentElement?.querySelector<HTMLButtonElement>('[data-set-today]')?.addEventListener('click', () => {
       const [year, month, day] = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Costa_Rica', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).split('-');
@@ -59,5 +64,11 @@ const groupAttrs = dataOriginal ? { 'data-date-group': name, 'data-original': da
       daySelect.focus();
     });
     check();
+  });
+  initializeDates();
+  document.addEventListener('portal:fields-added', initializeDates);
+  document.addEventListener('portal:draft-restored', () => {
+    initializeDates();
+    document.querySelectorAll<HTMLElement>('.portal-date-row-date').forEach(row => dateChecks.get(row)?.());
   });
 </script>

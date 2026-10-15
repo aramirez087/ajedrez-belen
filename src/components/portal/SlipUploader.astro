@@ -90,7 +90,26 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
     const initial = new Map(fieldNames.map(name => [name, fields.get(name)?.value ?? '']));
     const dirty = new Set<string>();
     const automatic = new Set<string>();
+    const dateParts = ['Year', 'Month', 'Day'].map(part => form.querySelector(`[name="transferDate${part}"]`) as HTMLSelectElement | null);
+    const readTransferDate = () => dateParts.every(part => part?.value) ? dateParts.map(part => part!.value.padStart(2, '0')).join('-') : '';
+    let applyingDate = false;
+    const writeTransferDate = (value: string) => {
+      const parts = value.split('-');
+      applyingDate = true;
+      dateParts.forEach((field, index) => {
+        if (field) { field.value = parts[index] ? String(Number(parts[index])) : ''; field.dispatchEvent(new Event('change', { bubbles: true })); }
+      });
+      applyingDate = false;
+    };
+    if (dateParts.every(Boolean)) initial.set('transferDate', readTransferDate());
+    dateParts.forEach(field => field?.addEventListener('change', () => { if (!applyingDate) { dirty.add('transferDate'); automatic.delete('transferDate'); } }));
     fields.forEach((field,name) => field?.addEventListener('input', () => { dirty.add(name); automatic.delete(name); }));
+    form.addEventListener('portal:draft-restored', () => {
+      // A recovered draft belongs to the user, even when they have not typed
+      // during this visit. Background OCR must not replace those values.
+      fields.forEach((field, name) => { if (field?.value && name !== 'bankReference') dirty.add(name); });
+      if (readTransferDate()) dirty.add('transferDate');
+    });
     let generation = 0;
     let controller: AbortController | null = null;
     let objectUrl: string | null = null;
@@ -105,22 +124,38 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
     let emailedType: string | null = null;
     let previousOverflow = '';
     controls.hidden = !available;
+    function resetSuggestedFields() {
+      automatic.forEach(name => {
+        if (dirty.has(name)) return;
+        if (name === 'transferDate' && dateParts.every(Boolean)) { writeTransferDate(initial.get('transferDate') ?? ''); return; }
+        const field = fields.get(name as typeof fieldNames[number]);
+        if (field) { field.value = initial.get(name as typeof fieldNames[number]) ?? ''; field.dispatchEvent(new Event('change', { bubbles: true })); }
+      });
+      automatic.clear();
+      // The reference always belongs to the currently selected file. It is
+      // read-only, so leaving an old one behind gives no way to fix a mismatch.
+      const reference = fields.get('bankReference');
+      if (reference) { reference.value = ''; reference.dispatchEvent(new Event('change', { bubbles: true })); }
+    }
     // An emailed file and a newly picked file are mutually exclusive: sending
     // both made the server reject the pair as a mismatch. Choosing one side
     // visibly discards the other.
     savedSelect?.addEventListener('change', () => {
+      generation++; controller?.abort(); controller = new AbortController();
+      saving = false; reading = false; currentFile = null; renderedPdf = null;
+      if (dialog.open) dialog.close();
+      resetSuggestedFields();
+      if (objectUrl) URL.revokeObjectURL(objectUrl); objectUrl = null;
+      image.removeAttribute('src'); dialogImage.removeAttribute('src');
+      preview.hidden = true; previewWrap.hidden = true; review.hidden = true; retryButton.hidden = true; pdfNote.hidden = true;
+      readButton.textContent = mode === 'demo' ? 'Probar lectura simulada ↗' : 'Leer datos ↗';
+      clearAthleteSuggestions();
       draft.value = savedSelect.value;
       draftExpiresAt = null;
       emailedType = savedSelect.value ? savedSelect.selectedOptions[0]?.dataset.type ?? null : null;
       input.required = savedSelect.value ? false : fileInitiallyRequired;
       if (savedSelect.value) {
-        generation++; controller?.abort(); controller = new AbortController();
-        saving = false; reading = false; currentFile = null; renderedPdf = null;
         input.value = ''; input.setCustomValidity('');
-        if (objectUrl) URL.revokeObjectURL(objectUrl); objectUrl = null;
-        image.removeAttribute('src'); dialogImage.removeAttribute('src');
-        preview.hidden = true; previewWrap.hidden = true; review.hidden = true; retryButton.hidden = true;
-        clearAthleteSuggestions();
         showStatus(emailedType === 'application/pdf'
           ? 'Usaremos el PDF que enviaste por correo. La referencia no se puede leer desde un PDF recibido por correo; el pago se puede enviar igual. Completa el monto y la fecha abajo.'
           : 'Usaremos el archivo que enviaste por correo. Si ya lo leímos, el monto y la referencia se completan solos. Revísalos antes de enviar.');
@@ -171,6 +206,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
           if (!rows.length) return;
           form!.querySelectorAll<HTMLElement>('.portal-allocation-suggested').forEach(row => row.classList.remove('portal-allocation-suggested'));
           rows.forEach(row => row.classList.add('portal-allocation-suggested'));
+          rows.forEach(row => { const folded = row.closest('details'); if (folded) folded.open = true; });
           athleteNavigationStatus.textContent = `Mostramos las mensualidades de ${candidate.name}. Los montos que escribiste se conservan.`;
           rows[0]!.focus({preventScroll:true});
           rows[0]!.scrollIntoView({block:'center',behavior:'instant'});
@@ -224,6 +260,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
         if (!Number.isFinite(expiry)) throw new Error('operation_failed');
         draft.value = body.draft.id;
         draftExpiresAt = expiry;
+        draft.dispatchEvent(new Event('change', { bubbles: true }));
         mode = body.ocr?.mode ?? 'off'; available = body.ocr?.available === true;
         controls.hidden = !available; readButton.hidden = !available; updateReadButton();
         showStatus('Original guardado de forma privada. Revisa los datos antes de enviar el pago.');
@@ -247,7 +284,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
       if (dialog.open) dialog.close();
       if (objectUrl) URL.revokeObjectURL(objectUrl); objectUrl = null;
       image.removeAttribute('src'); dialogImage.removeAttribute('src');
-      automatic.forEach(name => { if (!dirty.has(name)) { const field = fields.get(name as typeof fieldNames[number]); if (field) { field.value = initial.get(name as typeof fieldNames[number]) ?? ''; field.dispatchEvent(new Event('change', { bubbles: true })); } } }); automatic.clear();
+      resetSuggestedFields();
       draft.value = ''; draftExpiresAt = null; renderedPdf = null; review.hidden = true; preview.hidden = true; previewWrap.hidden = true; retryButton.hidden = true; readButton.hidden = false; readButton.textContent = mode === 'demo' ? 'Probar lectura simulada ↗' : 'Leer datos ↗'; input.setCustomValidity('');
       currentFile = input.files?.[0] ?? null;
       updateReadButton();
@@ -319,7 +356,12 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
           valueOutput.textContent = value ?? 'Sin detectar';
           if (!value || (name === 'amount' && suggestions.currency !== 'CRC')) { stateOutput.textContent = name === 'bankReference' ? 'Sin referencia leída · el pago se puede enviar igual' : 'Completa este dato manualmente'; return; }
           if (name === 'bankReference' && field) { field.value = value; automatic.add(name); stateOutput.textContent = 'Leída del comprobante'; field.dispatchEvent(new Event('change', { bubbles: true })); return; }
-          if (field && !dirty.has(name)) { field.value = value; automatic.add(name); stateOutput.textContent = 'Sugerido en el formulario · revísalo'; field.dispatchEvent(new Event('change', { bubbles: true })); }
+          if (name === 'transferDate' && dateParts.every(Boolean)) {
+            if (!dirty.has(name)) { writeTransferDate(value); automatic.add(name); stateOutput.textContent = 'Sugerido en el formulario · revísalo'; }
+            else stateOutput.textContent = 'Conservamos la fecha que elegiste';
+            return;
+          }
+          if (field && !dirty.has(name)) { if (name === 'amount') delete field.dataset.autoAmount; field.value = value; automatic.add(name); stateOutput.textContent = 'Sugerido en el formulario · revísalo'; field.dispatchEvent(new Event('change', { bubbles: true })); }
           else stateOutput.textContent = 'Conservamos el dato que editaste';
         });
         const warnings = review.querySelector<HTMLUListElement>('[data-ocr-warnings]')!; warnings.replaceChildren();
@@ -357,6 +399,7 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
       if (!persisted) {
         draft.value = ''; draftExpiresAt = null; renderedPdf = null;
         fields.forEach((field, name) => { if (field?.value) dirty.add(name); });
+        if (readTransferDate()) dirty.add('transferDate');
       }
       generation++; const run = generation;
       controller?.abort(); controller = new AbortController();

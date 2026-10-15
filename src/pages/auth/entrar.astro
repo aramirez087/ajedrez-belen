@@ -37,6 +37,7 @@ if (Astro.request.method === 'GET' && invitedEmail) {
 }
 
 let error = '';
+let errorField = '';
 let email = invitedEmail ?? '';
 // ?error= and ?notice= are rendered by the layout's Notice component.
 
@@ -47,8 +48,12 @@ if (Astro.request.method === 'POST') {
     const form = await readPortalForm(Astro.request);
     email = String(form.get('email') ?? '').trim().toLowerCase();
     const password = String(form.get('password') ?? '');
-    if (!validAuthEmail(email) || password.length === 0) {
-      error = 'Escribe tu correo completo y tu contraseña.';
+    if (!validAuthEmail(email)) {
+      error = 'Escribe tu correo completo.';
+      errorField = 'email';
+    } else if (password.length === 0) {
+      error = 'Escribe tu contraseña para continuar.';
+      errorField = 'password';
     } else if (password.length > 256) {
       error = 'El correo o la contraseña no son correctos. Revisa los datos e inténtalo de nuevo.';
     } else {
@@ -75,16 +80,16 @@ const recuperarHref = `/auth/recuperar${next ? `?next=${encodeURIComponent(next)
     ? `Esta invitación es para ${invitedEmail}. Escribe tu contraseña.`
     : 'Entra con tu correo para consultar mensualidades, registrar pagos y ver tus comprobantes.'}
   error={error}
-  notice={Astro.url.searchParams.get('notice') === 'admin_ready' ? 'Ya quedaste como administrador. Entra con el mismo correo. La primera vez, la Asociación pide el código de tu aplicación de autenticación.' : undefined}
+  errorFields={errorField ? [{ id: errorField, label: errorField === 'email' ? 'Revisar correo electrónico' : 'Revisar contraseña' }] : []}
 >
   <GoogleButton href={googleHref} />
-  <p class="portal-help" style="text-align:center">También puedes entrar con Google.</p>
   <form class="portal-form" method="post" action={Astro.url.pathname + Astro.url.search}>
     <div class="portal-field">
       <label for="email">Correo electrónico</label>
-      <input id="email" name="email" type="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254" value={email} placeholder="tucorreo@ejemplo.com" required />
+      <input id="email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" maxlength="254" value={email} placeholder="tucorreo@ejemplo.com" aria-invalid={errorField === 'email' ? 'true' : undefined} aria-describedby={errorField === 'email' ? 'email-error' : undefined} required />
+      {errorField === 'email' && <p class="portal-help portal-field-error" id="email-error">{error}</p>}
     </div>
-    <PasswordField id="password" name="password" label="Contraseña" autocomplete="current-password" toggle />
+    <PasswordField id="password" name="password" label="Contraseña" autocomplete="current-password" toggle error={errorField === 'password' ? error : undefined} />
     <button class="portal-button portal-button-wide" type="submit">{invitedEmail ? 'Entrar' : 'Iniciar sesión'} <span aria-hidden="true">→</span></button>
   </form>
   <div class="portal-auth-links">

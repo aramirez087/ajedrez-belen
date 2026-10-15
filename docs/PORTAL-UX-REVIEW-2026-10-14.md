@@ -1,5 +1,7 @@
 # Portal review — UI/UX, bugs and ease of use (14 October 2026)
 
+> Historical review. See [the implementation and verification follow-up](PORTAL-UX-FIXES-2026-10-14.md) for the current corrections, evidence, and remaining limits.
+
 Full review of the Ajedrez Belén payment portal (family + administration + auth + events),
 judged against a world-class standard: Vercel Web Interface Guidelines, WCAG 2.2 AA,
 and task-completion usability for non-technical parents on phones.

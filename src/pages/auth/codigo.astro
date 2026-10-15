@@ -15,6 +15,7 @@ if (pending.kind === 'organization') return Astro.redirect('/auth/organizacion',
 
 let error = '';
 let notice = '';
+let codeError = false;
 if (Astro.request.method === 'POST') {
   const auth = workosClient();
   if (!auth) return authUnavailableResponse();
@@ -34,12 +35,16 @@ if (Astro.request.method === 'POST') {
     } else {
       const code = String(form.get('code') ?? '').replace(/[\s-]/g, '');
       if (!/^\d{6}$/.test(code)) {
-        error = 'Escribe el código de 6 números tal como llegó a tu correo.';
+        error = pending.kind === 'mfa_totp'
+          ? 'Escribe los 6 números que muestra tu aplicación de autenticación.'
+          : 'Escribe el código de 6 números tal como llegó a tu correo.';
+        codeError = true;
       } else {
         const outcome = await completeWithCode(auth.client, env, pending, code, clientMeta(Astro.request));
         const applied = await applyAuthOutcome(Astro, outcome, { next: pending.next });
         if ('response' in applied) return applied.response;
         error = applied.error;
+        codeError = true;
       }
     }
   } catch {
@@ -69,14 +74,15 @@ const copy = {
   organization: { heading: '', description: '', label: '', hint: '' },
 }[pending.kind];
 ---
-<AuthShell title="Código de verificación" heading={copy.heading} description={copy.description} error={error} notice={notice}>
+<AuthShell title="Código de verificación" heading={copy.heading} description={copy.description} error={error} notice={notice} errorFields={codeError ? [{ id: 'code', label: 'Revisar código de verificación' }] : []}>
   <form class="portal-form" method="post">
     <div class="portal-field">
       <label for="code">{copy.label}</label>
-      <input class="portal-code-input" id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="8" placeholder="123456" required autofocus />
-      <p class="portal-help">{copy.hint}</p>
+      <input class="portal-code-input" id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="12" placeholder="123456" data-format-error="Escribe los 6 números del código, sin letras ni símbolos." aria-invalid={codeError ? 'true' : undefined} aria-describedby={`code-help${codeError ? ' code-error' : ''}`} required />
+      <p class="portal-help" id="code-help">{copy.hint}</p>
+      {codeError && <p class="portal-help portal-field-error" id="code-error">{error}</p>}
     </div>
-    <button class="portal-button portal-button-wide" type="submit">Continuar <span aria-hidden="true">→</span></button>
+    <button class="portal-button portal-button-wide" type="submit">Verificar código <span aria-hidden="true">→</span></button>
   </form>
   <div class="portal-auth-links">
     {pending.kind === 'email_verification'
@@ -86,10 +92,10 @@ const copy = {
   </div>
 </AuthShell>
 <script>
-  // Six digits is the whole job: send it the moment the code is complete
-  // (typing, pasting or the phone's one-time-code autofill).
+  // Accept common copied formats without submitting before the person is
+  // ready. The visible verification button remains the explicit next step.
   const codeInput = document.querySelector<HTMLInputElement>('#code');
   codeInput?.addEventListener('input', () => {
-    if (codeInput.value.replace(/[\s-]/g, '').length === 6) codeInput.form?.requestSubmit();
+    codeInput.value = codeInput.value.replace(/[\s-]/g, '');
   });
 </script>

@@ -18,10 +18,10 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
 ---
 <fieldset id={`${prefix}-group`} class="portal-fieldset" data-allocator data-prefix={prefix} tabindex="-1" aria-describedby={`${prefix}-amount-check`}>
   <legend>{legend}</legend>
-  <p class="portal-help" style="margin:0 0 13px">{showFutureFold ? <>Toca <strong>«{payAllLabel}»</strong> y llenamos el monto y las mensualidades que ya se deben. El próximo mes queda aparte, por si quieres adelantarlo.</> : <>Escribe cuánto de tu transferencia va para cada mensualidad, o toca <strong>«{payAllLabel}»</strong> y lo llenamos por ti. Deja en blanco las que no pagas hoy.</>}</p>
+  <p class="portal-help" style="margin:0 0 13px">{showFutureFold ? <>Toca <strong>«{payAllLabel}»</strong> y llenamos las mensualidades que ya se deben. El próximo mes queda aparte, por si quieres adelantarlo.</> : <>Escribe cuánto de tu transferencia va para cada mensualidad, o toca <strong>«{payAllLabel}»</strong> y lo llenamos por ti. Deja en blanco las que no pagas hoy.</>} Si ya indicaste el monto transferido, lo conservamos.</p>
   {payAllMinor > 0 && <div class="portal-copy-row" style="margin:0 0 6px"><button class="portal-button portal-button-secondary" type="button" data-pay-all>{payAllLabel} · {money(payAllMinor)} <span aria-hidden="true">→</span></button></div>}
   {(showFutureFold ? dueNow : charges).map(charge => <AllocationRow charge={charge} prefix={prefix} cap={capOf(charge)} filled={values[charge.id] ?? 0} today={todayCR} inPayAll={payAllIds.has(charge.id)} />)}
-  {showFutureFold && <details class="portal-future-charges"><summary>Adelantar el próximo mes (opcional) · {money(futureMinor)}</summary>{future.map(charge => <AllocationRow charge={charge} prefix={prefix} cap={capOf(charge)} filled={values[charge.id] ?? 0} today={todayCR} inPayAll={false} />)}</details>}
+  {showFutureFold && <details class="portal-future-charges" open={future.some(charge => (values[charge.id] ?? 0) > 0)}><summary>Adelantar próximos meses (opcional) · {money(futureMinor)}</summary>{future.map(charge => <AllocationRow charge={charge} prefix={prefix} cap={capOf(charge)} filled={values[charge.id] ?? 0} today={todayCR} inPayAll={false} />)}</details>}
   {charges.length === 0 && <p class="portal-help">No hay mensualidades pendientes para esta cuenta.</p>}
   <div class="portal-total"><span>Total que pagas con esta transferencia</span><output data-allocation-total aria-live="polite">{money(Object.values(values).reduce((total, value) => total + value, 0))}</output></div>
   <p id={`${prefix}-amount-check`} class="portal-help" data-allocation-status role="status" aria-live="polite" hidden></p>
@@ -66,7 +66,7 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
       const chosen = targets.length > 0 ? targets : inputs;
       let filled = 0;
       chosen.forEach(input => { const cap = Number(input.dataset.maxMinor ?? 0); if (cap > 0) { input.value = plain(cap); filled += cap; } });
-      if (transfer && filled > 0) transfer.dataset.autoAmount = '1';
+      if (transfer && filled > 0 && transfer.value === '') transfer.dataset.autoAmount = '1';
       interacted = true;
       (form ?? group).dispatchEvent(new Event('input', { bubbles: true }));
       transfer?.focus();
@@ -95,6 +95,8 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
         else if (minor > Number(input.dataset.maxMinor ?? 0)) input.setCustomValidity(`Supera lo que se debe en esta mensualidad (${formatMinor(Number(input.dataset.maxMinor ?? 0))}).`);
         if (showErrors && !input.validity.valid) { input.setAttribute('aria-invalid', 'true'); valid = false; }
         else { input.removeAttribute('aria-invalid'); if (!input.validity.valid) valid = false; }
+        const error = input.closest('.portal-field')?.querySelector<HTMLElement>('[data-allocation-error]');
+        if (error) { error.hidden = !showErrors || input.validity.valid; error.textContent = error.hidden ? '' : input.validationMessage; }
       });
       const summary = allocationSummary(inputs.map(input => input.value));
       valid = valid && summary.kind !== 'invalid';
@@ -134,6 +136,7 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
       if (total > amount) {
         const message = `El total supera tu transferencia por ${formatMinor(total - amount)}. Baja algún monto o corrige el monto transferido.`;
         if (status) { status.textContent = message; status.style.color = 'var(--red)'; }
+        if (amountError) { amountError.hidden = false; amountError.textContent = message; }
         transfer.setCustomValidity(message); transfer.setAttribute('aria-invalid', 'true'); return false;
       }
       if (status) status.textContent = total === amount
@@ -147,6 +150,20 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
     (form ?? group).addEventListener('change', onInteract);
     form?.addEventListener('submit', event => {
       if (!update(true)) { event.preventDefault(); if (!inputs.length) group.focus(); else form.reportValidity(); }
+    });
+    // Native validation can stop submission before the submit event. Reveal
+    // the relevant month and its inline explanation when that happens.
+    form?.addEventListener('invalid', event => {
+      const field = event.target;
+      if (!(field instanceof HTMLInputElement) || (field !== transfer && !inputs.includes(field))) return;
+      const folded = field.closest('details'); if (folded) folded.open = true;
+      update(true);
+    }, true);
+    form?.addEventListener('portal:draft-restored', () => {
+      inputs.filter(input => input.value !== '' && minorAmount(input.value, true) !== 0).forEach(input => {
+        const folded = input.closest('details'); if (folded) folded.open = true;
+      });
+      update();
     });
     form?.addEventListener('reset', () => queueMicrotask(() => update()));
     window.addEventListener('pageshow', () => update());
