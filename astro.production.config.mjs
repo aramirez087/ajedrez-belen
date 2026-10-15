@@ -1,8 +1,8 @@
 import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
 
-// Production portal build only. Never deploy without the reviewed
-// disabled-shell approval in docs/PRODUCTION-CONFIGURATION.md.
+// Production portal build. Use scripts/build-production.mjs to keep local
+// development secrets out of the deployable artifact.
 export default defineConfig({
   output: 'static',
   outDir: './dist-production',

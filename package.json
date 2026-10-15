@@ -9,6 +9,9 @@
   "scripts": {
     "dev": "node scripts/sync-pdf-assets.mjs && astro dev",
     "build": "node scripts/sync-pdf-assets.mjs && astro build",
+    "build:production": "node scripts/build-production.mjs",
+    "preflight:production": "node scripts/preflight-production.mjs",
+    "deploy:production": "node scripts/preflight-production.mjs && wrangler deploy --config dist-production/server/wrangler.json --autoconfig=false --env-file /dev/null",
     "preview": "astro preview",
     "check": "astro check",
     "test": "node --import tsx --test tests/*.test.ts",
