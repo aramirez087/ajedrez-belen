@@ -33,7 +33,7 @@ const tourStops = tour.split(' ').map((pt) => { const [cx, cy] = pt.split(','); 
         <rect width="540" height="240" fill="url(#board-checks)" mask="url(#board-crop)" />
       </svg>
       <div class="knight-shadow" aria-hidden="true"></div>
-      <img src={src} class="knight-piece" data-depth="22" alt="Caballo de ajedrez tallado en madera clara, sobre un tablero." width="750" height="1000" fetchpriority="high" decoding="async" />
+      <img src={src} class="knight-piece" data-depth="22" alt="Caballo de ajedrez tallado en madera clara, sobre un tablero." width="750" height="1000" fetchpriority="high" srcset={`${src.replace(/\.webp$/, '-400.webp')} 400w, ${src.replace(/\.webp$/, '-560.webp')} 560w, ${src} 750w`} sizes="(max-width: 759px) 310px, (max-width: 1099px) 330px, 420px" />
       <span class="scene-glare" aria-hidden="true"></span>
     </div>
   </div>

@@ -1,6 +1,6 @@
 ---
-import '@fontsource-variable/dm-sans';
-import '../styles/global.css';
+import dmSansCss from '@fontsource-variable/dm-sans?inline';
+import globalCss from '../styles/global.css?inline';
 import KnightScene from '../components/KnightScene.astro';
 import HeroBoard from '../components/HeroBoard.astro';
 import PuzzleBoard from '../components/PuzzleBoard.astro';
@@ -10,6 +10,8 @@ import { association as a } from '../data/association';
 const waBase = 'https://wa.me/' + a.whatsapp?.replace(/\D/g, '');
 const wa = (msg: string) => `${waBase}?text=${encodeURIComponent(msg)}`;
 const contactUrl = wa('Hola, Ajedrez Belén. Quiero coordinar una primera clase gratuita. ¿Me ayudan a confirmar el grupo y la fecha?');
+const crestSrc = a.crest ?? '/media/crest-provisional.webp';
+const crestSrcset = `${crestSrc.replace(/\.webp$/, '-96.webp')} 96w, ${crestSrc} 196w`;
 const canonicalUrl = 'https://ajedrezbelen.com/';
 const pageTitle = 'Clases de ajedrez en Belén, Heredia | Ajedrez Belén';
 const socialImage = new URL(a.heroKnight, canonicalUrl).href;
@@ -53,6 +55,8 @@ const structuredData = {
     <link rel="icon" href="/media/favicon.png" type="image/png" />
     <link rel="preload" href="/fonts/manrope-latin-variable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href={a.heroKnight} as="image" type="image/webp" />
+    <style is:inline set:html={dmSansCss}></style>
+    <style is:inline set:html={globalCss}></style>
     <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
   </head>
   <body>
@@ -60,7 +64,7 @@ const structuredData = {
     <header class="site-header" data-header>
       <div class="frame header-inner">
         <a href="#inicio" class="brand" aria-label="Ajedrez Belén, inicio">
-          <img src={a.crest ?? '/media/crest-provisional.webp'} alt="" width="46" height="50" />
+          <img src={crestSrc} alt="" width="46" height="50" srcset={crestSrcset} sizes="44px" />
           <span>Ajedrez<br />Belén<span class="brand-caption">Un juego. Una comunidad.</span></span>
         </a>
         <nav aria-label="Navegación principal">
@@ -120,7 +124,7 @@ const structuredData = {
             <p class="intro-footnote">Para quienes empiezan.<br />Para quienes nunca dejan de aprender.</p>
           </div>
           <figure class="intro-photo" data-reveal>
-            <img src="/media/chess-staunton-v2.webp" alt="Tablero de ajedrez verde con piezas de madera en plena partida." width="1200" height="800" loading="lazy" decoding="async" />
+            <img src="/media/chess-staunton-v2.webp" alt="Tablero de ajedrez verde con piezas de madera en plena partida." width="1200" height="800" loading="lazy" decoding="async" srcset="/media/chess-staunton-v2-640.webp 640w, /media/chess-staunton-v2-800.webp 800w, /media/chess-staunton-v2-960.webp 960w, /media/chess-staunton-v2.webp 1200w" sizes="(max-width: 759px) 92vw, 1340px" />
             <figcaption><span>Cada partida cuenta una historia distinta.</span><span class="checker-mark" aria-hidden="true"></span></figcaption>
           </figure>
           {a.heroPhoto && <figure class="association-photo"><HeroBoard photo={a.heroPhoto} photoDescription={a.heroPhotoDescription} /></figure>}
