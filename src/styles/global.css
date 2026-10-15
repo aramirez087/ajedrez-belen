@@ -385,7 +385,7 @@ footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-i
 }
 
 .programme { position: relative; overflow: clip; }
-.giant-word { position: absolute; top: 6px; left: 0; font-family: var(--display); font-size: clamp(90px, 13vw, 190px); font-weight: 800; letter-spacing: -.05em; line-height: 1; white-space: nowrap; color: transparent; -webkit-text-stroke: 1.5px rgb(35 40 31 / .09); pointer-events: none; }
+.giant-word { position: absolute; top: 6px; left: 0; font-family: var(--display); font-size: clamp(90px, 13vw, 190px); font-weight: 800; letter-spacing: -.05em; line-height: 1; width: 13.2em; height: 1em; overflow: visible; fill: none; stroke: rgb(35 40 31 / .09); stroke-width: 1.5px; pointer-events: none; }
 .programme > .frame { position: relative; }
 .button { transition: background .2s, transform .2s var(--ease), box-shadow .2s var(--ease), translate .25s var(--ease); }
 
