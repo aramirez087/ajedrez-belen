@@ -43,7 +43,7 @@ const pieces: OperaPiece[] = [
 ];
 const steps = [
   { move: '3… Ag4', title: 'La clavada', body: 'Las negras clavan el caballo contra la dama. Morphy ni parpadea: abre el centro y sigue sacando piezas. La lección número uno del club: desarrolla, no persigas.' },
-  { move: '9. Ag5', title: 'Todas las piezas juegan', body: 'Nueve jugadas y el ejército blanco está completo en el tablero. Las negras apenas han desarrollado dos piezas. En ajedrez, esa diferencia se paga muy caro.' },
+  { move: '9. Ag5', title: 'Las piezas entran en juego', body: 'Morphy ya ha desarrollado sus alfiles y su caballo, mientras las negras tienen menos piezas activas. En ajedrez, esa ventaja de desarrollo puede decidir la partida.' },
   { move: '12. O-O-O', title: 'El enroque que ataca', body: 'El rey blanco queda a salvo en una esquina… y la torre aterriza en la columna abierta, apuntando directo al rey rival, atrapado en el centro.' },
   { move: '16. Db8+', title: 'El sacrificio de dama', body: '¡Morphy regala su dama! El caballo negro, único defensor de la casilla mortal, no tiene más remedio que capturarla y alejarse de su rey.' },
   { move: '17. Td8#', title: 'Jaque mate', body: 'La torre cierra la partida, protegida por el alfil. Diecisiete jugadas y una obra maestra eterna. Todo esto se aprende igual: jugada a jugada, en buena compañía.' },
@@ -57,7 +57,7 @@ const pos = (sq: string) => ({ x: files.indexOf(sq[0]) * 100, y: (8 - Number(sq[
     <div class="opera-sticky">
       <div class="opera-board" aria-hidden="true">
         {[8, 7, 6, 5, 4, 3, 2, 1].map((rank) => files.map((file, fi) => (
-          <span class:list={['osq', (fi + rank) % 2 === 0 ? 'osq-dark' : 'osq-light']} data-osq={file + rank}>
+          <span class:list={['osq', (fi + rank) % 2 !== 0 ? 'osq-dark' : 'osq-light']} data-osq={file + rank}>
             {fi === 0 && <span class="sq-coord sq-rank">{rank}</span>}
             {rank === 1 && <span class="sq-coord sq-file">{file}</span>}
           </span>

@@ -17,41 +17,58 @@ const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
 ---
 <div class="puzzle" data-puzzle>
   <div class="puzzle-board-wrap">
-    <div class="puzzle-board" role="group" aria-label="Tablero del reto: blancas juegan y dan mate en una jugada">
-      {ranks.map((rank) => files.map((file, fi) => {
+    <div class="puzzle-board" role="grid" aria-label="Tablero del reto: blancas juegan y dan mate en una jugada">
+      {ranks.map((rank) => <div class="puzzle-row" role="row">{files.map((file, fi) => {
         const sq = file + rank;
         const piece = pieces[sq];
-        const dark = (fi + rank) % 2 === 0;
+        const dark = (fi + rank) % 2 !== 0;
         return (
-          <button type="button" class:list={['sq', dark ? 'sq-dark' : 'sq-light']} data-sq={sq}
+          <button type="button" role="gridcell" disabled tabindex={sq === 'a1' ? 0 : -1} aria-selected="false" class:list={['sq', dark ? 'sq-dark' : 'sq-light']} data-sq={sq}
             aria-label={piece ? `Casilla ${sq}, ${piece.name}` : `Casilla ${sq}`}>
             {fi === 0 && <span class="sq-coord sq-rank" aria-hidden="true">{rank}</span>}
             {rank === 1 && <span class="sq-coord sq-file" aria-hidden="true">{file}</span>}
             {piece && <span class:list={['piece', 'piece-' + piece.color]} data-piece aria-hidden="true">{piece.glyph}</span>}
           </button>
         );
-      }))}
+      })}</div>)}
       <span class="puzzle-stamp" data-stamp aria-hidden="true">¡Jaque mate!</span>
     </div>
     <p class="puzzle-turn"><span class="turn-dot" aria-hidden="true"></span>Juegan las blancas · Mate en una</p>
   </div>
   <div class="puzzle-panel">
     <p class="puzzle-status" data-status aria-live="polite">Toca la torre blanca de la esquina (a1) y luego la casilla de destino. El rey negro está atrapado por sus propios peones…</p>
+    <p id="puzzle-keyboard" class="puzzle-keyboard">Con teclado: usa las flechas para recorrer el tablero y Enter o espacio para elegir una casilla. Tab pasa a los controles.</p>
     <div class="puzzle-actions">
       <button type="button" class="chip-button" data-hint>Pista</button>
       <button type="button" class="chip-button" data-solution>Ver solución</button>
       <button type="button" class="chip-button" data-reset>Reiniciar</button>
     </div>
     <p class="puzzle-attempts" data-attempts></p>
+    <noscript>
+      <style is:inline>
+        [data-puzzle] [data-status], [data-puzzle] .puzzle-keyboard,
+        [data-puzzle] .puzzle-actions, [data-puzzle] .puzzle-attempts { display: none; }
+      </style>
+      <p class="puzzle-status">La solución es Ta8#: mueve la torre blanca de a1 a a8. Desde allí controla la última fila y da jaque mate, porque los peones negros impiden que su rey escape. Es el mate del pasillo.</p>
+    </noscript>
   </div>
 </div>
+<style>
+  .puzzle-row { display: contents; }
+  .puzzle-keyboard { margin-top: 8px; font-size: 12px; line-height: 1.6; color: var(--on-dark); }
+  .chip-button:disabled { cursor: default; opacity: .65; }
+</style>
 <script>
   const root = document.querySelector<HTMLElement>('[data-puzzle]');
   if (root) {
-    const squares = [...root.querySelectorAll<HTMLElement>('[data-sq]')];
+    const squares = [...root.querySelectorAll<HTMLButtonElement>('[data-sq]')];
     const status = root.querySelector<HTMLElement>('[data-status]');
     const stamp = root.querySelector<HTMLElement>('[data-stamp]');
     const attemptsEl = root.querySelector<HTMLElement>('[data-attempts]');
+    const hintButton = root.querySelector<HTMLButtonElement>('[data-hint]');
+    const solutionButton = root.querySelector<HTMLButtonElement>('[data-solution]');
+    const resetButton = root.querySelector<HTMLButtonElement>('[data-reset]');
+    const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
     const bySq = (sq: string) => squares.find((s) => s.dataset.sq === sq);
     const HOME = 'a1', TARGET = 'a8';
     const LEGAL = ['a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'b1', 'c1', 'd1', 'e1', 'f1'];
@@ -59,30 +76,48 @@ const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
 
     const say = (msg: string) => { if (status) status.textContent = msg; };
     const rookEl = () => bySq(rookAt)?.querySelector<HTMLElement>('[data-piece]');
+    function setBusy(value: boolean) {
+      busy = value;
+      if (hintButton) hintButton.disabled = busy || solved;
+      if (solutionButton) solutionButton.disabled = busy || solved;
+      if (resetButton) resetButton.disabled = busy;
+      squares.forEach((sq) => sq.setAttribute('aria-disabled', String(busy || solved)));
+    }
+    function setTabStop(square: HTMLButtonElement) {
+      squares.forEach((sq) => { sq.tabIndex = sq === square ? 0 : -1; });
+    }
     function clearMarks() {
-      squares.forEach((s) => s.classList.remove('is-selected', 'is-target', 'is-hint'));
+      squares.forEach((s) => {
+        s.classList.remove('is-selected', 'is-target', 'is-hint');
+        s.setAttribute('aria-selected', 'false');
+      });
     }
     function select() {
       if (solved || busy) return;
       selected = true;
       clearMarks();
       bySq(rookAt)?.classList.add('is-selected');
+      bySq(rookAt)?.setAttribute('aria-selected', 'true');
       LEGAL.forEach((sq) => { if (sq !== rookAt) bySq(sq)?.classList.add('is-target'); });
       say('Torre seleccionada. ¿A dónde la llevas? Busca la jugada que el rey negro no pueda esquivar.');
     }
-    function moveRook(to: string) {
+    function moveRook(to: string, complete: () => void) {
       const piece = rookEl();
       const fromSq = bySq(rookAt), toSq = bySq(to);
-      if (!piece || !fromSq || !toSq) return;
+      if (!piece || !fromSq || !toSq) { setBusy(false); return; }
       const a = fromSq.getBoundingClientRect(), b = toSq.getBoundingClientRect();
       piece.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px)`;
       piece.style.zIndex = '3';
-      busy = true;
-      setTimeout(() => {
+      const finish = () => {
         piece.style.transform = ''; piece.style.zIndex = '';
         toSq.appendChild(piece);
-        rookAt = to; busy = false;
-      }, 380);
+        fromSq.setAttribute('aria-label', `Casilla ${rookAt}`);
+        toSq.setAttribute('aria-label', `Casilla ${to}, torre blanca`);
+        rookAt = to;
+        complete();
+      };
+      if (reduceMotion.matches) finish();
+      else setTimeout(finish, 380);
     }
     function win(assisted: boolean) {
       solved = true; selected = false; clearMarks();
@@ -92,6 +127,7 @@ const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
         ? 'Ta8: jaque mate. La torre domina toda la última fila y los peones negros le cierran la salida a su propio rey. Es el famoso mate del pasillo.'
         : `¡Ta8# — Jaque mate${attempts > 1 ? ` en ${attempts} intentos` : ' al primer intento'}! Acabas de dar el mate del pasillo, uno de los primeros mates que aprendes en el club.`);
       document.querySelector('[data-puzzle-win]')?.classList.add('is-on');
+      setBusy(false);
     }
     function tryMove(to: string) {
       if (solved || busy) return;
@@ -105,42 +141,77 @@ const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
       attempts++;
       if (attemptsEl) attemptsEl.textContent = attempts === 1 ? '1 intento' : `${attempts} intentos`;
       selected = false; clearMarks();
-      const from = rookAt;
-      moveRook(to);
-      if (to === TARGET) { setTimeout(() => win(false), 420); return; }
+      setBusy(true);
+      if (to === TARGET) { moveRook(to, () => win(false)); return; }
       say(to.startsWith('a')
         ? `T${to}: la torre sube, pero no hay mate. El rey negro respira… por ahora. Piensa en la última fila.`
         : `T${to}: la torre se mueve, pero el rey negro ni se inmuta. El mate está en la columna "a", bien arriba.`);
-      setTimeout(() => { if (!solved) moveRook(from === to ? HOME : from); }, 950);
+      // Keep the attempt locked until the rook is back: the legal destinations
+      // describe the original position, not the temporary incorrect move.
+      moveRook(to, () => {
+        setTimeout(() => moveRook(HOME, () => setBusy(false)), 570);
+      });
     }
-    squares.forEach((sqEl) => sqEl.addEventListener('click', () => {
-      const sq = sqEl.dataset.sq ?? '';
+    squares.forEach((sqEl, index) => {
+      sqEl.disabled = false;
+      sqEl.addEventListener('focus', () => setTabStop(sqEl));
+      sqEl.addEventListener('keydown', (event) => {
+        const column = index % 8, row = Math.floor(index / 8);
+        let next = index;
+        if (event.key === 'ArrowLeft') next = row * 8 + Math.max(0, column - 1);
+        else if (event.key === 'ArrowRight') next = row * 8 + Math.min(7, column + 1);
+        else if (event.key === 'ArrowUp') next = Math.max(0, row - 1) * 8 + column;
+        else if (event.key === 'ArrowDown') next = Math.min(7, row + 1) * 8 + column;
+        else if (event.key === 'Home') next = event.ctrlKey ? 0 : row * 8;
+        else if (event.key === 'End') next = event.ctrlKey ? 63 : row * 8 + 7;
+        else return;
+        event.preventDefault();
+        squares[next]?.focus();
+      });
+      sqEl.addEventListener('click', () => {
+        setTabStop(sqEl);
+        const sq = sqEl.dataset.sq ?? '';
+        if (solved || busy) return;
+        if (sq === rookAt && !selected) select();
+        else if (selected) tryMove(sq);
+        else say('Empieza tocando la torre blanca de la casilla a1, en la esquina inferior izquierda.');
+      });
+    });
+    root.querySelector('.puzzle-board')?.setAttribute('aria-describedby', 'puzzle-keyboard');
+    hintButton?.addEventListener('click', () => {
       if (solved || busy) return;
-      if (sq === rookAt && !selected) select();
-      else if (selected) tryMove(sq);
-      else if (sq === rookAt) select();
-      else say('Empieza tocando la torre blanca de la casilla a1, en la esquina inferior izquierda.');
-    }));
-    root.querySelector('[data-hint]')?.addEventListener('click', () => {
-      if (solved) return;
       bySq(TARGET)?.classList.add('is-hint');
       say('Pista: el rey negro no puede bajar porque sus peones le tapan la salida. ¿Qué pasa si la torre llega hasta la última fila?');
       setTimeout(() => bySq(TARGET)?.classList.remove('is-hint'), 2600);
     });
-    root.querySelector('[data-solution]')?.addEventListener('click', () => {
+    solutionButton?.addEventListener('click', () => {
       if (solved || busy) return;
-      selected = false; clearMarks(); moveRook(TARGET);
-      setTimeout(() => win(true), 420);
+      const restoreFocus = document.activeElement === solutionButton;
+      selected = false; clearMarks(); setBusy(true);
+      moveRook(TARGET, () => {
+        win(true);
+        if (restoreFocus) resetButton?.focus();
+      });
     });
-    root.querySelector('[data-reset]')?.addEventListener('click', () => {
+    resetButton?.addEventListener('click', () => {
       if (busy) return;
+      const restoreFocus = document.activeElement === resetButton;
       solved = false; selected = false; attempts = 0;
       if (attemptsEl) attemptsEl.textContent = '';
       stamp?.classList.remove('is-on');
       bySq('g8')?.classList.remove('is-mate');
       document.querySelector('[data-puzzle-win]')?.classList.remove('is-on');
       clearMarks();
-      if (rookAt !== HOME) moveRook(HOME);
+      const home = bySq(HOME);
+      if (home) setTabStop(home);
+      const finishReset = () => {
+        setBusy(false);
+        if (restoreFocus) home?.focus();
+      };
+      if (rookAt !== HOME) {
+        setBusy(true);
+        moveRook(HOME, finishReset);
+      } else finishReset();
       say('De nuevo: toca la torre blanca (a1) y busca el mate en una jugada.');
     });
   }

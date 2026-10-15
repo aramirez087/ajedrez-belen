@@ -9,7 +9,10 @@ import { association as a } from '../data/association';
 
 const waBase = 'https://wa.me/' + a.whatsapp?.replace(/\D/g, '');
 const wa = (msg: string) => `${waBase}?text=${encodeURIComponent(msg)}`;
-const contactUrl = wa('Hola, Ajedrez Belén. Quiero información sobre las clases de ajedrez.');
+const contactUrl = wa('Hola, Ajedrez Belén. Quiero coordinar una primera clase gratuita. ¿Me ayudan a confirmar el grupo y la fecha?');
+const canonicalUrl = 'https://ajedrezbelen.com/';
+const pageTitle = 'Clases de ajedrez en Belén, Heredia | Ajedrez Belén';
+const socialImage = new URL(a.heroKnight, canonicalUrl).href;
 
 const classes = [
   { index: '01', name: 'Iniciación', invitation: 'Tu primera jugada', description: 'Conocer las piezas, descubrir el tablero y disfrutar de las primeras partidas.', fee: a.fees[0].amount, piece: 'pawn', glyph: '♟' },
@@ -21,6 +24,9 @@ const structuredData = {
   '@context': 'https://schema.org',
   '@type': 'SportsClub',
   name: a.name,
+  url: canonicalUrl,
+  telephone: a.whatsapp ? `+${a.whatsapp}` : undefined,
+  email: a.email,
   sport: 'Chess',
   description: 'Club y clases de ajedrez en Belén, Heredia, Costa Rica. Niveles de iniciación, cadetes, intermedios y avanzados.',
   address: { '@type': 'PostalAddress', addressLocality: 'Belén', addressRegion: 'Heredia', addressCountry: 'CR' },
@@ -30,18 +36,20 @@ const structuredData = {
 <!doctype html>
 <html lang="es-CR">
   <head>
-    <script is:inline>document.documentElement.classList.add('js')</script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="Ajedrez Belén. Un espacio en Belén, Heredia, para aprender ajedrez, seguir mejorando y compartir cada partida. Clases desde ₡12.000 al mes." />
+    <meta name="description" content="Clases de ajedrez desde los 6 años en el Polideportivo de Belén, Heredia. Principiantes los sábados, desde ₡12.000 al mes. Coordina tu primera clase gratis." />
     <meta name="theme-color" content="#f7f4ec" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="es_CR" />
-    <meta property="og:title" content="Ajedrez Belén | Un tablero. Un mundo por descubrir." />
-    <meta property="og:description" content="Clases de ajedrez en Belén, Heredia. Tres niveles, desde tu primera jugada hasta pensar un paso más allá. Desde ₡12.000 al mes." />
-    <meta property="og:image" content="/media/knight-staunton-v4.webp" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content="Ajedrez desde los 6 años en el Polideportivo de Belén. Principiantes los sábados y mensualidades desde ₡12.000. Coordina tu primera clase gratis." />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:alt" content="Caballo de ajedrez de madera de Ajedrez Belén" />
+    <link rel="canonical" href={canonicalUrl} />
     <meta name="twitter:card" content="summary_large_image" />
-    <title>Ajedrez Belén | Un tablero. Un mundo por descubrir.</title>
+    <title>{pageTitle}</title>
     <link rel="icon" href="/media/favicon.png" type="image/png" />
     <link rel="preload" href="/fonts/manrope-latin-variable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href={a.heroKnight} as="image" type="image/webp" />
@@ -58,10 +66,10 @@ const structuredData = {
         <nav aria-label="Navegación principal">
           <a class="nav-club" href="#asociacion">El club</a>
           <a class="nav-game" href="#partida">La partida</a>
-          <a href="#reto">El reto</a>
+          <a class="nav-puzzle" href="#reto">El reto</a>
           <a href="#niveles">Las clases</a>
           <a class="nav-fees" href="#preguntas">Preguntas</a>
-          <a href="https://ajedrezbelen.com/privacy/">Privacidad</a>
+          <a class="nav-privacy" href="https://ajedrezbelen.com/privacy/">Privacidad</a>
         </nav>
         <a href={contactUrl} target="_blank" rel="noopener noreferrer" class="nav-contact">Hablemos <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12" /></svg></a>
       </div>
@@ -80,15 +88,15 @@ const structuredData = {
             <span>Un mundo</span>
             <em>por descubrir.</em>
           </h1>
-          <p class="hero-description" data-hero="3">Un espacio para aprender ajedrez, compartir cada partida y descubrir hasta dónde puedes llegar.</p>
+          <p class="hero-description" data-hero="3">Ajedrez para niños, jóvenes y adultos desde los {a.minimumAge} años, en el Polideportivo de Belén. Tu primera clase es gratis.</p>
           <div class="hero-actions" data-hero="4">
-            <a class="button" href={contactUrl} target="_blank" rel="noopener noreferrer">Quiero aprender <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h14M11 4l6 6-6 6" /></svg></a>
-            <a class="text-link" href="#reto">Primero, un reto <span aria-hidden="true">↓</span></a>
+            <a class="button" href={contactUrl} target="_blank" rel="noopener noreferrer">Probar una clase gratis <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h14M11 4l6 6-6 6" /></svg></a>
+            <a class="text-link" href="#niveles">Ver clases y precios <span aria-hidden="true">↓</span></a>
           </div>
           <dl class="hero-facts" data-hero="5">
             <div><dt>Desde</dt><dd>₡<span data-count="12000">12.000</span><em> / mes</em></dd></div>
-            <div><dt>Niveles</dt><dd><span data-count="3">3</span><em> para cada paso</em></dd></div>
-            <div><dt>Hermanos</dt><dd><span data-count="25">25</span>%<em> de descuento</em></dd></div>
+            <div><dt>Edades</dt><dd>{a.minimumAge}+<em> años en adelante</em></dd></div>
+            <div><dt>Primera clase</dt><dd>Gratis<em> sin compromiso</em></dd></div>
           </dl>
         </div>
         <KnightScene src={a.heroKnight} />
@@ -108,7 +116,7 @@ const structuredData = {
         <div class="intro-main">
           <h2 id="intro-heading" data-reveal>Aprender a jugar.<br /><em>Encontrar con quién.</em></h2>
           <div class="intro-copy" data-reveal>
-            <p>El ajedrez empieza con dos personas y un tablero. En Belén, es también una forma de encontrarnos, aprender juntos y disfrutar del camino.</p>
+            <p>Somos una asociación conformada por padres de familia. Con el apoyo del CCDR de Belén, compartimos el ajedrez con niños, jóvenes y adultos: un espacio para aprender juntos y disfrutar cada partida.</p>
             <p class="intro-footnote">Para quienes empiezan.<br />Para quienes nunca dejan de aprender.</p>
           </div>
           <figure class="intro-photo" data-reveal>
@@ -129,7 +137,7 @@ const structuredData = {
           <p class="section-index" data-reveal><span>02</span> La partida</p>
           <div class="game-heading" data-reveal>
             <h2 id="game-heading">París, 1858.<br /><em>Una obra maestra</em> en 17 jugadas.</h2>
-            <p>Paul Morphy, de 21 años, jugó esta partida en un palco de la ópera contra dos aristócratas que consultaban cada movimiento. Sigue bajando: el tablero la reproduce para ti, jugada a jugada.</p>
+            <p>Paul Morphy, de 21 años, jugó esta partida en un palco de la ópera contra dos aristócratas que consultaban cada movimiento. Sigue bajando: el tablero te muestra cinco jugadas destacadas de la partida.</p>
           </div>
           <OperaGame />
           <p class="game-source" data-reveal>Morphy vs. Duque Karl de Brunswick y Conde Isouard · Ópera de París, 1858 · Defensa Philidor — conocida como «la partida de la ópera».</p>
@@ -159,6 +167,11 @@ const structuredData = {
             <h2 id="levels-heading">Cada nivel,<br /><em>un nuevo horizonte.</em></h2>
             <p>Tu primera partida o tu próximo reto.<br />Encuentra tu lugar en el tablero.</p>
           </div>
+          <dl class="class-details">
+            <div><dt>Dónde nos encontramos</dt><dd>{a.venue}.</dd></div>
+            <div><dt>Principiantes · sábados</dt><dd>8:00 a. m. o 1:00 p. m.</dd></div>
+            <div><dt>Tu primera clase</dt><dd>Gratuita y sin compromiso. Confirma el grupo y la fecha por WhatsApp.</dd></div>
+          </dl>
           <table id="mensualidades" class="programme-table" role="table">
             <caption class="visually-hidden">Clases de ajedrez y mensualidades</caption>
             <thead role="rowgroup"><tr role="row"><th id="level-column" scope="col" role="columnheader">Tu punto de partida</th><th id="description-column" scope="col" role="columnheader">Lo que exploramos</th><th id="fee-column" scope="col" role="columnheader">Mensualidad</th></tr></thead>
@@ -182,7 +195,7 @@ const structuredData = {
           </table>
           <div class="programme-help"><span>¿No sabes por dónde empezar?</span><a class="text-link" href={wa('Hola, Ajedrez Belén. No sé qué nivel me conviene, ¿me ayudan a encontrarlo?')} target="_blank" rel="noopener noreferrer">Te ayudamos a encontrar tu nivel <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12" /></svg></a></div>
           <div class="programme-notes">
-            <div class="family-note" data-reveal><span class="discount">25<span>%</span></span><div><p class="family-label">Descuento entre hermanos</p><h3>Una pasión que se comparte.</h3><p>Si inscribes a dos o más hermanos, el descuento se aplica automáticamente en la mensualidad.</p></div><a class="family-cta" href={wa('Hola, Ajedrez Belén. Quiero consultar por el descuento entre hermanos.')} target="_blank" rel="noopener noreferrer">Consultar <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12" /></svg></a><span class="checker-mark checker-big" aria-hidden="true"></span></div>
+            <div class="family-note" data-reveal><span class="discount">25<span>%</span></span><div><p class="family-label">Descuento familiar</p><h3>Una pasión que se comparte.</h3><p>Con dos o más hermanos o miembros de la misma familia inscritos, el 25 % de descuento se aplica automáticamente en la mensualidad de cada uno.</p></div><a class="family-cta" href={wa('Hola, Ajedrez Belén. Quiero consultar por el descuento familiar.')} target="_blank" rel="noopener noreferrer">Consultar <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12" /></svg></a><span class="checker-mark checker-big" aria-hidden="true"></span></div>
             <details><summary>Sobre el pago mensual <span aria-hidden="true">+</span></summary><p>El pago se realiza dentro de los primeros 8 días del mes. Al realizarlo, identifica al atleta con su nombre y apellido. Las familias inscritas registran la transferencia en el <a href="/portal">Portal de pagos</a> y reciben su comprobante tras la verificación.</p></details>
           </div>
         </div>
@@ -192,9 +205,9 @@ const structuredData = {
         <p class="section-index" data-reveal><span>05</span> Cómo empezar</p>
         <h2 id="steps-heading" class="steps-heading" data-reveal>De la primera duda<br />a la <em>primera jugada.</em></h2>
         <ol class="steps-list">
-          <li data-reveal><span class="step-num" aria-hidden="true">1</span><h3>Escríbenos</h3><p>Un mensaje por WhatsApp basta. Cuéntanos quién quiere aprender y te respondemos con los detalles.</p></li>
-          <li data-reveal><span class="step-num" aria-hidden="true">2</span><h3>Encuentra tu nivel</h3><p>¿Primera vez frente al tablero o ya juegas? Te ubicamos en el grupo donde más vas a crecer.</p></li>
-          <li data-reveal><span class="step-num" aria-hidden="true">3</span><h3>Siéntate a jugar</h3><p>Conoce la sede y los horarios, llega con ganas y mueve tu primera pieza. El resto es historia.</p></li>
+          <li data-reveal><span class="step-num" aria-hidden="true">1</span><h3>Escríbenos</h3><p>Cuéntanos quién quiere aprender y su edad. Te compartimos el formulario para la clase de prueba, uno por atleta.</p></li>
+          <li data-reveal><span class="step-num" aria-hidden="true">2</span><h3>Coordina tu visita</h3><p>Confirmamos con los entrenadores el grupo y la fecha. Para principiantes hay dos horarios los sábados.</p></li>
+          <li data-reveal><span class="step-num" aria-hidden="true">3</span><h3>Prueba una clase gratis</h3><p>Conoce al grupo y la dinámica en el Polideportivo de Belén. Después decides si quieres continuar, sin compromiso.</p></li>
         </ol>
       </section>
 
@@ -203,8 +216,12 @@ const structuredData = {
         <h2 id="faq-heading" class="faq-heading" data-reveal>Antes de <em>mover,</em> pregunta.</h2>
         <div class="faq-grid">
           <details data-reveal><summary>¿Necesito saber jugar para empezar? <span aria-hidden="true">+</span></summary><p>No. El nivel de Iniciación está hecho para dar los primeros pasos: conocer las piezas, el tablero y disfrutar las primeras partidas desde cero.</p></details>
-          <details data-reveal><summary>¿Cuánto cuesta la mensualidad? <span aria-hidden="true">+</span></summary><p>Iniciación cuesta ₡12.000 al mes y los niveles de cadetes, intermedios y avanzados ₡15.000 al mes. Entre hermanos hay un 25 % de descuento, aplicado automáticamente desde el segundo atleta de la familia.</p></details>
-          <details data-reveal><summary>¿Dónde y cuándo son las clases? <span aria-hidden="true">+</span></summary><p>Estamos en Belén, Heredia. Escríbenos por WhatsApp y te compartimos la sede y los horarios vigentes de cada nivel.</p></details>
+          <details data-reveal><summary>¿Cuánto cuesta la mensualidad? <span aria-hidden="true">+</span></summary><p>Iniciación cuesta ₡12.000 al mes y los niveles de cadetes, intermedios y avanzados ₡15.000 al mes. Con dos o más hermanos o miembros de la misma familia inscritos, el 25 % de descuento se aplica automáticamente en la mensualidad de cada uno.</p></details>
+          <details data-reveal><summary>¿Desde qué edad se puede participar? <span aria-hidden="true">+</span></summary><p>Recibimos niños, jóvenes y adultos desde los {a.minimumAge} años. No necesitas experiencia para empezar en Iniciación.</p></details>
+          <details data-reveal><summary>¿Puedo probar una clase antes de inscribirme? <span aria-hidden="true">+</span></summary><p>Sí. La primera clase de evaluación es gratuita y sin compromiso. Escríbenos por WhatsApp: te compartimos el formulario, uno por atleta, y coordinamos la fecha con los entrenadores.</p></details>
+          <details data-reveal><summary>¿Dónde y cuándo son las clases? <span aria-hidden="true">+</span></summary><p>Nos encontramos en el {a.venue}. {a.schedule} Confirma con nosotros la disponibilidad del grupo y la fecha de tu primera visita.</p></details>
+          <details data-reveal><summary>¿Cuántas clases hay por semana? <span aria-hidden="true">+</span></summary><p>Principiantes tiene una clase presencial por semana. Los otros grupos incluyen una clase presencial y otra virtual por semana. Te compartimos los horarios y la duración del grupo que te corresponda al coordinar.</p></details>
+          <details data-reveal><summary>¿Hay un costo adicional para competir? <span aria-hidden="true">+</span></summary><p>Cuando un atleta empieza a participar en torneos federados, debe pagar ₡13.000 al año por la inscripción a la Federación Costarricense de Ajedrez (FCA). La asociación gestiona esta inscripción; es un pago separado de la mensualidad.</p></details>
           <details data-reveal><summary>¿Cómo se paga la mensualidad? <span aria-hidden="true">+</span></summary><p>El pago se realiza dentro de los primeros 8 días de cada mes. Al hacerlo, identifica al atleta con su nombre y apellido. Las familias inscritas registran la transferencia en el <a href="/portal">Portal de pagos</a> y reciben su comprobante tras la verificación. Si tienes dudas, te ayudamos por WhatsApp.</p></details>
         </div>
       </section>
@@ -214,9 +231,9 @@ const structuredData = {
           <div class="contact-top"><p>Nos vemos en el tablero</p><span class="checker-mark" aria-hidden="true"></span></div>
           <div class="contact-main">
             <h2 id="contact-heading" data-reveal>¿Jugamos?</h2>
-            <div class="contact-action" data-reveal><p>La mejor jugada es empezar. Hay un lugar para ti en el tablero: hablemos de cómo dar el primer paso.</p><a class="button button-light" href={contactUrl} target="_blank" rel="noopener noreferrer">Conversemos por WhatsApp <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12" /></svg></a></div>
+            <div class="contact-action" data-reveal><p>Tu primera clase es gratuita. Conoce al grupo, prueba la dinámica y decide si quieres continuar. Coordinemos tu visita por WhatsApp.</p><a class="button button-light" href={contactUrl} target="_blank" rel="noopener noreferrer">Coordinar mi clase gratis <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12" /></svg></a></div>
           </div>
-          <div id="ubicacion" class="practical-info"><p><span class="location-dot" aria-hidden="true"></span>Belén, Heredia · Costa Rica</p><p>Escríbenos para conocer la sede y los horarios de las clases.</p></div>
+          <div id="ubicacion" class="practical-info"><p><span class="location-dot" aria-hidden="true"></span>{a.venue}</p><p>{a.schedule}</p><a href={'mailto:' + a.email}>{a.email}</a></div>
         </div>
       </section>
     </main>
@@ -226,20 +243,27 @@ const structuredData = {
       <p class="footer-app">La aplicación Ajedrez Belén sirve para que las familias inscriban atletas, consulten la mensualidad, registren el pago de las clases y vean los eventos. Si conectas Google, la aplicación pide solo tu nombre y tu correo verificado, para reconocerte y enviarte el comprobante.</p>
       <div class="footer-links"><a href="https://ajedrezbelen.com/privacy/">Política de privacidad</a><a href="/terminos/">Términos</a><a href="/app/">La aplicación</a><a href="/portal">Portal de pagos</a><a href="https://www.facebook.com/ajedrezbelen" target="_blank" rel="noopener noreferrer">Facebook <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16 16 4M4 4h12v12" /></svg></a><a href="#inicio">Volver arriba <span aria-hidden="true">↑</span></a></div>
     </footer>
-    <a class="mobile-cta" data-mobile-cta href={contactUrl} target="_blank" rel="noopener noreferrer"><span>Quiero aprender ajedrez</span><span class="mobile-cta-price">desde ₡12.000/mes →</span></a>
+    <a class="mobile-cta" data-mobile-cta href={contactUrl} target="_blank" rel="noopener noreferrer"><span>Probar una clase gratis</span><span class="mobile-cta-price">Coordinar por WhatsApp →</span></a>
     <script>
       const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
       const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
-      document.documentElement.classList.add('is-loaded');
       const io = new IntersectionObserver((entries) => {
         entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } });
       }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
       document.querySelectorAll('[data-reveal]').forEach((el) => io.observe(el));
+      // Enhance only after the reveal observer is ready; content stays visible if scripts fail.
+      document.documentElement.classList.add('js', 'is-loaded');
       const header = document.querySelector('[data-header]');
+      if (header) new ResizeObserver(() => {
+        document.documentElement.style.setProperty('--header-height', `${header.getBoundingClientRect().height}px`);
+      }).observe(header);
       const cta = document.querySelector('[data-mobile-cta]');
       const contact = document.querySelector('.contact');
       let contactVisible = false;
-      if (contact) new IntersectionObserver(([e]) => { contactVisible = e.isIntersecting; }, { threshold: 0.2 }).observe(contact);
+      if (contact) new IntersectionObserver(([e]) => {
+        contactVisible = e.isIntersecting;
+        cta?.classList.toggle('is-on', scrollY > 560 && !contactVisible);
+      }, { threshold: 0.2 }).observe(contact);
 
       /* Scroll coordinate rail: the page is the e-file, e2 → e8 (coronación). */
       const railFill = document.querySelector<HTMLElement>('[data-rail-fill]');

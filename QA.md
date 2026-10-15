@@ -1,3 +1,7 @@
+# Revisión actual — 14 octubre 2026 (Costa Rica)
+
+La revisión de la landing con sus interacciones actuales está en [LANDING-REVIEW-2026-10-14.md](docs/LANDING-REVIEW-2026-10-14.md). Los registros siguientes son históricos; las referencias a cero JavaScript corresponden a versiones anteriores.
+
 # Revisión adaptable — 9 octubre 2026 (Costa Rica)
 
 Estado actual: se corrigieron los botones del hero que partían sus etiquetas en teléfonos de 360–375 px, el solapamiento de nombres y precios al ampliar texto y los enlaces de marca con objetivos táctiles menores de 44 px. Cabecera, acciones, descuento y contacto pueden reorganizarse; el caballo tiene límites de tamaño. Se añadieron márgenes de área segura y una consulta de contenedor para adaptar la tabla al espacio y tamaño del texto.
