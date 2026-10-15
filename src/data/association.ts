@@ -1,6 +1,7 @@
 // Confirmed facts only. Set contact and media once the association authorizes them.
 export const association = {
   name: 'Ajedrez Belén',
+  fullName: 'Asociación Deportiva Ajedrez Belén Capablanca',
   location: 'Belén, Heredia, Costa Rica',
   whatsapp: '50687686102' as string | null,
   venue: 'Polideportivo de Belén, edificio de Ajedrez',

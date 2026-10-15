@@ -6,6 +6,7 @@ import KnightScene from '../components/KnightScene.astro';
 import HeroBoard from '../components/HeroBoard.astro';
 import PuzzleBoard from '../components/PuzzleBoard.astro';
 import OperaGame from '../components/OperaGame.astro';
+import ClubPurpose from '../components/ClubPurpose.astro';
 import { association as a } from '../data/association';
 import { knightImage, crestImage } from '../data/landing-media';
 
@@ -28,6 +29,7 @@ const structuredData = {
   '@context': 'https://schema.org',
   '@type': 'SportsClub',
   name: a.name,
+  alternateName: a.fullName,
   url: canonicalUrl,
   telephone: a.whatsapp ? `+${a.whatsapp}` : undefined,
   email: a.email,
@@ -124,6 +126,7 @@ const structuredData = {
         <div class="intro-main">
           <h2 id="intro-heading" data-reveal>Aprender a jugar.<br /><em>Encontrar con quién.</em></h2>
           <div class="intro-copy" data-reveal>
+            <p class="association-name">{a.fullName}</p>
             <p>Somos una asociación conformada por padres de familia. Con el apoyo del CCDR de Belén, compartimos el ajedrez con niños, jóvenes y adultos: un espacio para aprender juntos y disfrutar cada partida.</p>
             <p class="intro-footnote">Para quienes empiezan.<br />Para quienes nunca dejan de aprender.</p>
           </div>
@@ -138,6 +141,7 @@ const structuredData = {
           <li data-reveal><span class="principle-num">02</span><div><h3>Pensar</h3><p>Ideas, planes y decisiones. Cada jugada entrena la cabeza.</p></div><span class="principle-glyph" aria-hidden="true">♝</span></li>
           <li data-reveal><span class="principle-num">03</span><div><h3>Compartir</h3><p>Un rival al frente y un amigo al lado. El tablero nos reúne.</p></div><span class="principle-glyph" aria-hidden="true">♜</span></li>
         </ol>
+        <ClubPurpose />
       </section>
 
       <section id="partida" class="game" aria-labelledby="game-heading">

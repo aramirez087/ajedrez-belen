@@ -156,6 +156,7 @@ h1 > em { color: var(--red); }
 .introduction h2, .programme h2, .steps-heading, .faq-heading { font-family: var(--display); font-size: clamp(36px, 4.4vw, 62px); line-height: 1.04; letter-spacing: -.05em; font-weight: 640; }
 .intro-copy { max-width: 440px; padding-top: 10px; }
 .intro-copy > p { font-size: 16px; color: var(--muted); line-height: 1.8; }
+.intro-copy .association-name { font-family: var(--display); font-size: 17px; font-weight: 650; line-height: 1.45; color: var(--ink); margin-bottom: 14px; }
 .intro-copy .intro-footnote { font-size: 13px; color: var(--ink); margin-top: 20px; line-height: 1.7; border-left: 3px solid var(--red); padding-left: 16px; }
 .intro-photo { grid-column: 1 / -1; margin-top: 18px; position: relative; }
 .intro-photo img { width: 100%; height: clamp(280px, 52vh, 540px); object-fit: cover; object-position: center 38%; display: block; border: 1px solid var(--line); }
