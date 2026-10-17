@@ -1,4 +1,4 @@
-import { recoverPaymentSubmission, submitPayment } from './domain';
+import { assertSubmissionAccess, recoverPaymentSubmission, submitPayment } from './domain';
 import { attachSlipDraft, getSlipDraft } from './ocr';
 import { formText, InputError, readSlip } from './http';
 import { resolveSubmissionSlip } from './slip-upload';
@@ -16,6 +16,8 @@ export async function submitPaymentForm(
   if (!metadata) throw new InputError('invalid_file');
   const replay = await recoverPaymentSubmission(env.DB, actor, { ...input, file: metadata });
   if (replay) return replay;
+  // Refuse another family's charges before a draft or original is stored.
+  await assertSubmissionAccess(env.DB, actor, { ...input, file: metadata });
 
   try {
     const saved = await resolveSubmissionSlip(env, actor, form);

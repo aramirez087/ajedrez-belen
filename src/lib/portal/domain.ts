@@ -1549,6 +1549,30 @@ export async function recoverPaymentSubmission(
   await validateAllocations(db, expected.designatedAdultId, expected.allocations, expected.amountMinor, false);
   return input.submissionId;
 }
+/**
+ * Permission gate for a new submission, run before any slip draft is reserved. Mirrors the
+ * ownership part of validateAllocations so a request for another family fails with 403 and
+ * leaves no draft behind (drafts count toward a per-account cap).
+ */
+export async function assertSubmissionAccess(
+  db: D1Database,
+  actor: Actor,
+  input: SubmissionRequest,
+): Promise<void> {
+  await requireActor(db, actor);
+  const designated = canonicalSubmission(actor, input).designatedAdultId;
+  await activeUser(db, designated);
+  const allocations = Array.isArray(input.allocations) ? input.allocations : [];
+  for (const allocation of allocations) {
+    const linked = await one<{ id: string }>(
+      db,
+      "SELECT c.id FROM charges c WHERE c.id=? AND EXISTS(SELECT 1 FROM guardian_links l WHERE l.user_id=? AND l.athlete_id=c.athlete_id AND l.active=1)",
+      [allocation.chargeId, designated],
+    );
+    if (!linked) fail("Mensualidad no disponible para esta familia.", 403, "forbidden");
+  }
+}
+
 export async function submitPayment(
   db: D1Database,
   actor: Actor,
