@@ -4,12 +4,15 @@
 /* ── Reading size: parents use phones; 12 px is the floor only for tracked capitals. ── */
 .portal-description { max-width: 62ch; font-size: 15.5px; line-height: 1.65; color: var(--ink-soft); }
 .portal-next-step p { font-size: 15px; line-height: 1.6; }
-.portal-guidance p, .portal-athlete p, .portal-section-caption, .portal-section-heading p, .portal-stat p, .portal-alert-text p { font-size: 14px; }
+.portal-guidance p, .portal-athlete p, .portal-section-caption, .portal-section-heading p, .portal-stat .portal-stat-note, .portal-alert-text p { font-size: 14px; }
 .portal-stat dt { font-size: 13px; }
 .portal-table { font-size: 14px; }
 .portal-table .portal-subtext { font-size: 13.5px; }
 .portal-table .portal-link, .portal-link, .portal-back-link, .portal-quick-fill { font-size: 14px; }
 .portal-status { font-size: 13px; padding: 5px 11px; }
+.portal-status-tag { margin-left: 8px; }
+/* A folded list that follows a table continues it: the table's last row already draws the rule. */
+.portal-table-wrap + .portal-history { margin-top: 0; border-top: 0; }
 .portal-session, .portal-session small, .portal-brand small, .portal-footer { font-size: 13px; }
 .portal-navigation a, .portal-role-switch a { font-size: 14px; }
 .portal-athlete-balance span { font-size: 12px; }
@@ -63,8 +66,19 @@
   .has-tabbar .portal-mobile-navigation { display: none; }
   .portal-tabbar { display: block; position: fixed; inset: auto 0 0 0; z-index: 40; padding: 0 max(8px, env(safe-area-inset-right)) env(safe-area-inset-bottom, 0px) max(8px, env(safe-area-inset-left)); border-top: 1px solid var(--line-strong); background: color-mix(in srgb, var(--paper) 97%, transparent); backdrop-filter: blur(12px); box-shadow: 0 -10px 30px -18px rgb(22 19 15 / .35); }
   .portal-tabbar ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 560px; margin: 0 auto; padding: 0; list-style: none; }
-  .portal-tabbar a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 64px; padding: 9px 2px 8px; color: var(--muted); font-size: 12px; font-weight: 600; line-height: 1.15; text-align: center; text-wrap: balance; }
+  .portal-tabbar a, .portal-tabbar-more { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 64px; padding: 9px 2px 8px; color: var(--muted); font-size: 12px; font-weight: 600; line-height: 1.15; text-align: center; text-wrap: balance; }
   .portal-tabbar a svg { flex: 0 0 auto; }
+  .portal-tabbar-more { width: 100%; border: 0; background: none; font: inherit; cursor: pointer; }
+  .portal-tabbar-more:is(.is-current, [aria-expanded='true']) { color: var(--red); }
+  .portal-tabbar-more.is-current::before { content: ''; position: absolute; top: -1px; left: 22%; right: 22%; height: 3px; border-radius: 0 0 3px 3px; background: var(--red); }
+  .portal-tabbar-more:active { background: var(--surface); }
+  /* "Más" opens directly above the bar, so the lesser sections never push the main ones aside. */
+  .portal-tabbar-sheet { position: absolute; left: 0; right: 0; bottom: 100%; padding: 14px max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left)); border-top: 1px solid var(--line-strong); background: var(--paper); box-shadow: 0 -18px 30px -22px rgb(22 19 15 / .4); }
+  .portal-tabbar-sheet p { margin: 0 0 10px; color: var(--muted); font-size: 13px; font-weight: 600; }
+  .portal-tabbar-sheet ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 560px; margin: 0 auto; padding: 0; list-style: none; }
+  .portal-tabbar-sheet a { display: flex; align-items: center; min-height: 48px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); font-size: 14px; font-weight: 600; line-height: 1.25; text-align: left; }
+  .portal-tabbar-sheet a[aria-current='page'] { background: var(--red); border-color: var(--red); color: var(--paper); }
+  .portal-tabbar-sheet a[aria-current='page']::before { content: none; }
   .portal-tabbar a[aria-current='page'] { color: var(--red); }
   .portal-tabbar a[aria-current='page']::before { content: ''; position: absolute; top: -1px; left: 22%; right: 22%; height: 3px; border-radius: 0 0 3px 3px; background: var(--red); }
   .portal-tabbar a[data-tab='new-payment']:not([aria-current='page']) { color: var(--ink); }
@@ -160,7 +174,8 @@
 .portal-agenda-main span { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
 .portal-agenda-tag { justify-self: end; padding: 4px 10px; border-radius: 999px; background: var(--surface); font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--ink-soft); }
 .portal-agenda-tag.is-live { background: var(--red); color: var(--paper); }
-.portal-agenda-item.is-past, .portal-agenda-day.is-past .portal-agenda-item { opacity: .6; }
+/* Past is shown with the muted ink, not opacity: faded text fails contrast. */
+.portal-agenda-item.is-past, .portal-agenda-day.is-past .portal-agenda-item { color: var(--muted); }
 .portal-agenda-item.is-cancelled strong { text-decoration: line-through; }
 .portal-agenda-past { margin-bottom: 22px; border-block: 1px solid var(--line); }
 .portal-agenda-past > summary { display: flex; align-items: center; gap: 10px; min-height: 52px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--red); }
@@ -196,7 +211,9 @@
 .portal-calendar-cell { height: 112px; padding: 8px; }
 .portal-calendar-cell.is-past { background: var(--paper); }
 .portal-calendar-cell.is-past .portal-calendar-day { color: var(--muted); font-weight: 500; }
-.portal-calendar-cell.is-past .portal-calendar-event { opacity: .6; }
+.portal-calendar-cell.is-past .portal-calendar-event { color: var(--muted); }
+.portal-calendar-cell.is-past .portal-calendar-event:hover { color: var(--paper); }
+.portal-calendar-event.is-cancelled { opacity: 1; color: var(--muted); }
 .portal-calendar-cell.is-today { background: #fffdf7; box-shadow: inset 0 0 0 2px var(--red); }
 .portal-calendar-day { font-size: 13.5px; }
 .portal-calendar-event { gap: 6px; align-items: baseline; border: 0; border-left: 3px solid var(--red); border-radius: 2px; background: var(--red-soft); font-size: 12.5px; line-height: 1.3; }
@@ -304,7 +321,9 @@
 
 /* ── Stats: a zero that is not the balance is reassurance, not news. Keep it small. ── */
 .portal-stat-zero:not(.portal-stat-primary) dd { font-size: 24px; }
-.portal-stat-zero:not(.portal-stat-primary) p { display: none; }
+.portal-stat-zero:not(.portal-stat-primary) .portal-stat-note { display: none; }
+/* A stat note is a description, not the figure: it must not take the big numeral's size or face. */
+.portal-stat dd.portal-stat-note { margin: 7px 0 0; font-family: var(--font); font-size: 14px; font-weight: 400; letter-spacing: 0; word-spacing: normal; line-height: 1.55; color: var(--muted); }
 @media (min-width: 651px) {
   .portal-stats:has(.portal-stat-zero:not(.portal-stat-primary)) { grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)); }
 }
@@ -318,4 +337,24 @@
   .portal-subnav { flex-wrap: nowrap; overflow-x: auto; margin-inline: calc(var(--portal-gutter) * -1); padding-inline: var(--portal-gutter); scroll-padding-inline: var(--portal-gutter); scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
   .portal-subnav::-webkit-scrollbar { display: none; }
   .portal-subnav a { flex: 0 0 auto; white-space: nowrap; }
+}
+
+/* ── Admin families: one view at a time. The bar picks it, a link's hash wins over the default, and a search lists both lists. ── */
+.admin-view { display: none; }
+.admin-view:focus { outline: none; }
+.admin-views[data-view='atletas'] > [data-admin-view='atletas'],
+.admin-views[data-view='cuentas'] > [data-admin-view='cuentas'],
+.admin-views[data-view='inscribir'] > [data-admin-view='inscribir'],
+.admin-views[data-view='invitar'] > [data-admin-view='invitar'],
+.admin-views[data-view='cuotas'] > [data-admin-view='cuotas'],
+.admin-views.is-searching > [data-admin-view='atletas'],
+.admin-views.is-searching > [data-admin-view='cuentas'] { display: block; }
+.admin-views:has(> .admin-view:target) > .admin-view:not(:target) { display: none; }
+.admin-view:target { display: block; }
+
+/* ── Phone search: a single search box keeps its button on the same line. Forms with a filter stay as they are. ── */
+@media (max-width: 650px) {
+  .portal-month-form[role='search']:not(:has(select)) { flex-wrap: nowrap; }
+  .portal-month-form[role='search']:not(:has(select)) > .portal-field { flex: 1 1 0; min-width: 0; }
+  .portal-month-form[role='search']:not(:has(select)) > :is(.portal-button, .portal-link) { flex: 0 0 auto; }
 }

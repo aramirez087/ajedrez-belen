@@ -97,9 +97,9 @@
 .portal-stat:first-child { border-color: var(--red); }
 .portal-stat dt { font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--muted); }
 .portal-stat dd { font-family: var(--display); font-size: clamp(26px, 3.3vw, 38px); letter-spacing: -.05em; margin: 11px 0 0; font-variant-numeric: tabular-nums; }
-.portal-stat p { margin-top: 7px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.portal-stat .portal-stat-note { margin-top: 7px; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .portal-stat-primary dd { font-size: clamp(32px, 4vw, 46px); font-weight: 640; }
-.portal-stat-primary p strong { color: var(--red); font-weight: 650; }
+.portal-stat-primary .portal-stat-note strong { color: var(--red); font-weight: 650; }
 .portal-stat-zero dd { color: var(--muted); }
 .portal-stat-zero { border-top-color: var(--line-strong); }
 .portal-stat-zero:first-child { border-top-color: var(--line-strong); }
@@ -343,7 +343,7 @@
   .portal-stats { gap: 0; margin-bottom: 30px; grid-template-columns: 1fr; }
   .portal-stat { border-top-width: 1px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 15px; padding: 17px 20px; }
   .portal-stat dd { margin: 0; font-size: 29px; }
-  .portal-stat p { grid-column: 1 / -1; margin-top: 5px; }
+  .portal-stat .portal-stat-note { grid-column: 1 / -1; margin-top: 5px; }
   .portal-athletes { grid-template-columns: 1fr; gap: 12px; }
   .portal-athlete { padding: 20px; }
   .portal-section h2, .portal-panel h2 { font-size: 24px; }

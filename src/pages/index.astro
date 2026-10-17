@@ -3,6 +3,7 @@ import fontsCss from '../styles/fonts.css?inline';
 import landingCss from '../styles/landing.css?inline';
 import KnightScene from '../components/KnightScene.astro';
 import HeroBoard from '../components/HeroBoard.astro';
+import ClubPhoto from '../components/ClubPhoto.astro';
 import PuzzleBoard from '../components/PuzzleBoard.astro';
 import OperaGame from '../components/OperaGame.astro';
 import ClubPurpose from '../components/ClubPurpose.astro';
@@ -212,6 +213,21 @@ const structuredData = {
         </div>
       </section>
 
+      <section id="equipo" class="team-feature" aria-labelledby="team-heading">
+        <div class="frame team-feature-grid">
+          <div class="team-feature-copy" data-reveal>
+            <p class="kicker">Las caras de Belén</p>
+            <h2 id="team-heading">El ajedrez nos reúne.<br /><em>El equipo nos une.</em></h2>
+            <p>Detrás de cada partida hay personas que aprenden, se acompañan y crecen juntas. Aquí también hay un lugar para ti.</p>
+            <a class="text-link" href="#asociacion">Conoce nuestro club <svg class="icon icon-down" aria-hidden="true"><use href="#icon-down" /></svg></a>
+          </div>
+          <figure class="team-feature-photo" data-reveal>
+            <ClubPhoto name="equipo-belen" alt="El equipo de Ajedrez Belén reunido al aire libre con sus uniformes rojos y la bandera del club." sizes="(min-width: 1600px) 815px, (min-width: 1488px) calc(865px - 3.18vw), (min-width: 800px) 54.85vw, (min-width: 455px) 91.2vw, calc(100vw - 40px)" />
+            <figcaption><span>Muchas historias. Un mismo equipo.</span><span>Belén · Costa Rica</span></figcaption>
+          </figure>
+        </div>
+      </section>
+
       <section id="reto" class="challenge" aria-labelledby="challenge-heading">
         <div class="frame">
           <p class="column-rule" aria-hidden="true"><span>Ajedrez Belén · La columna del club</span><span>Problema de la semana</span></p>
@@ -262,12 +278,21 @@ const structuredData = {
               <p class="club-note">Para quienes empiezan.<br />Para quienes nunca dejan de aprender.</p>
             </div>
           </div>
-          <figure class="club-photo" data-reveal>
-            <div class="club-photo-stage">
-              <img src="/media/chess-staunton-v2.webp" alt="Tablero de ajedrez con piezas de madera en plena partida." width="1200" height="800" loading="lazy" decoding="async" srcset="/media/chess-staunton-v2-640.webp 640w, /media/chess-staunton-v2-800.webp 800w, /media/chess-staunton-v2-960.webp 960w, /media/chess-staunton-v2.webp 1200w" sizes="(min-width: 1440px) 1300px, 100vw" />
-            </div>
-            <figcaption><span>Cada partida cuenta una historia distinta.</span><span>Fig. 1</span></figcaption>
-          </figure>
+          <div class="club-moments" aria-label="Momentos de nuestro club">
+            <figure class="club-moment moment-play" data-reveal>
+              <ClubPhoto name="concentracion" alt="Una jugadora de Belén concentrada en la posición de las piezas durante una partida." sizes="(min-width: 1500px) 400px, (min-width: 800px) 28vw, (min-width: 480px) 44vw, 90vw" />
+              <figcaption><span>01 / En el tablero</span><strong>Cada jugada, un nuevo reto.</strong></figcaption>
+            </figure>
+            <figure class="club-moment moment-achievement" data-reveal style="--d: 1">
+              <ClubPhoto name="alegria" alt="Una atleta de Belén sonríe mientras muestra sus medallas." sizes="(min-width: 1500px) 400px, (min-width: 800px) 28vw, (min-width: 480px) 44vw, 90vw" />
+              <figcaption><span>02 / La alegría</span><strong>El esfuerzo también se celebra.</strong></figcaption>
+            </figure>
+            <figure class="club-moment moment-friends" data-reveal style="--d: 2">
+              <ClubPhoto name="amistad" alt="Cuatro compañeros de Ajedrez Belén sonríen abrazados al aire libre." sizes="(min-width: 1500px) 500px, (min-width: 800px) 34vw, 90vw" />
+              <figcaption><span>03 / Más allá de la partida</span><strong>Lo mejor es compartirlo.</strong></figcaption>
+              <p>La concentración frente al tablero. La alegría de superarse. Los amigos que quedan después de la partida.</p>
+            </figure>
+          </div>
           {a.heroPhoto && <figure class="association-photo"><HeroBoard photo={a.heroPhoto} photoDescription={a.heroPhotoDescription} /></figure>}
           <ol class="principles">
             {principles.map((p, i) => (

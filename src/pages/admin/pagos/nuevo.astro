@@ -11,6 +11,7 @@ import { getOcrAvailability } from '../../../lib/portal/ocr-policy';
 import { allowPortalDemo } from '../../../lib/portal/demo-policy';
 import { resolveBusinessConfiguration } from '../../../lib/portal/business-config';
 import { listEmailDrafts } from '../../../lib/portal/slip-upload';
+import { money } from '../../../components/portal/format';
 import { INBOUND_SLIP_ADDRESS } from '../../../lib/portal/inbound-address';
 export const prerender = false;
 const access = await authorizePortal(Astro, env, { admin: true });
@@ -27,6 +28,7 @@ const selectedAdult = families.find(family => family.active && family.adultId ==
 const allCharges = business && selectedAdult ? await getChargesForAdult(env.DB, actor, selectedAdult.adultId) : [];
 const athletes = selectedAdult?.athletes ?? [];
 const charges = allCharges.filter(charge => charge.balanceMinor > 0);
+const selectedBalanceMinor = allCharges.reduce((total, charge) => total + charge.balanceMinor, 0);
 // Files the administrator sent to the inbound address belong to the administrator's
 // own account; a family's emailed files stay usable only from that family's session.
 const emailDrafts = business ? await listEmailDrafts(env, actor).catch(() => []) : [];
@@ -38,6 +40,7 @@ const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',ye
   {business && <>
   <form class="portal-month-form" action="/admin/pagos/nuevo" method="get"><div class="portal-field"><label for="adult">Registrar para una cuenta familiar</label><select id="adult" name="adult" required><option value="">Selecciona una persona</option>{families.filter(family => family.active).map(family => <option value={family.adultId} selected={selectedAdult?.adultId === family.adultId}>{family.adultName} · {family.email}</option>)}</select></div><button class="portal-button portal-button-secondary" type="submit">Elegir cuenta <span aria-hidden="true">→</span></button></form>
   {selectedAdult && <>
+  <section class="portal-guidance" aria-labelledby="assisted-family-title"><h2 id="assisted-family-title">Familia seleccionada</h2><p><strong>{selectedAdult.adultName}</strong> · {selectedAdult.email} · {athletes.length} {athletes.length === 1 ? 'atleta' : 'atletas'} · Saldo pendiente <strong>{money(selectedBalanceMinor)}</strong>.</p></section>
   <div class="portal-two-columns">
     <section class="portal-panel"><form class="portal-form" action={`/api/portal/payments?context=admin&adult=${encodeURIComponent(selectedAdult.adultId)}`} method="post" enctype="multipart/form-data" data-unsaved-guard data-draft-key={`nuevo-pago-asistido-${selectedAdult.adultId}`} data-draft-success="submitted">
       <input type="hidden" name="submissionId" value={crypto.randomUUID()} />

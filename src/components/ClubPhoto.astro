@@ -1,0 +1,21 @@
+---
+interface Props {
+  name: 'equipo-belen' | 'concentracion' | 'alegria' | 'amistad';
+  alt: string;
+  sizes: string;
+}
+const { name, alt, sizes } = Astro.props;
+const photos = {
+  'equipo-belen': { widths: [480, 800, 1200, 1600], width: 1600, height: 1200 },
+  concentracion: { widths: [360, 600, 960], width: 1066, height: 1600 },
+  alegria: { widths: [360, 600, 960], width: 1200, height: 1600 },
+  amistad: { widths: [480, 800, 1200], width: 1280, height: 960 },
+};
+const photo = photos[name];
+---
+<img
+  src={`/media/club/${name}-${photo.widths[1]}.webp`}
+  srcset={photo.widths.map((width) => `/media/club/${name}-${width}.webp ${width}w`).join(', ')}
+  sizes={sizes} width={photo.width} height={photo.height} alt={alt}
+  loading="lazy" decoding="async"
+/>

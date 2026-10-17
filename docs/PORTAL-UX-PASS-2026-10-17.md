@@ -4,7 +4,7 @@ Follows [PORTAL-UX-FIXES-2026-10-14.md](PORTAL-UX-FIXES-2026-10-14.md). Presenta
 
 ## Changes
 
-- **Phone navigation.** Family accounts get a fixed bottom tab bar (Mi cuenta, Eventos, Registrar pago, Mis atletas). It hides while a field has focus so the keyboard keeps the room. Administration keeps the "Menú" disclosure (seven destinations do not fit a tab bar). The phone header puts the signed-in name and role on one line.
+- **Phone navigation.** Family accounts get a fixed bottom tab bar (Mi cuenta, Eventos, Registrar pago, Mis atletas). It hides while a field has focus so the keyboard keeps the room. Administration gets the same bar in the third round (see below). The phone header puts the signed-in name and role on one line.
 - **Dashboard.** When money is owed, "¿Qué hago ahora?" shows two numbered steps: "Transfiere a" (destination with a copy button) and "Registrar mi pago".
 - **Payment form.** The transfer destination is a visible strip above the form instead of a disclosure at the bottom. The browser's own file button ("Choose File"), which follows the phone's language, is replaced by "Elegir foto o PDF" (the real input stays in the page, covering the drop area, so keyboard, drag-and-drop and drafts are unchanged). The amount placeholder shows an example from what is due, not a fixed 27000.
 - **Athletes page.** Order is now athletes, enrol form, then "Dar acceso al otro padre" (the `#compartir` anchor still works). Fieldset groups use the same 20 px rhythm as the rest of the form.
@@ -30,7 +30,39 @@ Follows [PORTAL-UX-FIXES-2026-10-14.md](PORTAL-UX-FIXES-2026-10-14.md). Presenta
 
 Second-round verification: `npm test` 404 passed; `npm run check` 0 errors; `npm run test:portal` exit 0. A Chromium sweep of 17 family and admin page loads at 320, 390, 768 and 1440 px found no horizontal overflow, duplicate IDs, unlabeled fields, page errors, or missing/duplicate `h1`. Six fictional events were added to the local demo database to review the calendar.
 
+## Third round: administration on phones, shorter family copy
+
+- **Administration on phones.** The bottom bar serves administrators too: Pagos, Familias, Eventos and Más. Más opens a sheet above the bar with Comprobantes, Registrar pago, Mensualidades and Administradores. The current section is marked in the bar. The "Menú" disclosure is hidden on phones.
+- **Family dashboard.** Monthly charges show only what is still owed. Paid months fold under "Ver N mensualidades pagadas", so a year of payments no longer pushes everything else down. The "¿Qué hago ahora?" panel is shorter in both states; the note about paying ahead now lives on the payment form, which already explains it.
+- **Bank references.** Families see the last eight characters (…XXXXXXXX) in payment lists. The full reference stays in administration and on the payment detail.
+- **Payment form.** Repeated explanations are collapsed into one line about where the receipt goes and one about what "en revisión" means.
+- **Administration home.** Shorter intro and queue instruction. The paragraph about search and the 500-payment window moved into the history caption.
+- **Receipts and payment review.** Shorter receipts intro and held-receipt message. The review page's three-step box links to the bank proof, which sits below the form on phones. The step that said "columna derecha" now names the section instead.
+- **Code.** `ChargesTable.astro` renders both the open and the paid lists. `shortReferenceLabel()` in `format.ts`. `.portal-status-tag` replaces an inline style.
+
+Third-round verification: `npm test` 404 passed; `npm run check` 0 errors, 0 warnings, 0 hints; `npm run test:portal` exit 0 (run twice); the 17-page sweep found no problems. The demo accounts have no paid months, so the folded list was checked on a temporary page with sample rows, which was deleted afterwards.
+
+## Fourth round: accessibility, admin scale and the families page
+
+- **Accessibility, measured.** axe-core 4.10.2 was run locally against about 30 pages in Chromium, WebKit and Firefox, at phone and desktop widths (the library is not added to the project). It found and fixed:
+  - stat blocks put a `<p>` inside a `<dl>`, which is invalid. The note is now a `<dd class="portal-stat-note">` on the family dashboard, the admin home and monthly charges. The figure keeps its size and face.
+  - the demo banner sat outside any landmark. It is now an `<aside>`.
+  - two admin lists shared one region name. `PaymentsTable` takes its own `label` and `caption`.
+  - past agenda items, past calendar chips and cancelled chips faded with `opacity`, which fails contrast. They use the muted ink. Calendar chips keep readable text on hover.
+- **Cross-engine sweep.** The 320–1440 px sweep (72 page loads per engine) ran in WebKit (Safari's engine) and Firefox as well as Chromium. No overflow, duplicate IDs, unlabelled fields, or page errors.
+- **Admin families.** One page, five views: Atletas inscritos, Cuentas familiares, Inscribir atleta, Invitar a un padre, Montos por categoría. The bar opens a view, and a link's hash wins over the default. A finished action returns to the view it changed (its notice names the view). A search lists athletes and accounts together. Focus moves into the view that opens. Captions are shorter, and on phones the search keeps its button on the same line. Every POST form and redirect is unchanged; the search form now submits to the page itself.
+- **Monthly charges.** The charge list and the preview each page at 20 rows, so a club-sized month is not one long scroll.
+- **Payment review.** After a decision the payment leaves the queue. The page now offers "Revisar la siguiente", with the count left, instead of a trip back to the summary. The three-step box links to the bank proof.
+- **Assisted registration.** Before the form, a "Familia seleccionada" summary shows the name, email, number of athletes, and pending balance.
+- **Navigation order.** Administrator desktop tabs follow the phone bar: Pagos, Familias, Eventos, Registrar pago, Comprobantes, Mensualidades, Administradores. "Resumen" is now "Pagos", the same name as the bar.
+- **Family copy.** The enrolment billing rule is two sentences. The email route for a correction sits in a closed "¿El comprobante está en tu correo?" disclosure.
+
+Fourth-round verification: `npm test` 404 passed; `npm run check` 0 errors, 0 warnings, 0 hints; `npm run test:portal` exit 0 on the second run (see Not done); sweep 0 problems in each of Chromium, WebKit and Firefox; axe 0 violations on the scanned pages in all three engines. One early axe reading showed contrast failures on the families chips. The cause was a colour transition still running when the scan started, not the colours. The default view is now marked on the server, and the scan waits for transitions to settle. Paging was checked by temporarily setting the page size to 2 and restoring it.
+
 ## Not done
 
-- Inline field errors with focus on the error summary, a one-tap "pay everything" action, receipt print/share, and database-level search (the 500-row fetch window remains).
-- No physical-device, screen-reader, Safari or Firefox testing.
+- Server errors still arrive as a top banner. It links to the field only for amount and allocation errors.
+- Search reads at most 500 payments. Fixing that is a server change.
+- 81 inline `style` attributes remain, mostly margins. They follow the existing pattern, so converting them would be churn with no visible change.
+- No real-phone or screen-reader session. axe catches automated problems only. A person using VoiceOver, TalkBack or NVDA still needs to run the payment and enrolment flows.
+- `test:portal` fails on its unrelated-account upload check (409 `draft_limit` instead of 403) after five runs within an hour. Each run leaves one draft in `draft` state for the unrelated family, because `POST /api/portal/payments` registers the draft before it checks permissions (`src/lib/portal/slip-upload.ts`, then `src/lib/portal/ocr.ts`). Five drafts is the cap (`migrations/0003_ocr.sql`). Drafts expire after an hour and are released on the next upload. Options: check permissions before the draft is registered (a server change; needs approval), or give the check a fresh account. This is not caused by the interface changes in this round.

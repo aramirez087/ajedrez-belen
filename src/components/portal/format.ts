@@ -15,6 +15,12 @@ export function referenceLabel(value: string | null | undefined): string {
   const trimmed = value?.trim() ?? '';
   return trimmed || 'Sin referencia leída';
 }
+/** Families match a transfer by its last digits; the full number stays in administration. */
+export function shortReferenceLabel(value: string | null | undefined): string {
+  const trimmed = value?.trim() ?? '';
+  if (!trimmed) return 'Sin referencia leída';
+  return trimmed.length > 12 ? `…${trimmed.slice(-8)}` : trimmed;
+}
 export function dateLabel(value: string | null): string {
   if (!value) return 'Sin fecha';
   const parsed = new Date(value.length === 10 ? `${value}T12:00:00Z` : value);
