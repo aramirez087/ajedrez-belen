@@ -1,4 +1,5 @@
 ---
+import '../styles/fonts.css';
 interface Props { title: string; description: string; canonical: string }
 const { title, description, canonical } = Astro.props;
 ---
@@ -12,14 +13,16 @@ const { title, description, canonical } = Astro.props;
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/media/favicon.png" type="image/png" />
+    <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/lora-latin-normal.woff2" as="font" type="font/woff2" crossorigin />
     <style>
-      body { margin: 0; background: #f7f4ec; color: #1c1a16; font: 18px/1.6 Georgia, "Iowan Old Style", Palatino, serif; }
+      body { margin: 0; background: #f3eee3; color: #16130f; font: 18px/1.65 var(--font-brand-body); overflow-wrap: anywhere; }
       main { max-width: 42rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
-      h1 { font-size: 2.1rem; line-height: 1.15; margin: 0 0 1rem; }
-      h2 { font-size: 1.25rem; line-height: 1.3; margin: 2rem 0 0.4rem; }
-      p, li { margin: 0.75rem 0; }
-      a { color: #8e1d2c; }
-      .mark { display: flex; align-items: center; gap: 0.75rem; margin: 0 0 1.25rem; font-family: "Gill Sans", "Trebuchet MS", sans-serif; font-weight: 700; }
+      main :global(h1) { font-family: var(--font-brand-display); font-size: 2.1rem; font-weight: 600; line-height: 1.25; margin: 0 0 1rem; }
+      main :global(h2) { font-family: var(--font-brand-body); font-size: 1.25rem; font-weight: 600; line-height: 1.4; margin: 2rem 0 0.4rem; }
+      main :global(p), main :global(li) { margin: 0.75rem 0; }
+      main :global(a) { color: #b3222b; }
+      .mark { display: flex; align-items: center; gap: 0.75rem; margin: 0 0 1.25rem; font-family: var(--font-brand-body); font-weight: 650; }
       .mark img { width: 46px; height: 50px; }
     </style>
   </head>

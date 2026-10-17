@@ -1,5 +1,5 @@
 /* Ajedrez Belén — "Portada": the landing page set like a chess magazine.
-   Bodoni Moda for display, DM Sans for reading, DM Mono for notation and labels.
+   Belen Display (Lora) for large headings, DM Sans for reading and UI, DM Mono for notation and labels.
    The @font-face rules live in fonts.css. */
 
 :root {
@@ -25,9 +25,9 @@
   --hatch-ink: rgb(22 19 15 / .72);
   --piece-ink: #16130f;
   --piece-ivory: #fffdf6;
-  --display: 'Bodoni Moda', 'Bodoni 72', Didot, 'Times New Roman', serif;
-  --sans: 'DM Sans Variable', 'DM Sans', system-ui, sans-serif;
-  --mono: 'DM Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --display: var(--font-brand-display);
+  --sans: var(--font-brand-body);
+  --mono: var(--font-brand-mono);
   --gutter: clamp(20px, 4.4vw, 64px);
   --section-pad: clamp(80px, 10.5vw, 152px);
   --ease: cubic-bezier(.22, 1, .36, 1);
@@ -41,12 +41,12 @@ html { scroll-behavior: smooth; scroll-padding-top: calc(var(--header-offset, va
 body { margin: 0; background: var(--grain), var(--paper); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.6; overflow-x: clip; overflow-wrap: break-word; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 h1, h2, h3, p, figure, dl, dd, ol, ul, blockquote { margin: 0; }
 ol, ul { padding: 0; list-style: none; }
-h1, h2, h3 { font-weight: 500; text-wrap: balance; }
+h1, h2, h3 { font-weight: 600; text-wrap: balance; }
 p { text-wrap: pretty; }
 a { color: inherit; text-decoration: none; }
 button { font: inherit; color: inherit; }
 img { max-width: 100%; }
-em { font-style: italic; }
+em { font-style: normal; font-weight: 600; }
 a, summary, button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 ::selection { background: var(--red); color: var(--paper); }
@@ -63,7 +63,7 @@ a, summary, button { touch-action: manipulation; -webkit-tap-highlight-color: tr
 /* Type roles */
 .kicker { display: flex; align-items: center; gap: 12px; margin-bottom: clamp(20px, 2.4vw, 32px); font-family: var(--mono); font-size: 12px; font-weight: 500; line-height: 1.3; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .kicker-num { display: inline-grid; place-items: center; flex: 0 0 auto; width: 26px; height: 26px; background: var(--ink); color: var(--paper); font-size: 11px; letter-spacing: 0; }
-.section-title { font-family: var(--display); font-size: clamp(44px, 5.9vw, 90px); font-weight: 500; line-height: .94; letter-spacing: -.025em; }
+.section-title { font-family: var(--display); font-size: clamp(44px, 5.9vw, 90px); font-weight: 600; line-height: 1.08; letter-spacing: -.025em; }
 .section-title em { color: var(--red); }
 .section-lede { max-width: 30em; font-size: clamp(16px, 1.25vw, 18px); line-height: 1.65; color: var(--muted); }
 .section-head { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: end; gap: 24px clamp(32px, 5vw, 96px); margin-bottom: clamp(48px, 6vw, 88px); }
@@ -71,7 +71,7 @@ a, summary, button { touch-action: manipulation; -webkit-tap-highlight-color: tr
 .section-head .section-lede { padding-bottom: .5em; }
 
 /* Buttons and links */
-.button { display: inline-flex; align-items: center; gap: 14px; min-height: 58px; max-width: 100%; padding: 8px 8px 8px 26px; border-radius: 999px; background: var(--red); color: var(--paper); font-size: 15px; font-weight: 600; letter-spacing: .005em; line-height: 1.2; white-space: nowrap; transition: background .25s, color .25s, transform .35s var(--ease), box-shadow .35s var(--ease); }
+.button { display: inline-flex; align-items: center; gap: 14px; min-height: 58px; max-width: 100%; padding: 8px 8px 8px 26px; border-radius: 999px; background: var(--red); color: var(--paper); font-size: 15px; font-weight: 600; letter-spacing: .005em; line-height: 1.2; white-space: normal; transition: background .25s, color .25s, transform .35s var(--ease), box-shadow .35s var(--ease); }
 .button-badge { display: grid; place-items: center; flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%; background: var(--paper); color: var(--red); transition: transform .45s var(--ease); }
 .button-badge .icon { width: 20px; height: 20px; }
 .button:hover { background: var(--red-deep); box-shadow: 0 14px 30px -14px rgb(142 26 33 / .7); transform: translateY(-2px); }
@@ -93,7 +93,7 @@ a, summary, button { touch-action: manipulation; -webkit-tap-highlight-color: tr
 .site-header { position: sticky; top: 0; z-index: 50; padding-top: env(safe-area-inset-top); background: color-mix(in srgb, var(--paper) 84%, transparent); -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3); border-bottom: 1px solid transparent; transition: border-color .3s, background .3s; }
 .site-header.is-scrolled { border-color: var(--line); }
 .header-inner { display: flex; align-items: center; gap: 12px 28px; min-height: var(--header-h); }
-.brand { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; font-family: var(--display); font-size: 22px; font-weight: 700; letter-spacing: -.015em; line-height: 1; white-space: nowrap; }
+.brand { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; font-family: var(--sans); font-size: 22px; font-weight: 700; letter-spacing: -.015em; line-height: 1; white-space: nowrap; }
 .brand img { width: 36px; height: 39px; object-fit: contain; transition: transform .4s var(--ease); }
 .brand:hover img { transform: rotate(-6deg); }
 .site-nav { display: flex; gap: 4px 30px; margin-left: auto; font-size: 14px; font-weight: 500; }
@@ -109,10 +109,10 @@ a, summary, button { touch-action: manipulation; -webkit-tap-highlight-color: tr
 .cover { position: relative; overflow: clip; }
 /* The cover fills the screen below the header (up to 960 px). On screens tall enough to show the Índice too,
    it grows instead so the Índice ends exactly at the fold, rather than leaving the next section's margin in view. */
-.cover-frame { --mast: min(27.4cqi, 38svh); container-type: inline-size; position: relative; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 4fr) minmax(0, 3fr); grid-template-rows: auto auto 1fr; column-gap: clamp(24px, 3vw, 48px); min-height: max(600px, min(max(min(calc(100svh - var(--header-offset, var(--header-h))), 960px), calc(100svh - var(--header-offset, var(--header-h)) - var(--contents-h, 86px))), 108vw, 1200px)); padding-bottom: clamp(26px, 4.6vh, 56px); }
+.cover-frame { --mast: min(30.1cqi, 38svh); container-type: inline-size; position: relative; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 4fr) minmax(0, 3fr); grid-template-rows: auto auto 1fr; column-gap: clamp(24px, 3vw, 48px); min-height: max(600px, min(max(min(calc(100svh - var(--header-offset, var(--header-h))), 960px), calc(100svh - var(--header-offset, var(--header-h)) - var(--contents-h, 86px))), 108vw, 1200px)); padding-bottom: clamp(26px, 4.6vh, 56px); }
 .cover-issue { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 8px 24px; padding: 14px 0 11px; border-bottom: 2px solid var(--ink); font-family: var(--mono); font-size: 12px; font-weight: 500; line-height: 1.4; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
 .cover-issue span:nth-child(2) { color: var(--muted); }
-.masthead { grid-column: 1 / -1; position: relative; z-index: 1; margin: clamp(4px, 1.2vh, 14px) 0 0 -.03em; font-family: var(--display); font-size: var(--mast); font-weight: 800; line-height: .8; letter-spacing: -.035em; white-space: nowrap; color: var(--ink); user-select: none; }
+.masthead { grid-column: 1 / -1; position: relative; z-index: 1; margin: clamp(4px, 1.2vh, 14px) 0 0 -.03em; font-family: var(--display); font-size: var(--mast); font-weight: 700; line-height: .82; letter-spacing: -.045em; white-space: nowrap; color: var(--ink); user-select: none; }
 /* The knight stands on the cover's bottom edge and rises into the masthead by a fixed share of its size,
    so its ears stop just above the baseline and "Ajedrez" stays legible at any viewport. As an absolutely
    positioned grid child, its containing block runs from below the masthead to the padding edge. On tall
@@ -121,8 +121,8 @@ a, summary, button { touch-action: manipulation; -webkit-tap-highlight-color: tr
 .cover-knight { --overlap: .27; position: absolute; z-index: 2; grid-column: 1 / -1; grid-row: 3 / auto; left: 47%; bottom: 0; height: min(calc(100% + var(--mast) * var(--overlap)), 76cqi, 780px); aspect-ratio: 3 / 4; translate: -50% 0; pointer-events: none; }
 .cover-knight img { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 30px 34px rgb(22 19 15 / .2)) drop-shadow(0 6px 8px rgb(22 19 15 / .12)); }
 .cover-knight::before { content: ''; position: absolute; left: 22%; width: 64%; bottom: 2.4%; height: 6%; border-radius: 50%; background: radial-gradient(closest-side, rgb(22 19 15 / .5), rgb(22 19 15 / .14) 60%, transparent); }
-.cover-copy { grid-column: 1; grid-row: 3; align-self: end; position: relative; z-index: 3; padding-top: calc(var(--mast) * .25); }
-.cover h1 { font-family: var(--display); font-size: clamp(42px, min(4.4vw, 7svh), 72px); font-weight: 500; line-height: .97; letter-spacing: -.022em; }
+.cover-copy { grid-column: 1; grid-row: 3; align-self: end; position: relative; z-index: 3; padding-top: calc(var(--mast) * .2); }
+.cover h1 { font-family: var(--display); font-size: clamp(40px, min(4vw, 6svh), 64px); font-weight: 600; line-height: 1.12; letter-spacing: -.022em; }
 .cover h1 > span { display: block; }
 .cover h1 em { color: var(--red); }
 .cover-lede { max-width: 30em; margin-top: clamp(16px, 2.4vh, 24px); font-size: clamp(16px, 1.2vw, 17.5px); line-height: 1.6; color: var(--muted); }
@@ -131,7 +131,7 @@ a, summary, button { touch-action: manipulation; -webkit-tap-highlight-color: tr
 .cover-facts > div { padding: 12px 0 16px; border-top: 1px solid var(--ink); }
 .cover-facts > div:last-child { padding-bottom: 0; }
 .cover-facts dt { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.cover-facts dd { margin-top: 4px; font-family: var(--display); font-size: clamp(30px, 2.8vw, 44px); font-weight: 600; line-height: 1; letter-spacing: -.02em; }
+.cover-facts dd { margin-top: 4px; font-family: var(--sans); font-size: clamp(30px, 2.8vw, 44px); font-weight: 600; line-height: 1; letter-spacing: -.02em; }
 .cover-facts dd em { color: var(--red); font-weight: 500; }
 .cover-facts small { display: block; margin-top: 6px; font-family: var(--sans); font-size: 13.5px; font-weight: 400; letter-spacing: 0; line-height: 1.4; color: var(--muted); }
 
@@ -144,12 +144,12 @@ a, summary, button { touch-action: manipulation; -webkit-tap-highlight-color: tr
 /* Contents strip */
 .contents { position: relative; z-index: 3; border-top: 2px solid var(--ink); border-bottom: 1px solid var(--line); }
 .contents-inner { display: grid; grid-template-columns: auto minmax(0, 1fr); }
-.contents-label { padding: 16px 32px 16px 0; font-family: var(--display); font-size: 24px; font-style: italic; font-weight: 500; line-height: 1.2; }
+.contents-label { padding: 16px 32px 16px 0; font-family: var(--sans); font-size: 24px; font-style: normal; font-weight: 600; line-height: 1.2; }
 .contents-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .contents a { display: grid; grid-template-columns: auto 1fr; align-content: start; gap: 2px 10px; height: 100%; padding: 18px 18px 22px; border-left: 1px solid var(--line); transition: background .3s; }
 .contents a:hover { background: var(--paper-2); }
 .contents-num { grid-row: span 2; padding-top: 3px; font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--red); }
-.contents-title { font-family: var(--display); font-size: 20px; font-weight: 600; line-height: 1.15; letter-spacing: -.01em; }
+.contents-title { font-family: var(--sans); font-size: 20px; font-weight: 600; line-height: 1.15; letter-spacing: -.01em; }
 .contents-kicker { font-size: 13px; line-height: 1.4; color: var(--muted); }
 
 /* Levels — De peón a dama */
@@ -178,27 +178,27 @@ a, summary, button { touch-action: manipulation; -webkit-tap-highlight-color: tr
 .rung-coord { position: absolute; right: -2px; top: calc(100% + 8px); font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--muted); }
 .rung-body { display: flex; flex: 1; flex-direction: column; padding-top: 18px; border-top: 2px solid var(--ink); }
 .rung-step { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--red); }
-.rung h3 { margin-top: 10px; font-family: var(--display); font-size: clamp(32px, 3vw, 44px); line-height: 1; letter-spacing: -.02em; }
+.rung h3 { margin-top: 10px; font-family: var(--display); font-size: clamp(32px, 3vw, 44px); line-height: 1.15; letter-spacing: -.02em; }
 .rung-desc { margin-top: 12px; max-width: 24em; color: var(--muted); }
 .rung-price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-top: auto; padding-top: 26px; }
-.price { font-family: var(--display); font-size: clamp(44px, 4.2vw, 62px); font-weight: 600; line-height: 1; letter-spacing: -.03em; font-variant-numeric: lining-nums; }
+.price { font-family: var(--sans); font-size: clamp(44px, 4.2vw, 62px); font-weight: 600; line-height: 1; letter-spacing: -.03em; font-variant-numeric: lining-nums; }
 .price-per { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .rung .text-link { align-self: flex-start; margin-top: 14px; color: var(--red); }
 .rung .text-link:hover { color: var(--red-deep); }
-.levels-help { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 24px; margin-top: clamp(48px, 5vw, 72px); padding-block: 14px; border-block: 1px solid var(--line); font-family: var(--display); font-size: clamp(20px, 1.8vw, 24px); font-style: italic; }
+.levels-help { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 24px; margin-top: clamp(48px, 5vw, 72px); padding-block: 14px; border-block: 1px solid var(--line); font-family: var(--sans); font-size: clamp(20px, 1.8vw, 24px); font-style: normal; }
 .levels-help .text-link { font-family: var(--sans); font-style: normal; color: var(--red); }
 .levels-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px clamp(24px, 3.4vw, 56px); margin-top: clamp(40px, 4vw, 56px); }
 .levels-facts dt { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--red); }
-.levels-facts dd { margin-top: 8px; font-family: var(--display); font-size: clamp(20px, 1.7vw, 24px); font-weight: 500; line-height: 1.3; }
-.levels-facts dd span { display: block; margin-top: 4px; font-family: var(--sans); font-size: 15px; line-height: 1.5; color: var(--muted); }
+.levels-facts dd { margin-top: 8px; font-family: var(--sans); font-size: clamp(20px, 1.7vw, 24px); font-weight: 600; line-height: 1.3; }
+.levels-facts dd span { display: block; margin-top: 4px; font-family: var(--sans); font-size: 16px; font-weight: 400; line-height: 1.5; color: var(--muted); }
 
 /* Family coupon */
 .coupon { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 20px clamp(24px, 4vw, 56px); margin-top: clamp(48px, 5vw, 72px); padding: clamp(26px, 3.4vw, 44px) clamp(24px, 4vw, 56px); border: 2px dashed var(--ink); border-radius: 6px; background: var(--paper-2); }
 .coupon-scissors { position: absolute; top: -13px; left: clamp(28px, 6vw, 80px); width: 24px; height: 24px; padding: 2px; background: var(--paper); color: var(--ink); transform: rotate(180deg); }
-.coupon-figure { font-family: var(--display); font-size: clamp(84px, 10vw, 150px); font-weight: 800; line-height: .8; letter-spacing: -.05em; color: var(--red); }
-.coupon-figure span { font-size: .5em; font-style: italic; font-weight: 600; margin-left: .04em; }
+.coupon-figure { font-family: var(--sans); font-size: clamp(84px, 10vw, 150px); font-weight: 700; line-height: .8; letter-spacing: -.05em; color: var(--red); }
+.coupon-figure span { font-size: .5em; font-style: normal; font-weight: 600; margin-left: .04em; }
 .coupon-label { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.coupon h3 { margin-top: 6px; font-family: var(--display); font-size: clamp(28px, 2.6vw, 38px); line-height: 1.05; letter-spacing: -.02em; }
+.coupon h3 { margin-top: 6px; font-family: var(--display); font-size: clamp(28px, 2.6vw, 38px); line-height: 1.15; letter-spacing: -.02em; }
 .coupon-body p:last-child { max-width: 36em; margin-top: 10px; color: var(--ink-soft); }
 .pay-note { margin-top: 20px; border-bottom: 1px solid var(--line); }
 
@@ -234,14 +234,14 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 .challenge-copy { position: sticky; top: calc(var(--header-offset, var(--header-h)) + 32px); }
 .challenge-copy .section-title { font-size: clamp(44px, 4.4vw, 72px); }
 .challenge-copy > p:not(.kicker) { max-width: 26em; margin-top: 24px; font-size: 17px; color: var(--ink-soft); }
-.challenge-copy .dropcap::first-letter { float: left; margin: .1em .12em 0 0; font-family: var(--display); font-size: 3.5em; font-weight: 800; line-height: .8; color: var(--red); }
+.challenge-copy .dropcap::first-letter { float: left; margin: .1em .12em 0 0; font-family: var(--display); font-size: 3.5em; font-weight: 700; line-height: .8; color: var(--red); }
 .puzzle-win { display: none; margin-top: 32px; padding: 24px 26px 26px; border-radius: 6px; background: var(--ink); color: var(--paper); }
 .puzzle-win.is-on { display: block; animation: rise .6s var(--ease) both; }
-.puzzle-win p { font-family: var(--display); font-size: 24px; font-style: italic; line-height: 1.25; }
+.puzzle-win p { font-family: var(--sans); font-size: 24px; font-style: normal; line-height: 1.25; }
 .puzzle-win .button { margin-top: 18px; }
 .puzzle { display: flex; flex-direction: column; gap: 22px; }
 .puzzle-diagram { width: min(100%, 600px); margin-inline: auto; }
-.diagram-caption { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 22px; font-family: var(--display); font-size: 19px; font-style: italic; }
+.diagram-caption { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 22px; font-family: var(--sans); font-size: 19px; font-style: normal; }
 .turn-dot { width: 12px; height: 12px; border: 1.5px solid var(--ink); border-radius: 50%; background: var(--piece-ivory); }
 .sq { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 1; min-width: 0; min-height: 0; padding: 0; border: 0; cursor: pointer; }
 .sq:focus-visible { z-index: 2; outline: 3px solid var(--red); outline-offset: -3px; }
@@ -259,7 +259,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 @keyframes shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 .sq.is-mate, .osq.is-mate { background: var(--red); box-shadow: inset 0 0 0 3px var(--ink); }
 .sq.is-mate .piece { filter: drop-shadow(0 0 1.5px var(--piece-ivory)) drop-shadow(0 0 1.5px var(--piece-ivory)); }
-.stamp { position: absolute; left: 50%; top: 50%; z-index: 4; padding: .18em .6em .22em; border: 3px solid var(--red); border-radius: 4px; background: var(--paper); color: var(--red); font-family: var(--display); font-size: clamp(24px, 7cqi, 44px); font-style: italic; font-weight: 700; line-height: 1; white-space: nowrap; box-shadow: 0 0 0 4px var(--paper), 0 24px 50px -10px rgb(22 19 15 / .45); opacity: 0; pointer-events: none; transform: translate(-50%, -50%) rotate(-9deg) scale(1.6); }
+.stamp { position: absolute; left: 50%; top: 50%; z-index: 4; padding: .18em .6em .22em; border: 3px solid var(--red); border-radius: 4px; background: var(--paper); color: var(--red); font-family: var(--sans); font-size: clamp(24px, 7cqi, 44px); font-style: normal; font-weight: 700; line-height: 1; white-space: nowrap; box-shadow: 0 0 0 4px var(--paper), 0 24px 50px -10px rgb(22 19 15 / .45); opacity: 0; pointer-events: none; transform: translate(-50%, -50%) rotate(-9deg) scale(1.6); }
 .stamp.is-on { opacity: 1; transform: translate(-50%, -50%) rotate(-9deg) scale(1); transition: transform .4s var(--ease), opacity .2s; }
 .puzzle-panel { display: flex; flex-direction: column; width: min(100%, 600px); margin-inline: auto; }
 .puzzle-status { min-height: 3.4em; font-size: 16px; line-height: 1.7; color: var(--ink-soft); }
@@ -269,7 +269,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 .chip-button:disabled { cursor: default; opacity: .5; }
 .puzzle-attempts { min-height: 18px; margin-top: 12px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 /* Newspapers print the answer upside down; solving the problem turns it the right way up. */
-.puzzle-solution { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-strong); font-family: var(--display); font-size: 17px; font-style: italic; color: var(--muted); transform: rotate(180deg); transition: transform .8s var(--ease), color .4s; }
+.puzzle-solution { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-strong); font-family: var(--sans); font-size: 17px; font-style: normal; color: var(--muted); transform: rotate(180deg); transition: transform .8s var(--ease), color .4s; }
 .puzzle-solution b { font-family: var(--mono); font-size: 14px; font-style: normal; font-weight: 500; color: var(--ink); }
 .puzzle.is-solved .puzzle-solution { transform: none; color: var(--ink-soft); }
 
@@ -290,7 +290,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 .opiece.is-captured { opacity: 0; scale: .25; }
 .opera-stamp { transition-delay: .45s !important; }
 .opera-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 30px; }
-.opera-move { min-width: 5.2em; font-family: var(--display); font-size: clamp(28px, 2.6vw, 38px); font-style: italic; font-weight: 600; line-height: 1; color: var(--red-bright); }
+.opera-move { min-width: 5.2em; font-family: var(--sans); font-size: clamp(28px, 2.6vw, 38px); font-style: normal; font-weight: 600; line-height: 1; color: var(--red-bright); }
 .opera-dots { display: flex; gap: 6px; }
 .opera-dot { width: 12px; height: 12px; border: 1px solid var(--on-ink); transition: background .35s, border-color .35s; }
 .opera-dot.is-on { background: var(--red-bright); border-color: var(--red-bright); }
@@ -299,7 +299,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 .opera-step-move { display: flex; align-items: center; gap: 14px; font-family: var(--mono); font-size: 14px; font-weight: 500; letter-spacing: .06em; color: var(--red-bright); }
 .opera-step-move::before { content: ''; flex: 0 0 36px; height: 2px; background: currentColor; transform: scaleX(.35); transform-origin: left; opacity: .5; transition: transform .6s var(--ease), opacity .6s; }
 .opera-step.is-active .opera-step-move::before { transform: none; opacity: 1; }
-.opera-step h3 { margin-top: 14px; font-family: var(--display); font-size: clamp(34px, 3.4vw, 52px); line-height: 1; letter-spacing: -.02em; }
+.opera-step h3 { margin-top: 14px; font-family: var(--display); font-size: clamp(34px, 3.4vw, 52px); line-height: 1.15; letter-spacing: -.02em; }
 .opera-step p:last-child { max-width: 30em; margin-top: 16px; font-size: 17px; line-height: 1.7; color: var(--on-ink); }
 .game-score { margin-top: clamp(48px, 6vw, 88px); padding-top: 18px; border-top: 1px solid var(--ink-line); }
 .game-score-label { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--on-ink); }
@@ -307,7 +307,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 .game-moves li { break-inside: avoid; white-space: nowrap; }
 .move-number { display: inline-block; min-width: 2.2em; color: var(--on-ink); opacity: .7; }
 .game-moves .is-key { padding: 1px 4px; margin-inline: -4px; border-radius: 2px; background: var(--red); color: var(--paper); }
-.game-result { margin-top: 10px; font-family: var(--display); font-size: 28px; font-style: italic; font-weight: 600; color: var(--paper); }
+.game-result { margin-top: 10px; font-family: var(--sans); font-size: 28px; font-style: normal; font-weight: 600; color: var(--paper); }
 .game-source { margin-top: clamp(28px, 3vw, 40px); padding-top: 16px; border-top: 1px solid var(--ink-line); font-family: var(--mono); font-size: 12px; font-weight: 500; line-height: 1.6; letter-spacing: .08em; text-transform: uppercase; color: var(--on-ink); }
 
 /* El club */
@@ -315,7 +315,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 .club-intro { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: 28px clamp(32px, 5vw, 96px); align-items: end; }
 .club-intro .kicker { grid-column: 1 / -1; margin-bottom: 0; }
 .club-copy { padding-bottom: .4em; }
-.association-name { font-family: var(--display); font-size: clamp(21px, 1.8vw, 25px); font-style: italic; line-height: 1.3; }
+.association-name { font-family: var(--sans); font-size: clamp(21px, 1.8vw, 25px); font-style: normal; line-height: 1.3; }
 .club-copy > p:not(.association-name):not(.club-note) { margin-top: 14px; font-size: 17px; line-height: 1.7; color: var(--muted); }
 .club-note { margin-top: 22px; padding-left: 18px; border-left: 2px solid var(--red); font-size: 15px; line-height: 1.6; }
 /* Club photography: full colour, quiet captions, and uncropped team portraits. */
@@ -332,7 +332,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 .moment-friends { margin-top: 128px; }
 .club-moment figcaption { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-strong); }
 .club-moment figcaption span { display: block; margin-bottom: 8px; font-family: var(--mono); font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
-.club-moment figcaption strong { display: block; font-family: var(--display); font-size: clamp(23px, 2.2vw, 32px); font-weight: 500; line-height: 1.15; text-wrap: balance; }
+.club-moment figcaption strong { display: block; font-family: var(--sans); font-size: clamp(23px, 2.2vw, 32px); font-weight: 600; line-height: 1.35; text-wrap: balance; }
 .club-moment > p { margin-top: 20px; max-width: 28em; color: var(--muted); font-size: 15px; }
 @media (max-width: 799px) {
   .team-feature-grid { grid-template-columns: minmax(0, 1fr); }
@@ -349,7 +349,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 }
 .principles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 clamp(24px, 3.4vw, 56px); margin-top: clamp(56px, 6vw, 96px); }
 .principles li { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title glyph" "body body"; align-items: end; gap: 14px 16px; padding-top: 22px; border-top: 2px solid var(--ink); }
-.principles h3 { grid-area: title; font-family: var(--display); font-size: clamp(34px, 3.4vw, 52px); font-style: italic; line-height: 1; letter-spacing: -.02em; }
+.principles h3 { grid-area: title; font-family: var(--display); font-size: clamp(34px, 3.4vw, 52px); font-style: normal; line-height: 1.15; letter-spacing: -.02em; }
 .principles h3 span { display: block; margin-bottom: 10px; font-family: var(--mono); font-size: 12px; font-style: normal; font-weight: 500; letter-spacing: .1em; color: var(--red); }
 .principles p { grid-area: body; max-width: 22em; color: var(--muted); }
 .principle-glyph { grid-area: glyph; width: clamp(54px, 5vw, 76px); height: auto; aspect-ratio: 1; color: var(--ink); --piece-light: var(--paper); transition: transform .5s var(--ease), color .3s; }
@@ -364,7 +364,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 .faq-head .text-link { margin-top: 14px; color: var(--red); }
 .faq-list details { border-top: 1px solid var(--line-strong); }
 .faq-list details:last-child { border-bottom: 1px solid var(--line-strong); }
-.faq-list summary { min-height: 72px; padding-block: 18px; font-family: var(--display); font-size: clamp(20px, 1.7vw, 24px); font-weight: 500; line-height: 1.25; letter-spacing: -.01em; transition: color .2s; }
+.faq-list summary { min-height: 72px; padding-block: 18px; font-family: var(--sans); font-size: clamp(20px, 1.7vw, 24px); font-weight: 600; line-height: 1.4; letter-spacing: -.01em; transition: color .2s; }
 .faq-list summary:hover { color: var(--red); }
 .faq-list details > p { font-size: 16px; }
 
@@ -375,7 +375,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 .finale-stars { display: flex; gap: 6px; color: var(--gold); }
 .finale-stars svg { width: 16px; height: 16px; fill: currentColor; }
 .finale .frame { container-type: inline-size; }
-.finale-title { margin: clamp(20px, 3vw, 40px) 0 0 -.04em; font-family: var(--display); font-size: min(20cqi, 300px); font-style: italic; font-weight: 700; line-height: .86; letter-spacing: -.04em; white-space: nowrap; }
+.finale-title { margin: clamp(20px, 3vw, 40px) 0 0 -.04em; font-family: var(--display); font-size: min(20.8cqi, 300px); font-style: normal; font-weight: 700; line-height: 1.1; letter-spacing: -.04em; white-space: normal; }
 .finale-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 40px clamp(40px, 6vw, 112px); margin-top: clamp(36px, 4vw, 64px); }
 .finale-lede { max-width: 26em; font-size: clamp(17px, 1.4vw, 20px); line-height: 1.6; }
 .finale-lede + .button { margin-top: 28px; }
@@ -383,8 +383,8 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 .steps ol { margin-top: 14px; counter-reset: step; }
 .steps li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 22px; padding-block: 18px; border-top: 1px solid var(--red-line); }
 .steps li:last-child { border-bottom: 1px solid var(--red-line); }
-.step-num { grid-row: span 2; font-family: var(--display); font-size: 54px; font-style: italic; font-weight: 600; line-height: .9; }
-.steps h4 { margin: 0; font-family: var(--display); font-size: clamp(24px, 2vw, 30px); font-weight: 500; line-height: 1.1; }
+.step-num { grid-row: span 2; font-family: var(--sans); font-size: 54px; font-style: normal; font-weight: 600; line-height: .9; }
+.steps h4 { margin: 0; font-family: var(--sans); font-size: clamp(24px, 2vw, 30px); font-weight: 600; line-height: 1.3; }
 .steps p { max-width: 34em; color: var(--on-red); }
 .practical { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 32px; margin-top: clamp(48px, 6vw, 88px); padding-top: 18px; border-top: 2px solid var(--paper); font-size: 15px; }
 .practical p { display: flex; align-items: center; gap: 10px; }
@@ -394,9 +394,9 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 /* Footer */
 .site-footer { padding-block: 40px max(40px, env(safe-area-inset-bottom)); background: var(--grain), var(--ink); color: var(--on-ink); font-size: 14px; }
 .footer-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px 40px; padding-bottom: 24px; border-bottom: 1px solid var(--ink-line); }
-.footer-brand { display: inline-flex; align-items: center; gap: 14px; min-height: 44px; color: var(--paper); font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: -.015em; }
+.footer-brand { display: inline-flex; align-items: center; gap: 14px; min-height: 44px; color: var(--paper); font-family: var(--sans); font-size: 26px; font-weight: 700; letter-spacing: -.015em; }
 .footer-brand img { width: 40px; height: 44px; object-fit: contain; }
-.footer-brand span span { display: block; margin-top: 4px; font-family: var(--display); font-size: 15px; font-style: italic; font-weight: 400; color: var(--on-ink); }
+.footer-brand span span { display: block; margin-top: 4px; font-family: var(--sans); font-size: 15px; font-style: normal; font-weight: 400; color: var(--on-ink); }
 .footer-links { display: flex; flex-wrap: wrap; gap: 0 28px; }
 .footer-links a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; transition: color .2s; }
 .footer-links a:hover { color: var(--paper); }
@@ -408,8 +408,8 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 
 /* Legal pages (LegalPage.astro) share the identity */
 .legal { max-width: 780px; padding-block: clamp(56px, 8vw, 112px); }
-.legal h1 { margin-top: 4px; font-family: var(--display); font-size: clamp(48px, 7vw, 88px); line-height: .95; letter-spacing: -.025em; }
-.legal h2 { margin-top: 48px; font-family: var(--display); font-size: clamp(26px, 2.6vw, 34px); line-height: 1.1; letter-spacing: -.015em; }
+.legal h1 { margin-top: 4px; font-family: var(--display); font-size: clamp(48px, 7vw, 88px); line-height: 1.1; letter-spacing: -.025em; }
+.legal h2 { margin-top: 48px; font-family: var(--display); font-size: clamp(28px, 2.6vw, 34px); line-height: 1.1; letter-spacing: -.015em; }
 .legal p, .legal li { margin-top: 12px; font-size: 17px; line-height: 1.75; color: var(--ink-soft); }
 .legal .legal-eyebrow { margin: 0 0 22px; font-size: 12px; line-height: 1.4; color: var(--muted); }
 .legal .legal-updated { margin-top: 18px; font-family: var(--mono); font-size: 12px; line-height: 1.4; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
@@ -440,7 +440,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
 
 /* Responsive */
 @media (max-width: 1199px) and (min-width: 960px) {
-  .cover-frame { --mast: min(26cqi, 34svh); grid-template-columns: minmax(0, 5fr) minmax(0, 3.6fr) minmax(0, 3fr); }
+  .cover-frame { --mast: min(30.1cqi, 34svh); grid-template-columns: minmax(0, 5fr) minmax(0, 3.6fr) minmax(0, 3fr); }
   .cover-knight { left: 51%; }
   .cover h1 { font-size: clamp(40px, 4.2vw, 48px); }
   .cover-lede { max-width: 22em; font-size: 15.5px; }
@@ -459,9 +459,9 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
   .header-cta { margin-left: auto; }
   .cover-issue span:nth-child(2) { display: none; }
   .cover-frame { display: block; min-height: 0; padding-bottom: 40px; }
-  .cover-frame { --mast: 27.4cqi; }
-  .masthead { margin-top: 10px; }
-  .cover-knight { position: relative; left: auto; translate: none; display: block; height: clamp(250px, 82cqi, min(480px, 40svh)); margin: calc(-.3 * 27.4cqi) auto 0; }
+  .cover-frame { --mast: 30.1cqi; }
+  .masthead { margin-top: 10px; line-height: .92; }
+  .cover-knight { position: relative; left: auto; translate: none; display: block; height: clamp(250px, 82cqi, min(480px, 40svh)); margin: calc(-.3 * 30.1cqi) auto 0; }
   .cover-copy { padding-top: 26px; }
   .cover h1 { font-size: clamp(40px, 11.4cqi, 60px); }
   .cover-lede { max-width: 32em; }
@@ -518,7 +518,7 @@ details a { color: var(--red); font-weight: 600; text-decoration: underline; tex
   .rung { gap: 0 18px; }
   .rung-tile { width: 64px; margin: 6px 0 0 6px; box-shadow: 0 0 0 4px var(--paper), 0 0 0 5px var(--ink); }
   .rung h3 { font-size: 30px; }
-  .price { font-size: 42px; }
+  .price { font-size: clamp(30px, 10vw, 42px); }
   .levels-help { font-size: 20px; }
   .coupon-figure { font-size: 96px; }
   .faq-list summary { font-size: 20px; }

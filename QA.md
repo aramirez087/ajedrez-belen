@@ -1,3 +1,16 @@
+# Tipografía compartida y legibilidad — 17 octubre 2026 (Costa Rica)
+
+- Se sustituyó Bodoni por Belen Display, un subconjunto de Lora renombrado según su licencia, en titulares grandes de la portada, portal y páginas legales. DM Sans se usa en textos pequeños, nombres, cifras, horarios y controles. El propósito pasó a texto sans serif recto con interlineado 1,45. La vista previa social también se regeneró.
+- `npm run check`: 226 archivos, 0 errores, advertencias o hints. `npm run build` y comprobación de espacios de Git correctos.
+- Chromium: portada a 320, 390, 760, 1024 y 1440 px; portal familiar, registro de pagos, administración, eventos, acceso, inicio de sesión, `/app/` y `/privacy/` a 320, 390 y 1440 px. Sin desbordamiento horizontal y con fuentes locales cargadas. Ningún texto visible de la portada usa serif por debajo de 28 px.
+- Axe (etiquetas WCAG A/AA 2.0, 2.1 y 2.2): cero infracciones en la portada y las ocho rutas del portal/acceso/revisión comprobadas a 390 px. Esta comprobación automática no certifica conformidad completa.
+- Espaciado ampliado (interlineado 1,5, letras 0,12 em, palabras 0,16 em y párrafos 2 em) a 320 px: portada, términos, cuenta familiar y formulario de pago sin desbordamiento. Se corrigió el ajuste de botones, precios y título de cierre de la portada. Ampliación CSS al 200 % comprobada en portada, cuenta y pago a 1440 px.
+- Capturas de referencia en `output/playwright/typography-*.png` y `output/playwright/portal-typography-*.png`. Imagen social 1200 × 630 en `public/media/og-portada.jpg`.
+
+Límites de esta pasada: Chromium local y tamaños emulados; sin prueba en teléfono físico, Safari, Firefox o lector de pantalla. No se enviaron mensajes ni se modificaron datos reales. No se realizó despliegue.
+
+---
+
 # Ajuste del caballo y del pliegue — 17 octubre 2026 (Costa Rica)
 
 Petición: un caballo algo más pequeño para que «Ajedrez» se lea completo y, en pantallas grandes, sin la franja vacía bajo el índice.

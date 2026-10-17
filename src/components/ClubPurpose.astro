@@ -26,7 +26,7 @@ import { clubPurpose } from '../data/club-purpose';
     margin-top: clamp(72px, 9vw, 140px);
     scroll-margin-top: calc(var(--header-offset, var(--header-h)) + 20px);
   }
-  .purpose-statement { position: relative; max-width: 1120px; margin: 0 auto; }
+  .purpose-statement { position: relative; max-width: 960px; margin: 0 auto; }
   .purpose-label {
     font-family: var(--mono);
     font-size: 12px;
@@ -38,13 +38,13 @@ import { clubPurpose } from '../data/club-purpose';
   }
   blockquote { margin: 0; }
   blockquote p {
-    font-family: var(--display);
-    font-size: clamp(30px, 4.2vw, 64px);
-    font-style: italic;
+    font-family: var(--sans);
+    font-size: clamp(25px, 3vw, 42px);
+    font-style: normal;
     font-weight: 500;
-    line-height: 1.12;
-    letter-spacing: -.02em;
-    text-wrap: balance;
+    line-height: 1.45;
+    letter-spacing: -.01em;
+    text-wrap: pretty;
     color: var(--ink);
   }
   /* Hung into the margin so the first line keeps a clean left edge. */
@@ -56,7 +56,7 @@ import { clubPurpose } from '../data/club-purpose';
     margin-top: clamp(48px, 5vw, 80px);
   }
   .purpose-value { padding-top: 20px; border-top: 2px solid var(--ink); }
-  h3 { font-family: var(--display); font-size: clamp(28px, 2.4vw, 36px); font-weight: 500; line-height: 1; letter-spacing: -.02em; }
+  h3 { font-family: var(--display); font-size: clamp(28px, 2.4vw, 36px); font-weight: 600; line-height: 1.2; letter-spacing: -.015em; }
   .purpose-summary, .purpose-full p { color: var(--muted); font-size: 16px; line-height: 1.7; }
   .purpose-summary { margin-top: 12px; max-width: 34em; }
   summary { min-height: 52px; margin-top: 8px; color: var(--red); font-size: 14px; }

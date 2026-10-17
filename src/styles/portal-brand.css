@@ -17,13 +17,12 @@
   --red-soft: #f6e1dc;
   --rose: #f6e1dc;
   --on-dark: #cdc4b2;
-  --font: 'DM Sans Variable', 'DM Sans', system-ui, sans-serif;
-  --display: 'Bodoni Moda', 'Bodoni 72', Didot, 'Times New Roman', serif;
+  --font: var(--font-brand-body);
+  --display: var(--font-brand-display);
 }
 
-/* Bodoni needs far less negative tracking than the Manrope the portal was tuned for. */
-body :is(h1, h2, h3, .portal-brand, .portal-stat dd, .portal-total output, .portal-event-date strong, .portal-athlete-balance strong, .portal-number, .portal-guidance-details > summary, .portal-athlete-description) { letter-spacing: -.01em; }
-.portal-page h1 { font-weight: 500; letter-spacing: -.02em; }
+/* Shared brand faces: sturdy serif display headings, sans serif for everyday reading. */
+.portal-page { font-family: var(--font); line-height: 1.6; }
 
 /* Buttons take the landing's pill shape instead of the hard offset shadow. */
 .portal-button { border-radius: 999px; padding-inline: 22px; box-shadow: none; font-size: 14px; }

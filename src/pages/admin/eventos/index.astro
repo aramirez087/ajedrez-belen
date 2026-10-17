@@ -29,7 +29,7 @@ const counts = {
 const filters = [["todos", "Todos"], ["published", "Publicados"], ["draft", "Borradores"], ["cancelled", "Cancelados"], ["terminados", "Terminados"]] as const;
 ---
 <PortalLayout title="Eventos" actor={actor} active="events">
-  <PageHeader title="Calendario de eventos." eyebrow="Administración" description="Publica actividades, torneos y la llamada semanal por Zoom. Las familias los ven en su portal; no hay confirmación de asistencia. Ordenados por lo que viene primero."><a class="portal-button" href="/admin/eventos/nuevo">Nuevo evento <span aria-hidden="true">→</span></a></PageHeader>
+  <PageHeader title="Calendario de eventos." eyebrow="Administración" description="Publica actividades, torneos y la llamada semanal. Las familias los ven en su portal; no hay confirmación de asistencia. Lo próximo aparece primero."><a class="portal-button" href="/admin/eventos/nuevo">Nuevo evento <span aria-hidden="true">→</span></a></PageHeader>
   <p class="portal-section-caption"><a class="portal-link" href="/portal/eventos">Ver cómo lo ven las familias <span aria-hidden="true">→</span></a></p>
   <nav class="portal-subnav" aria-label="Filtrar eventos por estado">
     {filters.map(([key, label]) => <a href={key === "todos" ? "/admin/eventos" : `/admin/eventos?estado=${key}`} aria-current={filter === key ? "page" : undefined}>{label} · {counts[key]}</a>)}

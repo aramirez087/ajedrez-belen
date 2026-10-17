@@ -1,19 +1,18 @@
 /* Ajedrez Belén brand fonts, shared by the landing page, the legal pages and the portal.
-   Bodoni Moda and DM Sans are trimmed by scripts/build-fonts.py to the weights and Spanish characters in use. */
+   Belen Display is our Spanish subset of Lora, renamed under its reserved-name license.
+   Display and body fonts are trimmed by scripts/build-fonts.py to the weights in use. */
+
+:root {
+  --font-brand-display: 'Belen Display', Georgia, serif;
+  --font-brand-body: 'DM Sans Variable', 'DM Sans', system-ui, sans-serif;
+  --font-brand-mono: 'DM Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
 
 @font-face {
-  font-family: 'Bodoni Moda';
-  src: url('/fonts/bodoni-moda-latin-normal.woff2') format('woff2');
+  font-family: 'Belen Display';
+  src: url('/fonts/lora-latin-normal.woff2') format('woff2');
   font-style: normal;
-  font-weight: 500 800;
-  font-display: swap;
-  unicode-range: U+0020-007E, U+00A0-00FF, U+2013-2014, U+2018-2019, U+201C-201D, U+2022, U+2026, U+20AC, U+2122;
-}
-@font-face {
-  font-family: 'Bodoni Moda';
-  src: url('/fonts/bodoni-moda-latin-italic.woff2') format('woff2');
-  font-style: italic;
-  font-weight: 400 700;
+  font-weight: 500 700;
   font-display: swap;
   unicode-range: U+0020-007E, U+00A0-00FF, U+2013-2014, U+2018-2019, U+201C-201D, U+2022, U+2026, U+20AC, U+2122;
 }
@@ -25,9 +24,7 @@
   font-display: swap;
   unicode-range: U+0020-007E, U+00A0-00FF, U+2013-2014, U+2018-2019, U+201C-201D, U+2022, U+2026, U+20AC, U+2122;
 }
-/* Neither family ships the colón sign; these single-glyph faces draw it from each family's own C. */
-@font-face { font-family: 'Bodoni Moda'; src: url('/fonts/bodoni-moda-colon.woff2') format('woff2'); font-style: normal; font-weight: 500 800; font-display: swap; unicode-range: U+20A1; }
-@font-face { font-family: 'Bodoni Moda'; src: url('/fonts/bodoni-moda-colon.woff2') format('woff2'); font-style: italic; font-weight: 400 700; font-display: swap; unicode-range: U+20A1; }
+/* Prices use DM Sans. Its single-glyph colón face is drawn from the family's own C. */
 @font-face { font-family: 'DM Sans Variable'; src: url('/fonts/dm-sans-colon.woff2') format('woff2'); font-style: normal; font-weight: 400 700; font-display: swap; unicode-range: U+20A1; }
 @font-face {
   font-family: 'DM Mono';
