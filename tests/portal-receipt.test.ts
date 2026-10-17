@@ -166,11 +166,11 @@ test('staging compact print and narrow-screen spacing preserve all receipt conte
   assert.deepEqual(staged.html.match(/<table[\s\S]*?<\/table>/g), normal.html.match(/<table[\s\S]*?<\/table>/g));
 });
 
-test('receipt HTML uses the Ajedrez Belén paper, ink and deep-red palette; the crest is opt-in presentation', () => {
+test('receipt HTML uses the Portada paper, ink and crest-red palette; the crest is opt-in presentation', () => {
   const rendered = renderReceipt(receiptFixture());
-  assert.ok(rendered.html.includes('background:#f7f4ec'));
-  assert.ok(rendered.html.includes('color:#23281f'));
-  assert.ok(rendered.html.includes('border-top:4px solid #8c302f'));
+  assert.ok(rendered.html.includes('background:#f3eee3'));
+  assert.ok(rendered.html.includes('color:#16130f'));
+  assert.ok(rendered.html.includes('border-top:4px solid #b3222b'));
   assert.ok(rendered.html.includes("font-family:'DM Sans',Arial,sans-serif"));
   assert.ok(!rendered.html.includes('<img'), 'no image unless a caller supplies the crest');
   assert.ok(!rendered.html.includes('#f8f6f2') && !rendered.html.includes('#bc312e'));

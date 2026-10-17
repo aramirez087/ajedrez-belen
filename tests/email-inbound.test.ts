@@ -370,11 +370,13 @@ test("a read photo replies with the transferred amount and keeps that reading fo
   assert.match(reply?.text ?? "", /Quien transfirió: Ana <b>/);
   assert.match(reply?.text ?? "", /Detalle: Timothy Ramírez/);
   assert.equal(reply?.subject, "Recibimos tu comprobante");
-  assert.match(reply?.text ?? "", /estás al día/);
+  assert.match(reply?.text ?? "", /Estás al día/);
   assert.equal(paymentCount(db), 0);
   assert.doesNotMatch(reply?.text ?? "", /Archivo:|Tamaño:|foto PNG/);
   assert.match(reply?.html ?? "", /Ana &lt;b&gt;/);
   assert.doesNotMatch(reply?.html ?? "", /Ana <b>/);
+  assert.ok((reply?.html ?? "").includes("https://ajedrezbelen.com/media/crest-provisional.png"), "replies carry the crest");
+  assert.match(reply?.html ?? "", /<h1[^>]*>Recibimos tu comprobante<\/h1>/);
   const row = db.sqlite.prepare("SELECT status, suggestions_json FROM slip_extractions").get() as { status: string; suggestions_json: string };
   assert.equal(row.status, "ready");
   assert.match(row.suggestions_json, /12000\.00/);

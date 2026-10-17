@@ -1,4 +1,5 @@
 import PostalMime from "postal-mime";
+import { emailButton, emailNote, emailParagraph, emailRows, emailShell, type EmailRow } from "../../../src/lib/email-layout";
 import { money, monthLabel } from "../../../src/components/portal/format";
 import {
   detailNamesOwnAthlete,
@@ -50,10 +51,6 @@ const REJECT_RETRY = "No pudimos guardar el archivo. Inténtalo de nuevo en unos
 const REJECT_AUTH = "No pudimos confirmar que este correo salió de tu cuenta. Envíalo otra vez desde el correo con el que entras al portal.";
 const PORTAL_URL = "https://ajedrezbelen.com";
 const WHATSAPP_URL = "https://wa.me/50687686102";
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char] ?? char);
-}
 
 function expiryLabel(date: Date): string {
   return new Intl.DateTimeFormat("es-CR", {
@@ -115,9 +112,10 @@ export type SlipReply =
   | { kind: "correction"; reading: SlipReceiptReading; paymentId: string; draftId: string; expiresAt: Date };
 
 interface ReplyCopy {
+  /** Also the headline of the message. */
   subject: string;
   lead: string;
-  lists?: Array<{ title: string; items: string[] }>;
+  lists?: Array<{ title: string; rows: EmailRow[] }>;
   body?: string[];
   links?: Array<{ label: string; url: string }>;
   expiresAt?: Date;
@@ -136,14 +134,14 @@ function finishUrl(draftId: string, path = "/portal/pagos/nuevo"): string {
   return `${PORTAL_URL}${path}?correo=${encodeURIComponent(draftId)}`;
 }
 
-function readList(reading: SlipReceiptReading): Array<{ title: string; items: string[] }> {
+function readList(reading: SlipReceiptReading): Array<{ title: string; rows: EmailRow[] }> {
   const lines = detailLines(reading);
-  return lines.length ? [{ title: "Esto es lo que leímos:", items: lines.map(([label, value]) => `${label}: ${value}`) }] : [];
+  return lines.length ? [{ title: "Esto es lo que leímos:", rows: lines }] : [];
 }
 
-function allocationItem(line: EmailAllocation): string {
+function allocationRow(line: EmailAllocation): EmailRow {
   const month = monthLabel(line.period);
-  return `${month.charAt(0).toUpperCase()}${month.slice(1)} · ${line.athleteName}: ${money(line.amountMinor)}`;
+  return [`${month.charAt(0).toUpperCase()}${month.slice(1)} · ${line.athleteName}`, money(line.amountMinor)];
 }
 
 function replyCopy(reply: SlipReply): ReplyCopy {
@@ -151,12 +149,12 @@ function replyCopy(reply: SlipReply): ReplyCopy {
     case "registered":
       return {
         subject: "Registramos tu pago",
-        lead: "Registramos tu pago. No tienes que hacer nada más.",
+        lead: "No tienes que hacer nada más.",
         lists: [...readList(reply.reading), {
           title: "Lo aplicamos a:",
-          items: [
-            ...reply.allocations.map(allocationItem),
-            ...(reply.creditMinor > 0 ? [`A tu favor para el próximo mes: ${money(reply.creditMinor)}`] : []),
+          rows: [
+            ...reply.allocations.map(allocationRow),
+            ...(reply.creditMinor > 0 ? [["A tu favor para el próximo mes", money(reply.creditMinor)] as EmailRow] : []),
           ],
         }],
         body: ["Queda en revisión hasta que la Asociación confirme el ingreso en el banco. El comprobante oficial llegará a este correo."],
@@ -165,7 +163,7 @@ function replyCopy(reply: SlipReply): ReplyCopy {
     case "duplicate":
       return {
         subject: "Ese comprobante ya está registrado",
-        lead: "Ese comprobante ya está registrado. No lo registramos otra vez.",
+        lead: "No lo registramos otra vez.",
         links: [{ label: "Ver el pago", url: paymentUrl(reply.paymentId) }],
       };
     case "missing":
@@ -197,7 +195,7 @@ function replyCopy(reply: SlipReply): ReplyCopy {
     case "nothing_due":
       return {
         subject: "Recibimos tu comprobante",
-        lead: "Recibimos tu comprobante, pero estás al día: no hay mensualidades pendientes donde registrarlo.",
+        lead: "Estás al día: no hay mensualidades pendientes donde registrarlo.",
         lists: readList(reply.reading),
         body: ["Si es un pago adelantado, escríbenos por WhatsApp y te ayudamos."],
         expiresAt: reply.expiresAt,
@@ -205,7 +203,7 @@ function replyCopy(reply: SlipReply): ReplyCopy {
     case "covered":
       return {
         subject: "Recibimos tu comprobante",
-        lead: "Recibimos tu comprobante, pero tus mensualidades pendientes ya tienen un pago en revisión. No lo registramos para no cobrarlo dos veces.",
+        lead: "Tus mensualidades pendientes ya tienen un pago en revisión. No lo registramos para no cobrarlo dos veces.",
         lists: readList(reply.reading),
         body: ["Si es otra transferencia, regístrala en el portal:"],
         links: [{ label: "Registrar el pago", url: finishUrl(reply.draftId) }],
@@ -214,7 +212,7 @@ function replyCopy(reply: SlipReply): ReplyCopy {
     case "correction":
       return {
         subject: "Recibimos tu comprobante",
-        lead: "Recibimos tu comprobante. No lo registramos como pago nuevo porque tienes un pago esperando una corrección.",
+        lead: "No lo registramos como pago nuevo porque tienes un pago esperando una corrección.",
         lists: readList(reply.reading),
         body: ["Si es para ese pago, ábrelo y envía la corrección con este archivo. Si es otra transferencia, regístrala aparte."],
         links: [
@@ -242,22 +240,25 @@ export function slipReplyCopy(reply: SlipReply): { subject: string; text: string
   const body = copy.body ?? [];
   const links = copy.links ?? [];
   const text = [
-    copy.lead, "",
-    ...lists.flatMap((list) => [list.title, ...list.items.map((item) => `• ${item}`), ""]),
+    copy.subject, "", copy.lead, "",
+    ...lists.flatMap((list) => [list.title, ...list.rows.map(([label, value]) => `• ${label}: ${value}`), ""]),
     ...body.flatMap((paragraph) => [paragraph, ""]),
     ...links.flatMap((link) => [`${link.label}: ${link.url}`, ""]),
     ...(until ? [until, ""] : []),
     "¿Algo no está bien? Escríbenos por WhatsApp:",
     WHATSAPP_URL,
   ].join("\n");
-  const html = [
-    `<p><strong>${escapeHtml(copy.lead)}</strong></p>`,
-    ...lists.map((list) => `<p>${escapeHtml(list.title)}</p><ul>${list.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`),
-    ...body.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`),
-    ...links.map((link) => `<p><a href="${escapeHtml(link.url)}">${escapeHtml(link.label)}</a></p>`),
-    ...(until ? [`<p>${escapeHtml(until)}</p>`] : []),
-    `<p>¿Algo no está bien? Escríbenos por <a href="${WHATSAPP_URL}">WhatsApp</a>.</p>`,
-  ].join("");
+  const html = emailShell({
+    headline: copy.subject,
+    preheader: copy.lead,
+    body: [
+      emailParagraph(copy.lead),
+      ...lists.map((list) => emailRows(list.title, list.rows)),
+      ...body.map(emailParagraph),
+      ...links.map((link, index) => emailButton(link.label, link.url, index === 0)),
+      ...(until ? [emailNote(until)] : []),
+    ].join("\n"),
+  });
   return { subject: copy.subject, text, html };
 }
 
