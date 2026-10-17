@@ -56,20 +56,23 @@ const pos = (sq: string) => ({ x: files.indexOf(sq[0]) * 100, y: (8 - Number(sq[
 <div class="opera" data-opera data-highlights={JSON.stringify(highlights)}>
   <div class="opera-board-col">
     <div class="opera-sticky">
-      <div class="opera-board" aria-hidden="true">
-        {[8, 7, 6, 5, 4, 3, 2, 1].map((rank) => files.map((file, fi) => (
-          <span class:list={['osq', (fi + rank) % 2 !== 0 ? 'osq-dark' : 'osq-light']} data-osq={file + rank}>
-            {fi === 0 && <span class="sq-coord sq-rank">{rank}</span>}
-            {rank === 1 && <span class="sq-coord sq-file">{file}</span>}
-          </span>
-        )))}
-        {pieces.map((p) => {
-          const start = p.squares[0];
-          const xy = start ? pos(start) : { x: 0, y: 0 };
-          return <span class:list={['opiece', p.piece[0] === 'w' ? 'piece-white' : 'piece-black']} data-opiece={p.id} data-squares={JSON.stringify(p.squares)} style={`transform: translate(${xy.x}%, ${xy.y}%);`}><ChessPiece id={p.piece} /></span>;
-        })}
-        <span class="opera-stamp" data-opera-stamp aria-hidden="true">Td8#</span>
-      </div>
+      <figure class="diagram">
+        <div class="diagram-board">
+          <span class="diagram-ranks" aria-hidden="true">{[8, 7, 6, 5, 4, 3, 2, 1].map((rank) => <span>{rank}</span>)}</span>
+          <div class="board opera-board" aria-hidden="true">
+            {[8, 7, 6, 5, 4, 3, 2, 1].map((rank) => files.map((file, fi) => (
+              <span class:list={['osq', (fi + rank) % 2 !== 0 ? 'osq-dark' : 'osq-light']} data-osq={file + rank}></span>
+            )))}
+            {pieces.map((p) => {
+              const start = p.squares[0];
+              const xy = start ? pos(start) : { x: 0, y: 0 };
+              return <span class:list={['opiece', p.piece[0] === 'w' ? 'piece-white' : 'piece-black']} data-opiece={p.id} data-squares={JSON.stringify(p.squares)} style={`transform: translate(${xy.x}%, ${xy.y}%);`}><ChessPiece id={p.piece} /></span>;
+            })}
+            <span class="stamp opera-stamp" data-opera-stamp aria-hidden="true">Td8#</span>
+          </div>
+          <span class="diagram-files" aria-hidden="true">{files.map((file) => <span>{file}</span>)}</span>
+        </div>
+      </figure>
       <div class="opera-meta">
         <p class="opera-move" data-opera-move>{steps[0].move}</p>
         <div class="opera-dots" aria-hidden="true">

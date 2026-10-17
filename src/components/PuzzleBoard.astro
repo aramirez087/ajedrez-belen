@@ -17,25 +17,27 @@ const pieces: Record<string, { id: PieceId; name: string }> = {
 const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
 ---
 <div class="puzzle" data-puzzle>
-  <div class="puzzle-board-wrap">
-    <div class="puzzle-board" role="grid" aria-label="Tablero del reto: blancas juegan y dan mate en una jugada">
-      {ranks.map((rank) => <div class="puzzle-row" role="row">{files.map((file, fi) => {
-        const sq = file + rank;
-        const piece = pieces[sq];
-        const dark = (fi + rank) % 2 !== 0;
-        return (
-          <button type="button" role="gridcell" disabled tabindex={sq === 'a1' ? 0 : -1} aria-selected="false" class:list={['sq', dark ? 'sq-dark' : 'sq-light']} data-sq={sq}
-            aria-label={piece ? `Casilla ${sq}, ${piece.name}` : `Casilla ${sq}`}>
-            {fi === 0 && <span class="sq-coord sq-rank" aria-hidden="true">{rank}</span>}
-            {rank === 1 && <span class="sq-coord sq-file" aria-hidden="true">{file}</span>}
-            {piece && <span class:list={['piece', piece.id[0] === 'w' ? 'piece-white' : 'piece-black']} data-piece aria-hidden="true"><ChessPiece id={piece.id} /></span>}
-          </button>
-        );
-      })}</div>)}
-      <span class="puzzle-stamp" data-stamp aria-hidden="true">¡Jaque mate!</span>
+  <figure class="diagram puzzle-diagram">
+    <div class="diagram-board">
+      <span class="diagram-ranks" aria-hidden="true">{ranks.map((rank) => <span>{rank}</span>)}</span>
+      <div class="board puzzle-board" role="grid" aria-label="Tablero del reto: blancas juegan y dan mate en una jugada">
+        {ranks.map((rank) => <div class="puzzle-row" role="row">{files.map((file, fi) => {
+          const sq = file + rank;
+          const piece = pieces[sq];
+          const dark = (fi + rank) % 2 !== 0;
+          return (
+            <button type="button" role="gridcell" disabled tabindex={sq === 'a1' ? 0 : -1} aria-selected="false" class:list={['sq', dark ? 'sq-dark' : 'sq-light']} data-sq={sq}
+              aria-label={piece ? `Casilla ${sq}, ${piece.name}` : `Casilla ${sq}`}>
+              {piece && <span class:list={['piece', piece.id[0] === 'w' ? 'piece-white' : 'piece-black']} data-piece aria-hidden="true"><ChessPiece id={piece.id} /></span>}
+            </button>
+          );
+        })}</div>)}
+        <span class="stamp puzzle-stamp" data-stamp aria-hidden="true">¡Jaque mate!</span>
+      </div>
+      <span class="diagram-files" aria-hidden="true">{files.map((file) => <span>{file}</span>)}</span>
     </div>
-    <p class="puzzle-turn"><span class="turn-dot" aria-hidden="true"></span>Juegan las blancas · Mate en una</p>
-  </div>
+    <figcaption class="diagram-caption"><span class="turn-dot" aria-hidden="true"></span>Juegan las blancas y dan mate en una</figcaption>
+  </figure>
   <div class="puzzle-panel">
     <p class="puzzle-status" data-status aria-live="polite">Toca la torre blanca de la esquina (a1) y luego la casilla de destino. El rey negro está atrapado por sus propios peones…</p>
     <p id="puzzle-keyboard" class="puzzle-keyboard">Con teclado: usa las flechas para recorrer el tablero y Enter o espacio para elegir una casilla. Tab pasa a los controles.</p>
@@ -45,10 +47,11 @@ const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
       <button type="button" class="chip-button" data-reset>Reiniciar</button>
     </div>
     <p class="puzzle-attempts" data-attempts></p>
+    <p class="puzzle-solution" aria-hidden="true">Solución: <b>1. Ta8#</b> — el mate del pasillo.</p>
     <noscript>
       <style is:inline>
         [data-puzzle] [data-status], [data-puzzle] .puzzle-keyboard,
-        [data-puzzle] .puzzle-actions, [data-puzzle] .puzzle-attempts { display: none; }
+        [data-puzzle] .puzzle-actions, [data-puzzle] .puzzle-attempts, [data-puzzle] .puzzle-solution { display: none; }
       </style>
       <p class="puzzle-status">La solución es Ta8#: mueve la torre blanca de a1 a a8. Desde allí controla la última fila y da jaque mate, porque los peones negros impiden que su rey escape. Es el mate del pasillo.</p>
     </noscript>
@@ -57,10 +60,9 @@ const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
 <style>
   .puzzle-row { display: contents; }
   /* Last in the panel with its space reserved, so revealing it never shifts the layout. */
-  .puzzle-keyboard { order: 1; margin-top: 12px; font-size: var(--fs-label); line-height: 1.6; color: var(--on-dark); transition: opacity .2s var(--ease); }
+  .puzzle-keyboard { order: 1; margin-top: 12px; font-size: 13px; line-height: 1.6; color: var(--muted); transition: opacity .2s var(--ease); }
   /* Always read through aria-describedby; only shown for keyboard focus. Without :has() it stays visible. */
   .puzzle-keyboard:not(.puzzle:has(.sq:focus-visible) .puzzle-keyboard) { opacity: 0; }
-  .chip-button:disabled { cursor: default; opacity: .65; }
 </style>
 <script>
   const root = document.querySelector<HTMLElement>('[data-puzzle]');
@@ -126,6 +128,7 @@ const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
     function win(assisted: boolean) {
       solved = true; selected = false; clearMarks();
       stamp?.classList.add('is-on');
+      root?.classList.add('is-solved');
       bySq('g8')?.classList.add('is-mate');
       say(assisted
         ? 'Ta8: jaque mate. La torre domina toda la última fila y los peones negros le cierran la salida a su propio rey. Es el famoso mate del pasillo.'
@@ -203,6 +206,7 @@ const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
       solved = false; selected = false; attempts = 0;
       if (attemptsEl) attemptsEl.textContent = '';
       stamp?.classList.remove('is-on');
+      root?.classList.remove('is-solved');
       bySq('g8')?.classList.remove('is-mate');
       document.querySelector('[data-puzzle-win]')?.classList.remove('is-on');
       clearMarks();

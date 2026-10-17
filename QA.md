@@ -1,3 +1,48 @@
+# Ajuste del caballo y del pliegue — 17 octubre 2026 (Costa Rica)
+
+Petición: un caballo algo más pequeño para que «Ajedrez» se lea completo y, en pantallas grandes, sin la franja vacía bajo el índice.
+
+- Causa medida en 1576×1253 (el tamaño de la captura recibida): la altura del caballo era un porcentaje de la portada, mientras la palabra crece con el ancho; en pantallas altas las orejas subían 0,6 em sobre la línea base y tapaban casi toda la «d». La franja vacía era el margen superior de «01 Clases», porque la portada tenía un tope de 960 px.
+- Cambio: el caballo se ancla a la línea base del titular (orejas a 0,17–0,19 em en escritorio, 0,18–0,23 em apilado, máximo 780 px). En pantallas de más de ~1115 px de alto, la portada crece para que el índice termine justo en el pliegue (tope 1200 px). La tarjeta social se volvió a componer con la misma regla.
+- Mediciones idénticas en Chrome, WebKit y Firefox: 1576×1253, 1728×1117 y 2560×1300 con el índice exactamente en el pliegue; 1440×900, 1280×720, 1366×768, 1536×864, 1680×1050 y 1920×1080 sin cambios de composición; el botón principal visible en todos. Sin desplazamientos de diseño al cargar en pantallas altas (`layout-shift` vacío).
+- `npx astro check` 0/0/0, `npm test` 404/404, build y `git diff --check` correctos; interacción 81/81 y comprobaciones de la segunda pasada 33/33 en tres motores; barrido de 4 páginas × 19 anchos sin desbordamiento en tres motores. Lighthouse: móvil 99/100/100/100 en tres ejecuciones (LCP 2,1 s, CLS 0), escritorio 100/100/100/100.
+
+Límite conocido: en ventanas de escritorio estrechas y muy altas (p. ej. 1000×1400) o a pantalla completa en 2560×1440, la portada llega a su tope; queda algo de margen bajo el índice y el caballo no alcanza la palabra.
+
+---
+
+# Segunda pasada «Portada» — 17 octubre 2026 (Costa Rica)
+
+Cambios: flecha de diagrama sobre la diagonal oscura de los niveles (b2–c3–d4–e5–f6), fotografía del club como lámina monocroma, planilla completa de la partida de la ópera, fuentes recortadas con `scripts/build-fonts.py` (incluido un par de interletrado U+n que Bodoni Moda no trae), `color-scheme: only light`, icono para pantallas de inicio, navegación que marca la sección actual, barra móvil que cede el espacio durante la partida, contorno al pasar el cursor por las casillas del reto, deriva del titular «Ajedrez» hacia arriba y precarga de fuentes en las páginas legales.
+
+- `npx astro check`: 223 archivos, 0 errores, 0 advertencias, 0 hints. `npm test`: 404/404. `npm run build` y `git diff --check`: correctos.
+- Lighthouse 12.8.2 sobre el build estático con gzip. Portada, móvil, tres ejecuciones: 99 / 100 / 100 / 100 en las tres (FCP 1,1 s, LCP 2,1 s, TBT 0 ms, CLS 0). Escritorio: 100 / 100 / 100 / 100 (FCP 0,3 s, LCP 0,5 s). `/terminos/`, móvil, dos ejecuciones: 100 / 100 / 100 / 100 (CLS 0; era 99 con CLS 0,009 antes de precargar sus fuentes). Se probó quitar la precarga de la itálica: el LCP no mejoró y el FCP empeoró a 1,5 s, así que se mantiene.
+- Interacción: las 27 comprobaciones de la primera pasada en Chrome, WebKit y Firefox 156 (81/81). Comprobaciones nuevas en los tres motores (33/33): `color-scheme`, icono, flecha visible, revelada y de peón a dama, marca de navegación en cuatro posiciones, planilla con 17 jugadas y cinco destacadas anunciadas, interletrado U–n de −0,04 em medido con y sin `font-kerning`, y barra móvil visible en el reto, oculta en la partida y de nuevo visible en el club.
+- Barrido de ancho en Chrome, WebKit y Firefox: 4 páginas × 19 anchos (320–2560 px), sin desbordamiento ni controles menores de 44 px.
+- Cobertura tipográfica: cada carácter mostrado en las siete páginas con estos estilos (incluidos los mensajes del reto) existe en las fuentes recortadas.
+- Modo oscuro forzado de Chrome (`WebContentsForceDark`): con la declaración, la portada conserva papel y tinta; sin ella, el fondo se oscurece y el botón negro del encabezado casi desaparece.
+- Comparación píxel a píxel de las fuentes antes y después del recorte: diferencias solo de suavizado (menos de 0,04 % de píxeles con diferencia fuerte).
+
+Límites: los mismos de la primera pasada. Firefox se probó con el navegador de Playwright, no con una instalación de usuario.
+
+---
+
+# Rediseño «Portada» — 17 octubre 2026 (Costa Rica)
+
+Nuevo sistema visual descrito en [DESIGN.md](DESIGN.md): portada de revista con el caballo frente a «Ajedrez» en Bodoni Moda, diagramas impresos, columna de ajedrez con solución invertida, partida de la ópera en escena oscura y contraportada roja. Se reordenó la página para que clases y precios lleguen justo después de la portada (sugerencia 3 de la revisión del 14 de octubre).
+
+- `npx astro check`: 223 archivos, 0 errores, 0 advertencias, 0 hints. `npm test`: 404 pruebas, 404 aprobadas. `npm run build`: correcto.
+- Lighthouse 12.8.2 sobre el build estático servido con gzip (`scripts/lighthouse-server.mjs`), simulación móvil, tres ejecuciones: 98 / 100 / 100 / 100 en las tres (FCP 1,1 s, LCP 2,3 s, TBT 0 ms, CLS 0). Escritorio: 100 / 100 / 100 / 100 (FCP 0,3 s, LCP 0,6 s). La línea base anterior era 99 / 100 / 100 / 100 con LCP 2,2 s; la diferencia corresponde a las dos fuentes Bodoni precargadas. Informes en `output/lighthouse/portada-final-*.report.json` (ignorado por Git).
+- Interacción, Chrome y WebKit (27 comprobaciones en cada motor, todas aprobadas): selección de la torre y 12 destinos legales, jugada incorrecta con explicación y regreso, mate Ta8#, sello, panel de victoria, solución que gira a su posición legible, reinicio, resolución con flechas y Enter, botón «Ver solución», pasos 1, 3 y 5 de la partida de la ópera con resaltado y sello de mate, apertura de preguntas, desplazamiento del encabezado medido, enlace para saltar al contenido como primera parada de Tab, barra móvil de WhatsApp (oculta con el botón de portada visible, visible a media página, oculta en la contraportada), contenido visible sin JavaScript y con movimiento reducido.
+- Barrido de ancho en Chrome y WebKit: `/`, `/terminos/`, `/privacidad/` y `/familias/` a 320, 360, 375, 390, 430, 520, 600, 760, 820, 959, 960, 1024, 1100, 1199, 1280, 1440, 1600, 1920 y 2560 px: sin desbordamiento horizontal y sin controles de menos de 44 px (los enlaces dentro de frases quedan exentos según WCAG 2.5.8).
+- Botón principal de la portada visible sin desplazarse en 360×740, 390×844, 412×915, 600×900, 760×1024, 820×1180, 959×800, 960–1199×800, 1280×720, 1366×768, 1440×900, 1536×864 y 2560×1440. En 320×568 queda bajo el pliegue; allí la barra móvil de WhatsApp aparece desde el inicio.
+- Los once enlaces a WhatsApp anuncian «WhatsApp» en su nombre accesible; «Empezar aquí» conserva su texto visible dentro del nombre (WCAG 2.5.3).
+- Fuentes: cada archivo se descarga una sola vez en Chrome y WebKit. WebKit muestra un aviso heurístico de precarga «no usada» aunque la fuente se usa; no hay doble descarga.
+
+Límites: navegadores automatizados y dispositivos emulados; no se probaron teléfonos físicos, Firefox, lectores de pantalla ni Safari instalado. La puntuación de Lighthouse no equivale a una certificación WCAG. No se publicó el sitio ni se enviaron mensajes.
+
+---
+
 # Revisión actual — 14 octubre 2026 (Costa Rica)
 
 La revisión de la landing con sus interacciones actuales está en [LANDING-REVIEW-2026-10-14.md](docs/LANDING-REVIEW-2026-10-14.md). Los registros siguientes son históricos; las referencias a cero JavaScript corresponden a versiones anteriores.

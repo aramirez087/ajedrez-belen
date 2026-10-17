@@ -4,9 +4,10 @@ export function knightImage(src: string) {
   return {
     src,
     srcset: src === '/media/knight-staunton-v4.webp'
-      ? '/media/knight-staunton-v4-400.webp 400w, /media/knight-staunton-v4-560.webp 560w, /media/knight-staunton-v4.webp 750w'
+      ? '/media/knight-staunton-v4-400.webp 400w, /media/knight-staunton-v4-560.webp 560w, /media/knight-staunton-v4.webp 750w, /media/knight-staunton-v4-1086.webp 1086w'
       : undefined,
-    sizes: '(max-width: 359px) 264px, (max-width: 759px) 310px, (max-width: 1099px) 330px, 495px',
+    // On desktop the knight is about 0.53 × the viewport height wide, at most 585 px (780 px tall); on phones up to 82% of the frame.
+    sizes: '(max-width: 959px) min(58vw, 420px), min(52vh, 585px)',
   };
 }
 
@@ -17,6 +18,6 @@ export function crestImage(src: string | null) {
     srcset: resolved === '/media/crest-provisional.webp'
       ? '/media/crest-provisional-96.webp 96w, /media/crest-provisional.webp 196w'
       : undefined,
-    sizes: '(max-width: 759px) 33px, 44px',
+    sizes: '(max-width: 759px) 30px, 36px',
   };
 }

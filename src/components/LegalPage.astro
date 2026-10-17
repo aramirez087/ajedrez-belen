@@ -1,10 +1,11 @@
 ---
-import '@fontsource-variable/dm-sans';
-import '../styles/global.css';
+import '../styles/landing.css';
 import { association as a } from '../data/association';
+import { crestImage } from '../data/landing-media';
 interface Props { title: string; heading: string; description: string; updated?: string; showPortal?: boolean; quiet?: boolean }
 const { title, heading, description, updated = '13 de octubre de 2026', showPortal = false, quiet = false } = Astro.props;
 const wa = 'https://wa.me/' + a.whatsapp?.replace(/\D/g, '');
+const crest = crestImage(a.crest);
 ---
 <!doctype html>
 <html lang="es-CR">
@@ -12,32 +13,40 @@ const wa = 'https://wa.me/' + a.whatsapp?.replace(/\D/g, '');
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#f7f4ec" />
+    <meta name="theme-color" content="#f3eee3" />
+    <meta name="color-scheme" content="only light" />
     <title>{title.includes('Ajedrez Belén') ? title : `${title} | Ajedrez Belén`}</title>
     <link rel="icon" href="/media/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/media/apple-touch-icon.png" />
+    <link rel="preload" href="/fonts/bodoni-moda-latin-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <header class="site-header">
       <div class="frame header-inner">
         <a href="/familias/" class="brand" aria-label="Ajedrez Belén">
-          <img src={a.crest ?? '/media/crest-provisional.webp'} alt="" width="46" height="50" />
-          <span>Ajedrez<br />Belén<span class="brand-caption">Un juego. Una comunidad.</span></span>
+          <img {...crest} alt="" width="36" height="39" />
+          <span class="brand-text">Ajedrez Belén</span>
         </a>
-        <nav aria-label="Navegación principal"><a href="/app/">La aplicación</a><a href="https://ajedrezbelen.com/privacy/">Política de privacidad</a>{!quiet && <a href="/terminos/">Términos</a>}</nav>
+        <nav class="site-nav legal-nav" aria-label="Navegación principal"><a href="/app/">La aplicación</a><a href="https://ajedrezbelen.com/privacy/">Política de privacidad</a>{!quiet && <a href="/terminos/">Términos</a>}</nav>
       </div>
     </header>
-    <main id="contenido" class="frame legal">
-      <p class="legal-eyebrow">Ajedrez Belén · Belén, Heredia, Costa Rica</p>
+    <main id="contenido" class="frame legal" tabindex="-1">
+      <p class="kicker legal-eyebrow">Ajedrez Belén · Belén, Heredia, Costa Rica</p>
       <h1>{heading}</h1>
       <p class="legal-updated">Última actualización: {updated}</p>
       <slot />
       <p class="legal-contact">¿Dudas sobre este documento? Escríbenos por <a href={wa}>WhatsApp</a>.</p>
     </main>
-    <footer class="frame">
-      <a class="footer-brand" href="/app/">Ajedrez Belén<span>El juego sigue.</span></a>
-      <p class="footer-note">Belén, Heredia · Hecho entre partidas</p>
-      <div class="footer-links"><a href="/app/">La aplicación</a><a href="https://ajedrezbelen.com/privacy/">Política de privacidad</a>{!quiet && <a href="/terminos/">Términos</a>}{showPortal && <a href="/portal">Portal de pagos</a>}</div>
+    <footer class="site-footer">
+      <div class="frame">
+        <div class="footer-top">
+          <a class="footer-brand" href="/app/"><img {...crest} alt="" width="40" height="44" loading="lazy" /><span>Ajedrez Belén<span>El juego sigue.</span></span></a>
+          <div class="footer-links"><a href="/app/">La aplicación</a><a href="https://ajedrezbelen.com/privacy/">Política de privacidad</a>{!quiet && <a href="/terminos/">Términos</a>}{showPortal && <a href="/portal">Portal de pagos</a>}</div>
+        </div>
+        <div class="footer-bottom"><p class="footer-note">Belén, Heredia · Hecho entre partidas</p></div>
+      </div>
     </footer>
   </body>
 </html>

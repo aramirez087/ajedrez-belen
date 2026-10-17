@@ -2,17 +2,17 @@
 import { clubPurpose } from '../data/club-purpose';
 ---
 <div class="club-purpose" id="proposito">
-  <div class="purpose-statement">
-    <p class="purpose-label">Nuestro propósito</p>
-    <blockquote><p>«{clubPurpose.quote}»</p></blockquote>
-  </div>
+  <figure class="purpose-statement" data-reveal>
+    <figcaption class="purpose-label">Nuestro propósito</figcaption>
+    <blockquote><p><span class="purpose-mark" aria-hidden="true">«</span>{clubPurpose.quote}<span aria-hidden="true">»</span></p></blockquote>
+  </figure>
   <div class="purpose-values">
     {[clubPurpose.mission, clubPurpose.vision].map((item, index) => (
-      <div class="purpose-value">
+      <div class="purpose-value" data-reveal style={`--d: ${index}`}>
         <h3>{item.title}</h3>
         <p class="purpose-summary">{item.summary}</p>
         <details>
-          <summary>Leer {index === 0 ? 'misión' : 'visión'} completa <span aria-hidden="true">+</span></summary>
+          <summary>Leer {index === 0 ? 'misión' : 'visión'} completa <span class="plus" aria-hidden="true"></span></summary>
           <div class="purpose-full">
             {item.paragraphs.map((paragraph) => <p>{paragraph}</p>)}
           </div>
@@ -23,42 +23,48 @@ import { clubPurpose } from '../data/club-purpose';
 </div>
 <style>
   .club-purpose {
-    display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-    gap: 36px 56px;
-    margin-top: 56px;
-    scroll-margin-top: calc(var(--header-height) + 20px);
+    margin-top: clamp(72px, 9vw, 140px);
+    scroll-margin-top: calc(var(--header-offset, var(--header-h)) + 20px);
   }
+  .purpose-statement { position: relative; max-width: 1120px; margin: 0 auto; }
   .purpose-label {
-    color: var(--red);
-    font-size: var(--fs-label);
-    font-weight: 700;
-    letter-spacing: .14em;
-    text-transform: uppercase;
-    margin-bottom: 20px;
-  }
-  blockquote { margin: 0; padding-left: 22px; border-left: 3px solid var(--red); }
-  blockquote p {
-    max-width: 24ch;
-    font-family: var(--display);
-    font-size: clamp(23px, 2.4vw, 32px);
+    font-family: var(--mono);
+    font-size: 12px;
     font-weight: 500;
-    line-height: 1.4;
-    letter-spacing: -.035em;
-    text-wrap: pretty;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 22px;
+  }
+  blockquote { margin: 0; }
+  blockquote p {
+    font-family: var(--display);
+    font-size: clamp(30px, 4.2vw, 64px);
+    font-style: italic;
+    font-weight: 500;
+    line-height: 1.12;
+    letter-spacing: -.02em;
+    text-wrap: balance;
     color: var(--ink);
   }
-  .purpose-value { padding-block: 22px 4px; border-top: 1px solid var(--line-strong); }
-  .purpose-value + .purpose-value { margin-top: 22px; }
-  h3 { font-family: var(--display); font-size: var(--fs-title); font-weight: 640; letter-spacing: -.035em; }
-  .purpose-summary, .purpose-full p { color: var(--muted); font-size: var(--fs-body); line-height: 1.8; }
-  .purpose-summary { margin-top: 10px; }
-  summary { color: var(--red); font-size: var(--fs-small); font-weight: 600; }
-  summary:hover { color: var(--red-hover); }
+  /* Hung into the margin so the first line keeps a clean left edge. */
+  .purpose-mark { margin-left: -.5em; color: var(--red); }
+  .purpose-values {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 clamp(24px, 3.4vw, 56px);
+    margin-top: clamp(48px, 5vw, 80px);
+  }
+  .purpose-value { padding-top: 20px; border-top: 2px solid var(--ink); }
+  h3 { font-family: var(--display); font-size: clamp(28px, 2.4vw, 36px); font-weight: 500; line-height: 1; letter-spacing: -.02em; }
+  .purpose-summary, .purpose-full p { color: var(--muted); font-size: 16px; line-height: 1.7; }
+  .purpose-summary { margin-top: 12px; max-width: 34em; }
+  summary { min-height: 52px; margin-top: 8px; color: var(--red); font-size: 14px; }
+  summary:hover { color: var(--red-deep); }
   .purpose-full { padding-bottom: 18px; }
-  .purpose-full p + p { margin-top: 16px; }
+  .purpose-full p + p { margin-top: 14px; }
   @media (max-width: 759px) {
-    .club-purpose { grid-template-columns: minmax(0, 1fr); margin-top: 40px; gap: 32px; }
-    blockquote p { max-width: 34ch; }
+    .purpose-values { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .purpose-mark { margin-left: 0; }
   }
 </style>
