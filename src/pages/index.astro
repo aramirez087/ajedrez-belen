@@ -7,6 +7,8 @@ import HeroBoard from '../components/HeroBoard.astro';
 import PuzzleBoard from '../components/PuzzleBoard.astro';
 import OperaGame from '../components/OperaGame.astro';
 import ClubPurpose from '../components/ClubPurpose.astro';
+import ChessPieceSprite from '../components/ChessPieceSprite.astro';
+import ChessPiece, { type PieceId } from '../components/ChessPiece.astro';
 import { association as a } from '../data/association';
 import { knightImage, crestImage } from '../data/landing-media';
 
@@ -19,10 +21,15 @@ const canonicalUrl = 'https://ajedrezbelen.com/';
 const pageTitle = 'Clases de ajedrez en Belén, Heredia | Ajedrez Belén';
 const socialImage = new URL(a.heroKnight, canonicalUrl).href;
 
-const classes = [
-  { index: '01', name: 'Iniciación', invitation: 'Tu primera jugada', description: 'Conocer las piezas, descubrir el tablero y disfrutar de las primeras partidas.', fee: a.fees[0].amount, piece: 'pawn', glyph: '♟' },
-  { index: '02', name: 'Cadetes e intermedios', invitation: 'Encuentra tu juego', description: 'Reconocer ideas, practicar y tomar decisiones con más confianza.', fee: a.fees[1].amount, piece: 'rook', glyph: '♜' },
-  { index: '03', name: 'Avanzados', invitation: 'Piensa un paso más allá', description: 'Profundizar en la estrategia y seguir afinando cada partida.', fee: a.fees[1].amount, piece: 'queen', glyph: '♛' },
+const classes: { index: string; name: string; invitation: string; description: string; fee: string; piece: string; symbol: PieceId }[] = [
+  { index: '01', name: 'Iniciación', invitation: 'Tu primera jugada', description: 'Conocer las piezas, descubrir el tablero y disfrutar de las primeras partidas.', fee: a.fees[0].amount, piece: 'pawn', symbol: 'bP' },
+  { index: '02', name: 'Cadetes e intermedios', invitation: 'Encuentra tu juego', description: 'Reconocer ideas, practicar y tomar decisiones con más confianza.', fee: a.fees[1].amount, piece: 'rook', symbol: 'bR' },
+  { index: '03', name: 'Avanzados', invitation: 'Piensa un paso más allá', description: 'Profundizar en la estrategia y seguir afinando cada partida.', fee: a.fees[1].amount, piece: 'queen', symbol: 'bQ' },
+];
+const principles: { title: string; body: string; symbol: PieceId }[] = [
+  { title: 'Jugar', body: 'Partidas desde el primer día. Se aprende jugando, no mirando.', symbol: 'bN' },
+  { title: 'Pensar', body: 'Ideas, planes y decisiones. Cada jugada entrena la cabeza.', symbol: 'bB' },
+  { title: 'Compartir', body: 'Un rival al frente y un amigo al lado. El tablero nos reúne.', symbol: 'bR' },
 ];
 const notation = ['1. e4 e5', '2. Cf3 Cc6', '3. Ab5 a6', '4. O-O Cf6', '5. Te1 Ae7', '6. c3 O-O', '7. d4 exd4', '8. cxd4 d5', '…tu turno', 'Jaque mate'];
 const structuredData = {
@@ -66,6 +73,7 @@ const structuredData = {
     <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
   </head>
   <body>
+    <ChessPieceSprite />
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <header class="site-header" data-header>
       <div class="frame header-inner">
@@ -86,7 +94,7 @@ const structuredData = {
     </header>
     <div class="scroll-rail" data-rail aria-hidden="true">
       <span class="rail-coord" data-rail-coord>e2</span>
-      <span class="rail-track"><span class="rail-fill" data-rail-fill></span><span class="rail-pawn" data-rail-pawn>♟</span></span>
+      <span class="rail-track"><span class="rail-fill" data-rail-fill></span><span class="rail-pawn" data-rail-pawn><ChessPiece id="bP" /></span></span>
       <span class="rail-coord rail-coord-end">e8</span>
     </div>
     <main id="contenido" tabindex="-1">
@@ -110,13 +118,12 @@ const structuredData = {
           </dl>
         </div>
         <KnightScene src={a.heroKnight} />
-        <div class="hero-bottom" aria-hidden="true"><span>Un juego que nos reúne.</span><span>Descubre tu próxima jugada <span class="down-arrow">↓</span></span></div>
       </section>
 
       <div class="notation-band" aria-hidden="true">
         <div class="notation-track">
           {[0, 1].map(() => (
-            <span class="notation-run">{notation.map((n) => <span class="notation-move">{n}<i>♟</i></span>)}</span>
+            <span class="notation-run">{notation.map((n) => <span class="notation-move">{n}<ChessPiece id="bP" class="notation-pawn" /></span>)}</span>
           ))}
         </div>
       </div>
@@ -137,9 +144,9 @@ const structuredData = {
           {a.heroPhoto && <figure class="association-photo"><HeroBoard photo={a.heroPhoto} photoDescription={a.heroPhotoDescription} /></figure>}
         </div>
         <ol class="principles">
-          <li data-reveal><span class="principle-num">01</span><div><h3>Jugar</h3><p>Partidas desde el primer día. Se aprende jugando, no mirando.</p></div><span class="principle-glyph" aria-hidden="true">♞</span></li>
-          <li data-reveal><span class="principle-num">02</span><div><h3>Pensar</h3><p>Ideas, planes y decisiones. Cada jugada entrena la cabeza.</p></div><span class="principle-glyph" aria-hidden="true">♝</span></li>
-          <li data-reveal><span class="principle-num">03</span><div><h3>Compartir</h3><p>Un rival al frente y un amigo al lado. El tablero nos reúne.</p></div><span class="principle-glyph" aria-hidden="true">♜</span></li>
+          {principles.map((p, i) => (
+            <li data-reveal><span class="principle-num">{String(i + 1).padStart(2, '0')}</span><div class="principle-body"><h3>{p.title}</h3><p>{p.body}</p></div><ChessPiece id={p.symbol} class="principle-glyph" /></li>
+          ))}
         </ol>
         <ClubPurpose />
       </section>
@@ -192,7 +199,7 @@ const structuredData = {
                 <tr class="class-row" role="row" data-reveal>
                   <th id={'level-' + c.piece} scope="row" role="rowheader"><div class="class-identity">
                     <span class="class-index" aria-hidden="true">{c.index}</span>
-                    <span class="piece-icon" aria-hidden="true">{c.glyph}</span>
+                    <span class="piece-icon" aria-hidden="true"><ChessPiece id={c.symbol} /></span>
                     <span><span class="class-invitation">{c.invitation}</span><span class="class-name">{c.name}</span></span>
                   </div></th>
                   <td class="class-description" role="cell" headers={'level-' + c.piece + ' description-column'}>{c.description}</td>

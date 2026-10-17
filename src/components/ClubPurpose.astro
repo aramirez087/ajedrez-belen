@@ -31,7 +31,7 @@ import { clubPurpose } from '../data/club-purpose';
   }
   .purpose-label {
     color: var(--red);
-    font-size: 11px;
+    font-size: var(--fs-label);
     font-weight: 700;
     letter-spacing: .14em;
     text-transform: uppercase;
@@ -50,10 +50,10 @@ import { clubPurpose } from '../data/club-purpose';
   }
   .purpose-value { padding-block: 22px 4px; border-top: 1px solid var(--line-strong); }
   .purpose-value + .purpose-value { margin-top: 22px; }
-  h3 { font-family: var(--display); font-size: 23px; font-weight: 640; letter-spacing: -.035em; }
-  .purpose-summary, .purpose-full p { color: var(--muted); font-size: 14.5px; line-height: 1.8; }
+  h3 { font-family: var(--display); font-size: var(--fs-title); font-weight: 640; letter-spacing: -.035em; }
+  .purpose-summary, .purpose-full p { color: var(--muted); font-size: var(--fs-body); line-height: 1.8; }
   .purpose-summary { margin-top: 10px; }
-  summary { color: var(--red); font-size: 12.5px; font-weight: 600; }
+  summary { color: var(--red); font-size: var(--fs-small); font-weight: 600; }
   summary:hover { color: var(--red-hover); }
   .purpose-full { padding-bottom: 18px; }
   .purpose-full p + p { margin-top: 16px; }

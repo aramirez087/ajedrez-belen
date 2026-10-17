@@ -1,17 +1,18 @@
 ---
+import ChessPiece, { type PieceId } from './ChessPiece.astro';
 // Mate del pasillo (back-rank mate). Blancas: Ta1, Rg1, peones f2 g2 h2.
 // Negras: Rg8, peones f7 g7 h7. Solución: Ta8#.
 const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-const pieces: Record<string, { glyph: string; color: 'white' | 'black'; name: string }> = {
-  a1: { glyph: '♜', color: 'white', name: 'torre blanca' },
-  g1: { glyph: '♚', color: 'white', name: 'rey blanco' },
-  f2: { glyph: '♟', color: 'white', name: 'peón blanco' },
-  g2: { glyph: '♟', color: 'white', name: 'peón blanco' },
-  h2: { glyph: '♟', color: 'white', name: 'peón blanco' },
-  g8: { glyph: '♚', color: 'black', name: 'rey negro' },
-  f7: { glyph: '♟', color: 'black', name: 'peón negro' },
-  g7: { glyph: '♟', color: 'black', name: 'peón negro' },
-  h7: { glyph: '♟', color: 'black', name: 'peón negro' },
+const pieces: Record<string, { id: PieceId; name: string }> = {
+  a1: { id: 'wR', name: 'torre blanca' },
+  g1: { id: 'wK', name: 'rey blanco' },
+  f2: { id: 'wP', name: 'peón blanco' },
+  g2: { id: 'wP', name: 'peón blanco' },
+  h2: { id: 'wP', name: 'peón blanco' },
+  g8: { id: 'bK', name: 'rey negro' },
+  f7: { id: 'bP', name: 'peón negro' },
+  g7: { id: 'bP', name: 'peón negro' },
+  h7: { id: 'bP', name: 'peón negro' },
 };
 const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
 ---
@@ -27,7 +28,7 @@ const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
             aria-label={piece ? `Casilla ${sq}, ${piece.name}` : `Casilla ${sq}`}>
             {fi === 0 && <span class="sq-coord sq-rank" aria-hidden="true">{rank}</span>}
             {rank === 1 && <span class="sq-coord sq-file" aria-hidden="true">{file}</span>}
-            {piece && <span class:list={['piece', 'piece-' + piece.color]} data-piece aria-hidden="true">{piece.glyph}</span>}
+            {piece && <span class:list={['piece', piece.id[0] === 'w' ? 'piece-white' : 'piece-black']} data-piece aria-hidden="true"><ChessPiece id={piece.id} /></span>}
           </button>
         );
       })}</div>)}
@@ -55,7 +56,10 @@ const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
 </div>
 <style>
   .puzzle-row { display: contents; }
-  .puzzle-keyboard { margin-top: 8px; font-size: 12px; line-height: 1.6; color: var(--on-dark); }
+  /* Last in the panel with its space reserved, so revealing it never shifts the layout. */
+  .puzzle-keyboard { order: 1; margin-top: 12px; font-size: var(--fs-label); line-height: 1.6; color: var(--on-dark); transition: opacity .2s var(--ease); }
+  /* Always read through aria-describedby; only shown for keyboard focus. Without :has() it stays visible. */
+  .puzzle-keyboard:not(.puzzle:has(.sq:focus-visible) .puzzle-keyboard) { opacity: 0; }
   .chip-button:disabled { cursor: default; opacity: .65; }
 </style>
 <script>

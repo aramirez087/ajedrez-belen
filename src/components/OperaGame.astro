@@ -4,42 +4,43 @@
 // 8.Cc3 c6 9.Ag5 b5 10.Cxb5 cxb5 11.Axb5+ Cbd7 12.O-O-O Td8 13.Txd7 Txd7
 // 14.Td1 De6 15.Axd7+ Cxd7 16.Db8+ Cxb8 17.Td8#
 // Snapshots (pasos): A=3...Ag4  B=9.Ag5  C=12.O-O-O  D=16.Db8+  E=17.Td8#
+import ChessPiece, { type PieceId } from './ChessPiece.astro';
 type Sq = string | null;
-interface OperaPiece { id: string; glyph: string; color: 'white' | 'black'; squares: Sq[] }
-const P = (id: string, glyph: string, color: 'white' | 'black', squares: Sq[]): OperaPiece => ({ id, glyph, color, squares });
+interface OperaPiece { id: string; piece: PieceId; squares: Sq[] }
+const P = (id: string, piece: PieceId, squares: Sq[]): OperaPiece => ({ id, piece, squares });
 const pieces: OperaPiece[] = [
-  P('wK', '♚', 'white', ['e1', 'e1', 'c1', 'c1', 'c1']),
-  P('wQ', '♛', 'white', ['d1', 'b3', 'b3', 'b8', null]),
-  P('wRa', '♜', 'white', ['a1', 'a1', 'd1', null, null]),
-  P('wRh', '♜', 'white', ['h1', 'h1', 'h1', 'd1', 'd8']),
-  P('wBc', '♝', 'white', ['c1', 'g5', 'g5', 'g5', 'g5']),
-  P('wBf', '♝', 'white', ['f1', 'c4', 'b5', null, null]),
-  P('wNb', '♞', 'white', ['b1', 'c3', null, null, null]),
-  P('wNg', '♞', 'white', ['f3', null, null, null, null]),
-  P('wPa', '♟', 'white', ['a2', 'a2', 'a2', 'a2', 'a2']),
-  P('wPb', '♟', 'white', ['b2', 'b2', 'b2', 'b2', 'b2']),
-  P('wPc', '♟', 'white', ['c2', 'c2', 'c2', 'c2', 'c2']),
-  P('wPd', '♟', 'white', ['d4', null, null, null, null]),
-  P('wPe', '♟', 'white', ['e4', 'e4', 'e4', 'e4', 'e4']),
-  P('wPf', '♟', 'white', ['f2', 'f2', 'f2', 'f2', 'f2']),
-  P('wPg', '♟', 'white', ['g2', 'g2', 'g2', 'g2', 'g2']),
-  P('wPh', '♟', 'white', ['h2', 'h2', 'h2', 'h2', 'h2']),
-  P('bK', '♚', 'black', ['e8', 'e8', 'e8', 'e8', 'e8']),
-  P('bQ', '♛', 'black', ['d8', 'e7', 'e7', 'e6', 'e6']),
-  P('bRa', '♜', 'black', ['a8', 'a8', 'a8', null, null]),
-  P('bRh', '♜', 'black', ['h8', 'h8', 'h8', 'h8', 'h8']),
-  P('bBc', '♝', 'black', ['g4', null, null, null, null]),
-  P('bBf', '♝', 'black', ['f8', 'f8', 'f8', 'f8', 'f8']),
-  P('bNb', '♞', 'black', ['b8', 'b8', 'd7', null, null]),
-  P('bNg', '♞', 'black', ['g8', 'f6', 'f6', 'd7', 'b8']),
-  P('bPa', '♟', 'black', ['a7', 'a7', 'a7', 'a7', 'a7']),
-  P('bPb', '♟', 'black', ['b7', 'b7', null, null, null]),
-  P('bPc', '♟', 'black', ['c7', 'c6', null, null, null]),
-  P('bPd', '♟', 'black', ['d6', 'e5', 'e5', 'e5', 'e5']),
-  P('bPe', '♟', 'black', ['e5', null, null, null, null]),
-  P('bPf', '♟', 'black', ['f7', 'f7', 'f7', 'f7', 'f7']),
-  P('bPg', '♟', 'black', ['g7', 'g7', 'g7', 'g7', 'g7']),
-  P('bPh', '♟', 'black', ['h7', 'h7', 'h7', 'h7', 'h7']),
+  P('wK', 'wK', ['e1', 'e1', 'c1', 'c1', 'c1']),
+  P('wQ', 'wQ', ['d1', 'b3', 'b3', 'b8', null]),
+  P('wRa', 'wR', ['a1', 'a1', 'd1', null, null]),
+  P('wRh', 'wR', ['h1', 'h1', 'h1', 'd1', 'd8']),
+  P('wBc', 'wB', ['c1', 'g5', 'g5', 'g5', 'g5']),
+  P('wBf', 'wB', ['f1', 'c4', 'b5', null, null]),
+  P('wNb', 'wN', ['b1', 'c3', null, null, null]),
+  P('wNg', 'wN', ['f3', null, null, null, null]),
+  P('wPa', 'wP', ['a2', 'a2', 'a2', 'a2', 'a2']),
+  P('wPb', 'wP', ['b2', 'b2', 'b2', 'b2', 'b2']),
+  P('wPc', 'wP', ['c2', 'c2', 'c2', 'c2', 'c2']),
+  P('wPd', 'wP', ['d4', null, null, null, null]),
+  P('wPe', 'wP', ['e4', 'e4', 'e4', 'e4', 'e4']),
+  P('wPf', 'wP', ['f2', 'f2', 'f2', 'f2', 'f2']),
+  P('wPg', 'wP', ['g2', 'g2', 'g2', 'g2', 'g2']),
+  P('wPh', 'wP', ['h2', 'h2', 'h2', 'h2', 'h2']),
+  P('bK', 'bK', ['e8', 'e8', 'e8', 'e8', 'e8']),
+  P('bQ', 'bQ', ['d8', 'e7', 'e7', 'e6', 'e6']),
+  P('bRa', 'bR', ['a8', 'a8', 'a8', null, null]),
+  P('bRh', 'bR', ['h8', 'h8', 'h8', 'h8', 'h8']),
+  P('bBc', 'bB', ['g4', null, null, null, null]),
+  P('bBf', 'bB', ['f8', 'f8', 'f8', 'f8', 'f8']),
+  P('bNb', 'bN', ['b8', 'b8', 'd7', null, null]),
+  P('bNg', 'bN', ['g8', 'f6', 'f6', 'd7', 'b8']),
+  P('bPa', 'bP', ['a7', 'a7', 'a7', 'a7', 'a7']),
+  P('bPb', 'bP', ['b7', 'b7', null, null, null]),
+  P('bPc', 'bP', ['c7', 'c6', null, null, null]),
+  P('bPd', 'bP', ['d6', 'e5', 'e5', 'e5', 'e5']),
+  P('bPe', 'bP', ['e5', null, null, null, null]),
+  P('bPf', 'bP', ['f7', 'f7', 'f7', 'f7', 'f7']),
+  P('bPg', 'bP', ['g7', 'g7', 'g7', 'g7', 'g7']),
+  P('bPh', 'bP', ['h7', 'h7', 'h7', 'h7', 'h7']),
 ];
 const steps = [
   { move: '3… Ag4', title: 'La clavada', body: 'Las negras clavan el caballo contra la dama. Morphy ni parpadea: abre el centro y sigue sacando piezas. La lección número uno del club: desarrolla, no persigas.' },
@@ -65,7 +66,7 @@ const pos = (sq: string) => ({ x: files.indexOf(sq[0]) * 100, y: (8 - Number(sq[
         {pieces.map((p) => {
           const start = p.squares[0];
           const xy = start ? pos(start) : { x: 0, y: 0 };
-          return <span class:list={['opiece', 'piece-' + p.color]} data-opiece={p.id} data-squares={JSON.stringify(p.squares)} style={`transform: translate(${xy.x}%, ${xy.y}%);`}>{p.glyph}</span>;
+          return <span class:list={['opiece', p.piece[0] === 'w' ? 'piece-white' : 'piece-black']} data-opiece={p.id} data-squares={JSON.stringify(p.squares)} style={`transform: translate(${xy.x}%, ${xy.y}%);`}><ChessPiece id={p.piece} /></span>;
         })}
         <span class="opera-stamp" data-opera-stamp aria-hidden="true">Td8#</span>
       </div>

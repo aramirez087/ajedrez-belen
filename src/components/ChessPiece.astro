@@ -1,0 +1,6 @@
+---
+export type PieceId = `${'w' | 'b'}${'K' | 'Q' | 'R' | 'B' | 'N' | 'P'}`;
+interface Props { id: PieceId; class?: string }
+const { id, class: className } = Astro.props;
+---
+<svg class:list={['piece-svg', className]} aria-hidden="true" focusable="false"><use href={`#piece-${id}`} /></svg>

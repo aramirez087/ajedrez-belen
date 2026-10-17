@@ -1,0 +1,42 @@
+Chess piece artwork (Staunton set, "cburnett")
+
+Author: Colin M.L. Burnett (Wikimedia Commons user Cburnett), 2006.
+Source files (Wikimedia Commons, "SVG chess pieces/Standard transparent"):
+  https://commons.wikimedia.org/wiki/File:Chess_klt45.svg  (and _qlt45, _rlt45, _blt45, _nlt45, _plt45,
+  _kdt45, _qdt45, _rdt45, _bdt45, _ndt45, _pdt45)
+Retrieved: 17 October 2026.
+
+The author released these files under a choice of licenses: GFDL (with CC BY-SA 3.0 migration),
+BSD and GPL ({{self|GFDL|migration=relicense|BSD|GPL}} on each file page). Ajedrez Belén uses them
+under the BSD license (3-clause, the Wikimedia Commons {{BSD}} default), reproduced below.
+
+Modifications: the twelve drawings are combined into one inline SVG <symbol> sprite
+(src/components/ChessPieceSprite.astro). Path data was rewritten in equivalent shorter form and
+black/white were replaced by currentColor and the --piece-light CSS custom property so the site
+can tint the pieces. The shapes are unchanged.
+
+-----------------------------------------------------------------------------------------------
+
+Copyright (c) 2006, Colin M.L. Burnett
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted
+provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of
+   conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice, this list of
+   conditions and the following disclaimer in the documentation and/or other materials provided
+   with the distribution.
+3. Neither the name of the copyright holder nor the names of its contributors may be used to
+   endorse or promote products derived from this software without specific prior written
+   permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
