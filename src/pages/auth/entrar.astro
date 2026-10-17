@@ -93,7 +93,7 @@ const recuperarHref = `/auth/recuperar${next ? `?next=${encodeURIComponent(next)
     <button class="portal-button portal-button-wide" type="submit">{invitedEmail ? 'Entrar' : 'Iniciar sesión'} <span aria-hidden="true">→</span></button>
   </form>
   <div class="portal-auth-links">
-    <a class="portal-link" href={recuperarHref}>¿Olvidaste tu contraseña? <span aria-hidden="true">↗</span></a>
-    <a class="portal-link" href={registroHref}>{invitedEmail ? '¿Primera vez? Crea tu cuenta' : '¿No tienes cuenta? Regístrate'} <span aria-hidden="true">↗</span></a>
+    <a class="portal-link" href={recuperarHref}>¿Olvidaste tu contraseña? <span aria-hidden="true">→</span></a>
+    <a class="portal-link" href={registroHref}>{invitedEmail ? '¿Primera vez? Crea tu cuenta' : '¿No tienes cuenta? Regístrate'} <span aria-hidden="true">→</span></a>
   </div>
 </AuthShell>

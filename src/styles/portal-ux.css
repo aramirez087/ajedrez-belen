@@ -1,0 +1,321 @@
+/* Portal usability layer. Loaded after portal-brand.css; markup and flows stay as they were.
+   Aims: readable on a phone in sunlight, one obvious next tap, and nothing that looks tappable but is not. */
+
+/* ── Reading size: parents use phones; 12 px is the floor only for tracked capitals. ── */
+.portal-description { max-width: 62ch; font-size: 15.5px; line-height: 1.65; color: var(--ink-soft); }
+.portal-next-step p { font-size: 15px; line-height: 1.6; }
+.portal-guidance p, .portal-athlete p, .portal-section-caption, .portal-section-heading p, .portal-stat p, .portal-alert-text p { font-size: 14px; }
+.portal-stat dt { font-size: 13px; }
+.portal-table { font-size: 14px; }
+.portal-table .portal-subtext { font-size: 13.5px; }
+.portal-table .portal-link, .portal-link, .portal-back-link, .portal-quick-fill { font-size: 14px; }
+.portal-status { font-size: 13px; padding: 5px 11px; }
+.portal-session, .portal-session small, .portal-brand small, .portal-footer { font-size: 13px; }
+.portal-navigation a, .portal-role-switch a { font-size: 14px; }
+.portal-athlete-balance span { font-size: 12px; }
+.portal-field label, .portal-label, .portal-fieldset legend { font-size: 14.5px; font-weight: 600; }
+.portal-form-step p { font-size: 14px; }
+.portal-notice { font-size: 14.5px; line-height: 1.55; }
+
+/* ── Pills: everything tappable in this portal shares the brand's round shape. ── */
+.portal-subnav { gap: 10px; }
+.portal-subnav a { border-radius: 999px; border-color: transparent; background: var(--surface); padding: 8px 18px; font-size: 14px; font-weight: 600; }
+.portal-subnav a:hover { background: var(--ink); color: var(--paper); }
+.portal-role-switch { border-radius: 999px; overflow: hidden; background: var(--surface); border-color: var(--line-strong); }
+.portal-role-switch a { padding-inline: 20px; }
+
+/* ── Money in Bodoni: the drawn colón needs air before the digits. ── */
+.portal-stat dd, .portal-athlete-balance strong, .portal-total output, .portal-number { word-spacing: .04em; }
+
+/* ── Help: a real button, not a sentence with a tiny link. ── */
+.portal-help-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 24px; margin-top: 28px; padding: 18px 22px; border: 0; border-radius: 6px; background: var(--surface); }
+.portal-help-bar p { font-size: 15px; margin: 0; }
+.portal-help-bar a.portal-help-button { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 10px 22px 10px 16px; border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 15px; font-weight: 600; text-decoration: none; transition: background .15s; }
+.portal-help-bar a.portal-help-button svg { flex: 0 0 auto; color: #25d366; }
+.portal-help-bar a.portal-help-button:hover { background: var(--red); }
+.portal-help-bar a.portal-help-button:hover svg { color: var(--paper); }
+
+/* ── Payment page: where to transfer comes first, exactly where the person needs it. ── */
+.portal-pay-to { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px 24px; margin: 0 0 32px; padding: 18px 22px; background: var(--surface); border-left: 4px solid var(--ink); }
+.portal-pay-to-body { min-width: 0; flex: 1 1 260px; }
+.portal-pay-to-label { font-size: 14px; font-weight: 600; color: var(--muted); }
+.portal-pay-to-value { margin-top: 4px; font-family: var(--display); font-size: clamp(22px, 5.4vw, 28px); font-weight: 500; line-height: 1.2; overflow-wrap: anywhere; }
+.portal-pay-to-note { margin-top: 6px; font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
+.portal-pay-to-action { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.portal-pay-to-action .portal-button { justify-content: center; }
+
+/* ── The file picker: the browser's own button text follows the phone's language, so ours replaces it. ── */
+.portal-slip-drop { position: relative; padding: 24px 24px 22px; border-radius: 8px; }
+.portal-slip-drop .portal-field input[type='file'] { position: absolute; inset: 0; z-index: 2; width: 100%; max-width: none; height: 100%; min-height: 0; padding: 0; opacity: 0; cursor: pointer; font-size: 0; }
+.portal-slip-drop .portal-field input[type='file']::file-selector-button { cursor: pointer; }
+.portal-slip-pick { display: inline-flex; align-items: center; gap: 10px; min-height: 52px; margin: 10px 0 14px; padding: 12px 24px 12px 20px; border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 15px; font-weight: 600; transition: background .15s, transform .15s; }
+.portal-slip-drop:hover .portal-slip-pick { background: var(--red); }
+.portal-slip-drop:focus-within .portal-slip-pick { background: var(--red); outline: 2px solid var(--red); outline-offset: 3px; }
+.portal-slip-drop .portal-field label { font-size: 15px; font-weight: 600; }
+
+/* ── Admin: the search block and the list under it must not touch. ── */
+.portal-month-form + .portal-help { margin-bottom: 38px; }
+
+/* ── Phone: one tab bar for the family, always in reach of a thumb. ── */
+.portal-tabbar { display: none; }
+@media (max-width: 850px) {
+  .has-tabbar { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .has-tabbar .portal-mobile-navigation { display: none; }
+  .portal-tabbar { display: block; position: fixed; inset: auto 0 0 0; z-index: 40; padding: 0 max(8px, env(safe-area-inset-right)) env(safe-area-inset-bottom, 0px) max(8px, env(safe-area-inset-left)); border-top: 1px solid var(--line-strong); background: color-mix(in srgb, var(--paper) 97%, transparent); backdrop-filter: blur(12px); box-shadow: 0 -10px 30px -18px rgb(22 19 15 / .35); }
+  .portal-tabbar ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 560px; margin: 0 auto; padding: 0; list-style: none; }
+  .portal-tabbar a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 64px; padding: 9px 2px 8px; color: var(--muted); font-size: 12px; font-weight: 600; line-height: 1.15; text-align: center; text-wrap: balance; }
+  .portal-tabbar a svg { flex: 0 0 auto; }
+  .portal-tabbar a[aria-current='page'] { color: var(--red); }
+  .portal-tabbar a[aria-current='page']::before { content: ''; position: absolute; top: -1px; left: 22%; right: 22%; height: 3px; border-radius: 0 0 3px 3px; background: var(--red); }
+  .portal-tabbar a[data-tab='new-payment']:not([aria-current='page']) { color: var(--ink); }
+  .portal-tabbar a[data-tab='new-payment']:not([aria-current='page']) svg { color: var(--red); }
+  .portal-tabbar a:active { background: var(--surface); }
+  /* A keyboard on screen needs the room more than the tabs do. */
+  body:has(input:focus, select:focus, textarea:focus) .portal-tabbar { display: none; }
+  body:has(input:focus, select:focus, textarea:focus).has-tabbar { padding-bottom: 0; }
+}
+
+/* ── Phone header: brand and who is signed in share one compact block. ── */
+@media (max-width: 650px) {
+  .portal-header { gap: 8px; min-height: 0; padding-block: 14px; }
+  .portal-session { gap: 6px 12px; padding-top: 10px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .portal-session small { display: inline; margin: 0 0 0 8px; }
+  .portal-session small::before { content: '· '; }
+  .portal-page-heading { padding-block: 26px 22px; }
+  .portal-description { font-size: 15px; }
+  .portal-stat dd { font-size: 30px; }
+  .portal-help-bar { padding: 16px 18px; }
+  .portal-help-bar a.portal-help-button { width: 100%; justify-content: center; }
+  .portal-pay-to-action, .portal-pay-to-action .portal-button { width: 100%; }
+}
+
+@media print { .portal-tabbar, .portal-help-bar { display: none !important; } }
+
+/* ── Next-step panel: room between the sentence and the thing to tap. ── */
+.portal-next-step p + :is(a, .portal-copy-row, .portal-pay-to) { margin-top: 18px; }
+.portal-next-step .portal-pay-to { margin-bottom: 0; background: var(--paper); border: 1px solid var(--line-strong); border-left: 4px solid var(--ink); }
+.portal-next-step .portal-pay-to + .portal-copy-row { margin-top: 14px; }
+.portal-help + .portal-pay-to { margin-top: 22px; }
+
+/* ── Month navigation: two clear, separated buttons instead of two adjacent links. ── */
+.portal-event-monthnav { gap: 10px; }
+.portal-event-monthnav .portal-link { padding: 8px 18px; border-radius: 999px; background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 600; transition: background .15s, color .15s; }
+.portal-event-monthnav .portal-link:hover { background: var(--ink); color: var(--paper); }
+.portal-event-monthnav .portal-link span { color: var(--red); }
+.portal-event-monthnav .portal-link:hover span { color: var(--paper); }
+
+/* ── Small print that carries real information. ── */
+.portal-allocation-row label, .portal-allocation-row label small, .portal-slip-status, .portal-detail-list dt, .portal-detail-list dd { font-size: 14px; }
+.portal-allocation-row label small { font-size: 13.5px; }
+.portal-slip-status { font-size: 13.5px; }
+
+/* ── The tab bar already goes home; a duplicate "Mi cuenta" button in the heading is noise. ── */
+@media (max-width: 850px) {
+  .has-tabbar .portal-heading-action > .portal-button-secondary[href='/portal'] { display: none; }
+}
+
+/* ── Forms: fieldset groups need the same rhythm as the form around them. ── */
+.portal-fieldset.athlete-block { display: grid; gap: 20px; margin-bottom: 8px; }
+.portal-fieldset.athlete-block > legend { margin-bottom: 16px; font-size: 16px; }
+
+/* ══ Events ══════════════════════════════════════════════════════════════
+   One page answers four questions in order: what is next, the next two weeks,
+   what is special later, and the weekly routine. The month is the full record. */
+
+/* Next up: one large card with the actions that matter right now. */
+.portal-event-spotlight { display: flex; gap: clamp(18px, 3vw, 34px); align-items: flex-start; margin-bottom: 46px; padding: clamp(22px, 3.4vw, 36px); background: var(--ink); color: var(--paper); border-radius: 6px; }
+.portal-event-spotlight.is-live { background: var(--red); }
+.portal-event-spotlight-date { flex: 0 0 auto; display: grid; place-items: center; width: 84px; padding: 12px 6px 10px; border: 1px solid color-mix(in srgb, var(--paper) 40%, transparent); border-radius: 4px; text-align: center; }
+.portal-event-spotlight-date strong { font-family: var(--display); font-size: 44px; font-weight: 500; line-height: 1; }
+.portal-event-spotlight-date span { margin-top: 4px; font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.portal-event-spotlight-body { min-width: 0; flex: 1; }
+.portal-event-spotlight-kicker { display: flex; align-items: center; gap: 9px; color: color-mix(in srgb, var(--paper) 78%, transparent); font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.portal-event-spotlight h2 { margin-top: 8px; font-family: var(--display); font-size: clamp(28px, 4.4vw, 44px); font-weight: 500; line-height: 1.08; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.portal-event-spotlight h2 a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+.portal-event-spotlight-when { margin-top: 12px; font-size: 16px; font-weight: 500; }
+.portal-event-spotlight-where { margin-top: 4px; font-size: 15px; color: color-mix(in srgb, var(--paper) 78%, transparent); overflow-wrap: anywhere; }
+.portal-event-spotlight-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; margin-top: 24px; }
+.portal-event-spotlight .portal-button { background: var(--paper); border-color: var(--paper); color: var(--ink); }
+.portal-event-spotlight .portal-button:hover { background: var(--paper-deep); box-shadow: none; }
+.portal-event-spotlight .portal-button-secondary { background: transparent; border-color: color-mix(in srgb, var(--paper) 55%, transparent); color: var(--paper); }
+.portal-event-spotlight .portal-button-secondary:hover { background: color-mix(in srgb, var(--paper) 14%, transparent); border-color: var(--paper); }
+.portal-event-spotlight .portal-link { color: var(--paper); }
+.portal-event-spotlight :focus-visible { outline-color: var(--paper); }
+.portal-live-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--paper); animation: portal-live 1.6s ease-in-out infinite; }
+@keyframes portal-live { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .portal-live-dot { animation: none; } }
+
+/* Agenda: days as headings, one compact row per activity. */
+.portal-agenda { display: grid; gap: 22px; }
+.portal-agenda-date { margin-bottom: 8px; font-family: var(--font); font-size: 13px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.portal-agenda-date em { font-style: normal; color: var(--red); }
+.portal-agenda-day ul { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.portal-agenda-item { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 4px 18px; min-height: 64px; padding: 12px 6px; border-bottom: 1px solid var(--line); transition: background .15s; }
+.portal-agenda-item:hover { background: var(--surface); }
+.portal-agenda-item:hover strong { color: var(--red); }
+.portal-agenda-time { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.portal-agenda-time small { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
+.portal-agenda-main { display: grid; gap: 2px; min-width: 0; }
+.portal-agenda-main strong { font-family: var(--display); font-size: 19px; font-weight: 600; line-height: 1.2; letter-spacing: -.01em; overflow-wrap: anywhere; transition: color .15s; }
+.portal-agenda-main span { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.portal-agenda-tag { justify-self: end; padding: 4px 10px; border-radius: 999px; background: var(--surface); font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--ink-soft); }
+.portal-agenda-tag.is-live { background: var(--red); color: var(--paper); }
+.portal-agenda-item.is-past, .portal-agenda-day.is-past .portal-agenda-item { opacity: .6; }
+.portal-agenda-item.is-cancelled strong { text-decoration: line-through; }
+.portal-agenda-past { margin-bottom: 22px; border-block: 1px solid var(--line); }
+.portal-agenda-past > summary { display: flex; align-items: center; gap: 10px; min-height: 52px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--red); }
+.portal-agenda-past > summary::before { content: '+'; font-size: 22px; font-weight: 400; line-height: 1; }
+.portal-agenda-past[open] > summary::before { content: '−'; }
+.portal-agenda-past > .portal-agenda { padding-bottom: 18px; }
+.portal-agenda-count { padding: 1px 9px; border-radius: 999px; background: var(--surface); color: var(--ink-soft); font-size: 12.5px; }
+
+/* Later on: special one-off events as date tiles. */
+.portal-event-specials { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
+.portal-event-special { display: flex; gap: 16px; align-items: flex-start; height: 100%; padding: 18px; border: 1px solid var(--line); border-top: 3px solid var(--red); background: #fffdf7; transition: background .15s, border-color .15s; }
+.portal-event-special:hover { background: var(--surface); }
+.portal-event-special:hover strong { color: var(--red); }
+.portal-event-special-date { flex: 0 0 58px; display: grid; justify-items: center; padding: 8px 4px; border: 1px solid var(--line-strong); font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.portal-event-special-date strong { font-family: var(--display); font-size: 28px; font-weight: 500; line-height: 1; letter-spacing: 0; color: var(--ink); }
+.portal-event-special-body { display: grid; gap: 4px; min-width: 0; }
+.portal-event-special-body strong { font-family: var(--display); font-size: 19px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; transition: color .15s; }
+.portal-event-special-body span { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.portal-event-special-body span:first-of-type { color: var(--ink-soft); font-weight: 500; }
+
+/* Every week: the fixed timetable, learned once. */
+.portal-event-series { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
+.portal-event-series-item { display: flex; flex-direction: column; gap: 6px; padding: 18px 20px 12px; background: var(--surface); border-radius: 6px; }
+.portal-event-series-when { font-size: 13px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; color: var(--red); }
+.portal-event-series-item h3 { font-family: var(--display); font-size: 20px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.portal-event-series-item h3 a:hover { color: var(--red); }
+.portal-event-series-meta { font-size: 14px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.portal-event-series-item .portal-link { margin-top: auto; }
+
+/* Month: a real grid where there is room, the same days as a list on phones. */
+.portal-event-month .portal-section-heading { align-items: center; }
+.portal-event-month-list { display: none; }
+.portal-calendar-cell { height: 112px; padding: 8px; }
+.portal-calendar-cell.is-past { background: var(--paper); }
+.portal-calendar-cell.is-past .portal-calendar-day { color: var(--muted); font-weight: 500; }
+.portal-calendar-cell.is-past .portal-calendar-event { opacity: .6; }
+.portal-calendar-cell.is-today { background: #fffdf7; box-shadow: inset 0 0 0 2px var(--red); }
+.portal-calendar-day { font-size: 13.5px; }
+.portal-calendar-event { gap: 6px; align-items: baseline; border: 0; border-left: 3px solid var(--red); border-radius: 2px; background: var(--red-soft); font-size: 12.5px; line-height: 1.3; }
+.portal-calendar-event:hover { background: var(--red); color: var(--paper); }
+.portal-calendar-event-time { flex: 0 0 auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+.portal-calendar-event-title { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.portal-calendar th { font-size: 12.5px; }
+@media (max-width: 760px) {
+  .portal-event-month-grid { display: none; }
+  .portal-event-month-list { display: block; }
+}
+@media (max-width: 650px) {
+  .portal-event-spotlight { flex-direction: column; gap: 16px; margin-bottom: 36px; border-radius: 0; margin-inline: calc(var(--portal-gutter) * -1); padding-inline: var(--portal-gutter); }
+  .portal-event-spotlight-date { display: none; }
+  .portal-event-spotlight-actions { flex-direction: column; align-items: stretch; }
+  .portal-event-spotlight-actions .portal-button { justify-content: space-between; }
+  .portal-event-spotlight-actions .portal-link { align-self: flex-start; }
+  .portal-agenda-item { grid-template-columns: 78px minmax(0, 1fr); padding-inline: 2px; }
+  .portal-agenda-tag { grid-column: 2; justify-self: start; margin-top: 4px; }
+  .portal-agenda-main strong { font-size: 18px; }
+  .portal-event-monthnav { width: 100%; }
+  .portal-event-monthnav .portal-link { flex: 1 1 0; justify-content: center; }
+}
+.portal-agenda-past > summary { justify-content: flex-start; list-style: none; }
+.portal-agenda-past > summary::-webkit-details-marker { display: none; }
+.portal-event-month-list > .portal-section-caption { margin-top: 0; }
+
+/* Event detail: an action card (when, what to tap) beside the facts. */
+.portal-event-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 24px 48px; align-items: start; margin-bottom: 44px; }
+.portal-event-detail-layout > .portal-event-action-card { grid-column: 2; grid-row: 1; position: sticky; top: 76px; }
+.portal-event-detail-layout > .portal-event-detail { grid-column: 1; grid-row: 1; }
+.portal-event-action-card { display: grid; gap: 18px; padding: 24px; border-top: 3px solid var(--red); background: var(--surface); border-radius: 0 0 6px 6px; }
+.portal-event-action-when { display: flex; align-items: center; gap: 16px; }
+.portal-event-action-date { flex: 0 0 auto; display: grid; justify-items: center; width: 70px; padding: 9px 4px 8px; border: 1px solid var(--line-strong); background: #fffdf7; font-size: 12.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.portal-event-action-date strong { font-family: var(--display); font-size: 36px; font-weight: 500; line-height: 1; letter-spacing: 0; color: var(--ink); }
+.portal-event-action-when p { display: grid; gap: 2px; }
+.portal-event-action-when p strong { font-family: var(--display); font-size: 22px; font-weight: 600; text-transform: capitalize; }
+.portal-event-action-when p span { font-size: 15px; color: var(--ink-soft); }
+.portal-event-action-buttons { display: grid; gap: 10px; }
+.portal-event-action-buttons .portal-button { width: 100%; }
+.portal-event-action-more, .portal-event-action-share { display: flex; flex-wrap: wrap; align-items: center; gap: 0 20px; }
+.portal-event-action-share { padding-top: 12px; border-top: 1px solid var(--line-strong); }
+.portal-event-action-share [data-copy-feedback]:empty { display: none; }
+.portal-event-action-card .portal-event-live-note { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 0; }
+.portal-event-action-card .portal-event-live-note .portal-live-dot { background: var(--red); }
+.portal-event-action-card .portal-event-past-note { margin: 0; }
+.portal-event-detail .portal-event-facts { margin-top: 0; padding-block: 4px 18px; border-bottom: 1px solid var(--line); }
+.portal-event-facts > div { padding-top: 14px; border-top: 1px solid var(--line); }
+.portal-event-facts > div:first-child { padding-top: 0; border-top: 0; }
+.portal-event-facts dt { font-size: 12.5px; }
+.portal-event-facts dd { font-size: 15.5px; line-height: 1.55; }
+.portal-event-description p { font-size: 15.5px; }
+.portal-event-next-dates h2 { margin-bottom: 14px; }
+.portal-event-admin-link { margin-top: 22px; }
+@media (max-width: 900px) {
+  .portal-event-detail-layout { grid-template-columns: 1fr; }
+  .portal-event-detail-layout > .portal-event-action-card, .portal-event-detail-layout > .portal-event-detail { grid-column: 1; grid-row: auto; position: static; }
+}
+.portal-event-detail h2 { font-family: var(--display); font-size: 26px; font-weight: 500; line-height: 1.2; letter-spacing: -.02em; }
+
+/* ── Filter chips: the active one must look selected. ── */
+.portal-subnav a[aria-current='page'] { background: var(--ink); color: var(--paper); }
+
+/* ── Any other file input gets the same localized button. ── */
+.portal-file-field { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
+.portal-file-field input[type='file'] { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; min-height: 0; padding: 0; opacity: 0; cursor: pointer; font-size: 0; }
+.portal-file-field .portal-slip-pick { margin: 0; }
+.portal-file-field:hover .portal-slip-pick { background: var(--red); }
+.portal-file-field:focus-within .portal-slip-pick { background: var(--red); outline: 2px solid var(--red); outline-offset: 3px; }
+.portal-file-name { min-width: 0; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* ── Checkbox labels inside fields keep their box beside the text. ── */
+.portal-field label.portal-checkbox { display: flex; align-items: center; gap: 11px; margin: 0; font-size: 15px; font-weight: 500; }
+.portal-checkbox { font-size: 15px; align-items: center; }
+.portal-checkbox input { margin-top: 0; }
+.portal-event-allday { align-items: center; padding-bottom: 0; }
+
+/* ── Long admin forms: each question is its own block. ── */
+.portal-form > .portal-fieldset { display: grid; gap: 16px; padding: 22px 22px 24px; background: var(--surface); border-radius: 6px; }
+.portal-form > .portal-fieldset > legend { float: left; width: 100%; margin: 0 0 4px; padding: 0; font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+.portal-form > .portal-fieldset > legend + * { clear: both; }
+.portal-form > .portal-fieldset :is(input:not([type='checkbox']):not([type='radio']), select, textarea) { background: #fffdf7; }
+
+/* ── Admin event list: the actions belong to their card. ── */
+.portal-event-row-actions { display: grid; }
+.portal-event-row-actions > .portal-event-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 22px; margin: 0; padding: 4px 20px; border: 1px solid var(--line); border-top: 0; background: var(--surface); }
+
+/* ── Payment progress: a stepper, not a paragraph list. Done steps are the ones before the current. ── */
+.portal-progress { counter-reset: step; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 4px 0 30px; padding: 0; color: var(--muted); font-size: 14px; }
+.portal-progress li { counter-increment: step; position: relative; padding: 46px 18px 0 0; line-height: 1.5; }
+.portal-progress li::marker { content: none; }
+.portal-progress li::before { content: counter(step); position: absolute; top: 0; left: 0; z-index: 1; display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid var(--line-strong); border-radius: 50%; background: var(--paper); color: var(--muted); font-weight: 700; font-size: 14px; }
+.portal-progress li::after { content: ''; position: absolute; top: 16px; left: 34px; right: 0; height: 2px; background: var(--line-strong); }
+.portal-progress li:last-child::after { display: none; }
+.portal-progress li strong { display: block; color: var(--ink); font-size: 15px; }
+.portal-progress li:has(~ li[aria-current])::before { content: '✓'; border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.portal-progress li:has(~ li[aria-current])::after { background: var(--ink); }
+.portal-progress li[aria-current]::before { border-color: var(--red); background: var(--red); color: var(--paper); box-shadow: 0 0 0 5px var(--red-soft); }
+.portal-progress li[aria-current] strong { color: var(--red); }
+@media (max-width: 650px) {
+  .portal-progress { grid-template-columns: 1fr; gap: 0; }
+  .portal-progress li { padding: 5px 0 20px 50px; min-height: 54px; }
+  .portal-progress li::after { top: 34px; bottom: 0; left: 16px; right: auto; width: 2px; height: auto; }
+}
+
+/* ── Stats: a zero that is not the balance is reassurance, not news. Keep it small. ── */
+.portal-stat-zero:not(.portal-stat-primary) dd { font-size: 24px; }
+.portal-stat-zero:not(.portal-stat-primary) p { display: none; }
+@media (min-width: 651px) {
+  .portal-stats:has(.portal-stat-zero:not(.portal-stat-primary)) { grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 650px) {
+  .portal-stat-zero:not(.portal-stat-primary) { grid-template-columns: 1fr auto; padding-block: 12px; }
+  .portal-stat-zero:not(.portal-stat-primary) dd { font-size: 22px; }
+}
+
+/* ── Phone: section chips stay on one swipeable row instead of wrapping into a block. ── */
+@media (max-width: 650px) {
+  .portal-subnav { flex-wrap: nowrap; overflow-x: auto; margin-inline: calc(var(--portal-gutter) * -1); padding-inline: var(--portal-gutter); scroll-padding-inline: var(--portal-gutter); scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
+  .portal-subnav::-webkit-scrollbar { display: none; }
+  .portal-subnav a { flex: 0 0 auto; white-space: nowrap; }
+}

@@ -2,11 +2,11 @@
 import { env } from "cloudflare:workers";
 import PortalLayout from "../../../layouts/PortalLayout.astro";
 import PageHeader from "../../../components/portal/PageHeader.astro";
-import EventCard from "../../../components/portal/EventCard.astro";
+import EventAgenda from "../../../components/portal/EventAgenda.astro";
 import EventCalendar from "../../../components/portal/EventCalendar.astro";
 import { MONTHS_ES } from "../../../components/portal/format";
 import { authorizePortal } from "../../../lib/portal/access";
-import { canViewFamilyEvents, crDateKey, crWallToUtcIso, listOccurrences, upcomingOccurrences } from "../../../lib/portal/events";
+import { canViewFamilyEvents, crDateKey, crDateLabel, crRangeLabel, crShortDateLabel, crWallParts, crWallToUtcIso, listOccurrences, mapsUrl, occurrenceState, recurrenceLabel, type EventOccurrence } from "../../../lib/portal/events";
 export const prerender = false;
 const access = await authorizePortal(Astro, env);
 if (!access.ok) return access.response;
@@ -26,43 +26,99 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const prevMonth = `${prevY}-${pad(prevM)}`, nextMonth = `${nextY}-${pad(nextM)}`;
 const viewingCurrentMonth = yearMonth === todayKey.slice(0, 7);
 const familyEvents = await canViewFamilyEvents(env.DB, actor);
-const [occurrences, upcoming] = familyEvents ? await Promise.all([
+const DAY = 86_400_000;
+const horizon = new Date(new Date(nowIso).getTime() + 180 * DAY).toISOString();
+const [occurrences, ahead] = familyEvents ? await Promise.all([
   listOccurrences(env.DB, actor, monthStart, monthEnd),
-  upcomingOccurrences(env.DB, actor, 5, nowIso),
+  listOccurrences(env.DB, actor, nowIso, horizon),
 ]) : [[], []];
-// Never show the same occurrence twice on this page: the month list skips
-// what "Lo que viene" already showed (relevant when viewing this month).
-const shownKeys = new Set(upcoming.map((o) => `${o.event.id}|${o.startsAt}`));
-const monthList = occurrences.filter((o) => !shownKeys.has(`${o.event.id}|${o.startsAt}`));
-const monthListDeduped = monthList.length !== occurrences.length;
+const upcoming = ahead.filter((o) => o.endsAt > nowIso);
+// One page, four questions: what is next, what is this fortnight, what is
+// special later on, and what repeats every week. No occurrence is repeated
+// between the first three; the month view below is the full record.
+const spotlight: EventOccurrence | undefined = upcoming[0];
+const windowEnd = new Date(new Date(nowIso).getTime() + 14 * DAY).toISOString();
+const soon = upcoming.slice(1).filter((o) => o.startsAt < windowEnd);
+const later = upcoming.filter((o) => o.startsAt >= windowEnd && !o.isRecurring).slice(0, 6);
+const series = [...new Map(upcoming.filter((o) => o.isRecurring).map((o) => [o.event.id, o] as const)).values()]
+  .sort((a, b) => crWallParts(a.startsAt).weekday - crWallParts(b.startsAt).weekday || crWallParts(a.startsAt).hour * 60 + crWallParts(a.startsAt).minute - (crWallParts(b.startsAt).hour * 60 + crWallParts(b.startsAt).minute));
+// On phones the month is a list; in the current month it skips what is already above.
+const shownAbove = new Set([spotlight, ...soon].filter(Boolean).map((o) => `${o!.event.id}|${o!.startsAt}`));
+const monthListItems = viewingCurrentMonth ? occurrences.filter((o) => !shownAbove.has(`${o.event.id}|${o.startsAt}`)) : occurrences;
+const spotState = spotlight ? occurrenceState(spotlight, nowIso) : null;
+const spotSoon = spotlight ? new Date(spotlight.startsAt).getTime() - new Date(nowIso).getTime() <= 2 * 3600_000 : false;
+const spotJoin = !!spotlight?.event.locationUrl && (spotState === "live" || spotState === "today" || spotSoon);
+const spotMaps = spotlight ? mapsUrl(spotlight.event) : null;
+const spotZoom = /zoom\.us/i.test(spotlight?.event.locationUrl ?? "");
+const spotKicker = !spotlight ? "" : spotState === "live" ? "En vivo ahora" : spotState === "today" ? "Hoy" : spotState === "tomorrow" ? "Mañana" : "Lo próximo";
+const detailHref = (o: EventOccurrence) => `/portal/eventos/${o.event.id}?occurrence=${encodeURIComponent(o.startsAt)}`;
+const icsHref = (o: EventOccurrence) => `/api/portal/events/${o.event.id}/ics?occurrence=${encodeURIComponent(o.startsAt)}`;
+const place = (o: EventOccurrence) => o.event.locationLabel ?? o.event.locationAddress ?? (o.event.locationType === "online" ? "En línea" : "");
+const shortMonths = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 ---
 <PortalLayout title="Eventos" actor={actor} active="events">
-  <PageHeader title="Eventos y actividades." eyebrow="Calendario" description={familyEvents ? "Clases, torneos y la llamada semanal por Zoom. Las horas son de Costa Rica. Toca un evento para entrar o ver la dirección." : "Las clases, los enlaces para entrar y las direcciones se muestran cuando tu cuenta tiene un atleta."}><a class="portal-button portal-button-secondary" href="/portal">Mi cuenta <span aria-hidden="true">→</span></a></PageHeader>
+  <PageHeader title="Eventos y actividades." eyebrow="Calendario" description={familyEvents ? "Clases, torneos y reuniones de la Asociación. Todas las horas son de Costa Rica." : "Las clases, los enlaces para entrar y las direcciones se muestran cuando tu cuenta tiene un atleta."} />
   {monthAdjusted && familyEvents && <div class="portal-notice" role="status"><p>Ese mes no se pudo leer, así que te mostramos <strong>este mes</strong>.</p></div>}
   {actor.isAdmin && <p class="portal-section-caption">Eres administración: <a class="portal-link" href="/admin/eventos">crear y editar eventos <span aria-hidden="true">→</span></a></p>}
   {!familyEvents && <section class="portal-section" aria-labelledby="events-locked-title"><div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3 id="events-locked-title">Los eventos aparecen cuando tu cuenta tiene un atleta.</h3><p>Las clases, los enlaces para entrar y las direcciones son para las familias inscritas. Acepta la invitación de la Asociación y el calendario se muestra aquí.</p><p><a class="portal-link" href="/portal/invitacion">Ya tengo mi enlace <span aria-hidden="true">→</span></a></p></div></div></section>}
-  {familyEvents && <><section class="portal-section" aria-labelledby="upcoming-title">
-    <div class="portal-section-heading"><h2 id="upcoming-title">Lo que viene</h2><p>Siempre los próximos, aunque mires otro mes.</p></div>
-    {upcoming.length ? <div class="portal-event-list">{upcoming.map((o) => <EventCard occurrence={o} nowIso={nowIso} />)}</div> : occurrences.length === 0 ? <div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3>No hay eventos próximos.</h3><p>Cuando la Asociación publique actividades, aparecerán aquí.</p></div></div> : <div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3>No hay eventos próximos.</h3><p>Cuando la Asociación publique actividades, aparecerán aquí. Mientras tanto, puedes revisar otros meses abajo.</p></div></div>}
-  </section>
-  <section class="portal-section" aria-labelledby="month-title">
-    <div class="portal-section-heading"><h2 id="month-title">{MONTHS_ES[mm - 1]} {yy}</h2>
-      <nav class="portal-event-monthnav" aria-label="Cambiar de mes">
-        <a class="portal-link" href={`/portal/eventos?month=${prevMonth}#month-title`}><span aria-hidden="true">←</span> Mes anterior</a>
-        {!viewingCurrentMonth && <a class="portal-link" href="/portal/eventos#month-title">Ir a hoy</a>}
-        <a class="portal-link" href={`/portal/eventos?month=${nextMonth}#month-title`}>Mes siguiente <span aria-hidden="true">→</span></a>
-      </nav>
-    </div>
-    {occurrences.length ? (<>
-      {monthListDeduped && <p class="portal-section-caption">Los eventos de arriba («Lo que viene») no se repiten en esta lista.</p>}
-      {monthList.length ? <div class="portal-event-list">{monthList.map((o) => <div><EventCard occurrence={o} nowIso={nowIso} /></div>)}</div>
-        : <p class="portal-section-caption">Todo lo de este mes ya está arriba, en «Lo que viene».</p>}
-      <details class="portal-calendar-details">
-        <summary>Ver {MONTHS_ES[mm - 1]} en calendario</summary>
-        <EventCalendar yearMonth={yearMonth} occurrences={occurrences} todayKey={todayKey} />
-      </details>
-    </>) : (
-      <>{upcoming.length > 0 && <div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3>No hay eventos en {MONTHS_ES[mm - 1]}.</h3><p><a class="portal-link" href={`/portal/eventos?month=${nextMonth}#month-title`}>Ver el mes siguiente <span aria-hidden="true">→</span></a></p></div></div>}</>
+  {familyEvents && <>
+    {spotlight ? (
+      <section class:list={["portal-event-spotlight", { "is-live": spotState === "live" }]} aria-labelledby="spotlight-title">
+        <div class="portal-event-spotlight-date" aria-hidden="true"><strong>{crWallParts(spotlight.startsAt).day}</strong><span>{shortMonths[crWallParts(spotlight.startsAt).month - 1]}</span></div>
+        <div class="portal-event-spotlight-body">
+          <p class="portal-event-spotlight-kicker">{spotState === "live" && <span class="portal-live-dot" aria-hidden="true"></span>}{spotKicker}</p>
+          <h2 id="spotlight-title"><a href={detailHref(spotlight)}>{spotlight.event.title}</a></h2>
+          <p class="portal-event-spotlight-when"><time datetime={spotlight.startsAt}>{crDateLabel(spotlight.startsAt)}</time> · {crRangeLabel(spotlight.startsAt, spotlight.endsAt, spotlight.event.allDay)}</p>
+          {place(spotlight) && <p class="portal-event-spotlight-where">{place(spotlight)}{spotlight.isRecurring && <> · {recurrenceLabel(spotlight.event).toLowerCase()}</>}</p>}
+          <div class="portal-event-spotlight-actions">
+            {spotJoin && <a class="portal-button" href={spotlight.event.locationUrl} target="_blank" rel="noopener noreferrer">{spotState === "live" ? (spotZoom ? "Entrar ahora por Zoom" : "Entrar ahora") : (spotZoom ? "Entrar por Zoom" : "Entrar al evento")} <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a>}
+            {spotMaps && <a class:list={["portal-button", { "portal-button-secondary": spotJoin }]} href={spotMaps} target="_blank" rel="noopener noreferrer">Cómo llegar <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a>}
+            {spotState !== "live" && <a class="portal-button portal-button-secondary" href={icsHref(spotlight)}>Agregar a mi calendario <span aria-hidden="true">↓</span></a>}
+            <a class="portal-link" href={detailHref(spotlight)}>Ver detalles <span aria-hidden="true">→</span></a>
+          </div>
+        </div>
+      </section>
+    ) : (
+      <section class="portal-section" aria-labelledby="none-title"><div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h2 id="none-title">No hay eventos próximos.</h2><p>Cuando la Asociación publique actividades, aparecerán aquí.{occurrences.length > 0 && " Este mes tuvo actividades: están más abajo, en el calendario."}</p></div></div></section>
     )}
-  </section></>}
+
+    {soon.length > 0 && <section class="portal-section" aria-labelledby="soon-title">
+      <div class="portal-section-heading"><h2 id="soon-title">Próximos 14 días</h2><p>Toca una actividad para ver dirección, enlace y más fechas.</p></div>
+      <EventAgenda occurrences={soon} nowIso={nowIso} />
+    </section>}
+
+    {later.length > 0 && <section class="portal-section" aria-labelledby="later-title">
+      <div class="portal-section-heading"><h2 id="later-title">Más adelante</h2><p>Torneos y actividades especiales.</p></div>
+      <ul class="portal-event-specials">{later.map((o) => (
+        <li><a class="portal-event-special" href={detailHref(o)}>
+          <span class="portal-event-special-date" aria-hidden="true"><strong>{crWallParts(o.startsAt).day}</strong>{shortMonths[crWallParts(o.startsAt).month - 1]}</span>
+          <span class="portal-event-special-body"><strong>{o.event.title}</strong><span><time datetime={o.startsAt}>{crShortDateLabel(o.startsAt)}</time> · {crRangeLabel(o.startsAt, o.endsAt, o.event.allDay)}</span>{place(o) && <span>{place(o)}</span>}</span>
+        </a></li>))}</ul>
+    </section>}
+
+    {series.length > 0 && <section class="portal-section" aria-labelledby="series-title">
+      <div class="portal-section-heading"><h2 id="series-title">Cada semana</h2><p>El horario fijo. Agrégalo una vez a tu calendario y listo.</p></div>
+      <ul class="portal-event-series">{series.map((o) => (
+        <li class="portal-event-series-item">
+          <p class="portal-event-series-when">{recurrenceLabel(o.event)}</p>
+          <h3><a href={detailHref(o)}>{o.event.title}</a></h3>
+          <p class="portal-event-series-meta">{crRangeLabel(o.startsAt, o.endsAt, o.event.allDay)}{place(o) && <> · {place(o)}</>}</p>
+          <a class="portal-link" href={`/api/portal/events/${o.event.id}/ics?serie=1`}>Agregar todas las fechas <span aria-hidden="true">↓</span></a>
+        </li>))}</ul>
+    </section>}
+
+    <section class="portal-section portal-event-month" aria-labelledby="month-title">
+      <div class="portal-section-heading"><h2 id="month-title">{MONTHS_ES[mm - 1]} {yy}</h2>
+        <nav class="portal-event-monthnav" aria-label="Cambiar de mes">
+          <a class="portal-link" href={`/portal/eventos?month=${prevMonth}#month-title`}><span aria-hidden="true">←</span> <span class="visually-hidden">Mes anterior: </span>{MONTHS_ES[prevM - 1]}</a>
+          {!viewingCurrentMonth && <a class="portal-link" href="/portal/eventos#month-title">Hoy</a>}
+          <a class="portal-link" href={`/portal/eventos?month=${nextMonth}#month-title`}><span class="visually-hidden">Mes siguiente: </span>{MONTHS_ES[nextM - 1]} <span aria-hidden="true">→</span></a>
+        </nav>
+      </div>
+      {occurrences.length ? <>
+        <div class="portal-event-month-grid"><EventCalendar yearMonth={yearMonth} occurrences={occurrences} todayKey={todayKey} /></div>
+        <div class="portal-event-month-list">{viewingCurrentMonth && shownAbove.size > 0 && <p class="portal-section-caption">{monthListItems.some((o) => o.endsAt > nowIso) ? "Lo de los próximos 14 días está arriba; aquí sigue el resto del mes." : `Lo que queda de ${MONTHS_ES[mm - 1].toLowerCase()} ya está arriba.`}</p>}<EventAgenda occurrences={monthListItems} nowIso={nowIso} foldPast={viewingCurrentMonth} /></div>
+      </> : <div class="portal-empty"><span class="checker-mark" aria-hidden="true"></span><div><h3>No hay eventos en {MONTHS_ES[mm - 1].toLowerCase()}.</h3><p><a class="portal-link" href={`/portal/eventos?month=${nextMonth}#month-title`}>Ver {MONTHS_ES[nextM - 1].toLowerCase()} <span aria-hidden="true">→</span></a></p></div></div>}
+    </section>
+  </>}
 </PortalLayout>

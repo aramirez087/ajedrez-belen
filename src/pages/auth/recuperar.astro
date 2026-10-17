@@ -52,8 +52,8 @@ const recuperarHref = `/auth/recuperar${next ? `?next=${encodeURIComponent(next)
       <p>¿No llega nada en unos minutos? Pídenos ayuda por WhatsApp y lo resolvemos contigo.</p>
     </div>
     <div class="portal-auth-links">
-      <a class="portal-link" href={recuperarHref}>Revisar el correo o pedir otro enlace <span aria-hidden="true">↗</span></a>
-      <a class="portal-link" href={entrarHref}>Volver a iniciar sesión <span aria-hidden="true">↗</span></a>
+      <a class="portal-link" href={recuperarHref}>Revisar el correo o pedir otro enlace <span aria-hidden="true">→</span></a>
+      <a class="portal-link" href={entrarHref}><span aria-hidden="true">←</span> Volver a iniciar sesión</a>
     </div>
   </> : <>
     <form class="portal-form" method="post">
@@ -65,7 +65,7 @@ const recuperarHref = `/auth/recuperar${next ? `?next=${encodeURIComponent(next)
       <button class="portal-button portal-button-wide" type="submit">Enviarme el enlace <span aria-hidden="true">→</span></button>
     </form>
     <div class="portal-auth-links">
-      <a class="portal-link" href={entrarHref}>Volver a iniciar sesión <span aria-hidden="true">↗</span></a>
+      <a class="portal-link" href={entrarHref}><span aria-hidden="true">←</span> Volver a iniciar sesión</a>
     </div>
   </>}
 </AuthShell>

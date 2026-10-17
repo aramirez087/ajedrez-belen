@@ -2,9 +2,9 @@
 import { env } from "cloudflare:workers";
 import PortalLayout from "../../../layouts/PortalLayout.astro";
 import PageHeader from "../../../components/portal/PageHeader.astro";
-import EventCard from "../../../components/portal/EventCard.astro";
+import EventAgenda from "../../../components/portal/EventAgenda.astro";
 import { authorizePortal } from "../../../lib/portal/access";
-import { canViewFamilyEvents, crDateTimeLabel, crRangeLabel, expandOccurrences, getEvent, getEventAnyStatus, googleCalendarUrl, mapsUrl, nextOccurrence, occurrenceState, recurrenceLabel, resolveOccurrence, whatsAppShareUrl } from "../../../lib/portal/events";
+import { canViewFamilyEvents, crDateLabel, crDateTimeLabel, crRangeLabel, crWallParts, crWeekdayName, expandOccurrences, getEvent, getEventAnyStatus, googleCalendarUrl, mapsUrl, nextOccurrence, occurrenceState, recurrenceLabel, resolveOccurrence, whatsAppShareUrl } from "../../../lib/portal/events";
 export const prerender = false;
 const access = await authorizePortal(Astro, env);
 if (!access.ok) return access.response;
@@ -20,6 +20,7 @@ const occurrence = resolved?.occurrence ?? null;
 const state = occurrence ? occurrenceState(occurrence, nowIso) : null;
 const maps = event ? mapsUrl(event) : null;
 const locBadge = event ? (event.locationType === "online" ? "En línea" : event.locationType === "hybrid" ? "Híbrido" : "Presencial") : "";
+const shortMonths = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const isZoom = /zoom\.us/i.test(event?.locationUrl ?? "");
 const pageUrl = new URL(Astro.url.pathname + (occurrence ? `?occurrence=${encodeURIComponent(occurrence.startsAt)}` : ""), Astro.url.origin).toString();
 const nextDates = event && occurrence ? expandOccurrences(event, occurrence.startsAt, new Date(new Date(occurrence.startsAt).getTime() + 120 * 86_400_000).toISOString())
@@ -30,7 +31,7 @@ const eventsLocked = !event && !tombstone && !actor.isAdmin && !(await canViewFa
 ---
 {event && occurrence ? (
 <PortalLayout title={event.title} actor={actor} active="events">
-  <PageHeader title={event.title} eyebrow="Evento" description={crDateTimeLabel(occurrence.startsAt)} backHref="/portal/eventos" backLabel="Volver a eventos" />
+  <PageHeader title={event.title} eyebrow={recurrenceLabel(event) || "Evento"} backHref="/portal/eventos" backLabel="Volver a eventos" />
   {resolved?.substituted && <div class="portal-notice" role="status"><p><strong>Te mostramos la próxima fecha.</strong> El enlace que abriste no traía una fecha válida de este evento.</p></div>}
   {resolved?.requestedCancelled ? (
     <section class="portal-section portal-event-tombstone" aria-labelledby="cancelled-title">
@@ -40,34 +41,44 @@ const eventsLocked = !event && !tombstone && !actor.isAdmin && !(await canViewFa
       <p class="portal-form-actions">{firstUpcoming && <a class="portal-button" href={`/portal/eventos/${event.id}?occurrence=${encodeURIComponent(firstUpcoming.startsAt)}`}>Ver la próxima fecha <span aria-hidden="true">→</span></a>}<a class="portal-link" href="/portal/eventos">Volver a eventos</a></p>
     </section>
   ) : (<>
-  {event.image && <div class="portal-event-hero-wrap"><img class="portal-event-hero" src={`/api/portal/events/${event.id}/image`} alt={event.imageAlt ?? ""} width="1200" height="525" /></div>}
-  <section class="portal-section portal-event-detail">
-    <p><span class="portal-event-badge portal-event-badge-plain">{locBadge}</span>{state === "live" && <span class="portal-event-badge portal-event-badge-live">En vivo ahora</span>}{state === "past" && <span class="portal-event-badge portal-event-badge-muted">Ya pasó</span>}{recurrenceLabel(event) && <span class="portal-event-recurrence"> {recurrenceLabel(event)}</span>}</p>
-    {event.locationUrl && state === "live" && <p class="portal-event-live-note" role="status"><strong>Ya empezó.</strong> Todavía puedes entrar.</p>}
-    {event.locationUrl && state === "today" && <p class="portal-event-live-note" role="status">Es <strong>hoy</strong>. El botón de abajo abre {isZoom ? "Zoom" : "la reunión"} en una pestaña nueva.</p>}
-    <dl class="portal-event-facts">
-      <div><dt>Cuándo</dt><dd><time datetime={occurrence.startsAt}>{crDateTimeLabel(occurrence.startsAt)}</time>{event.allDay ? " · Todo el día" : ` · ${crRangeLabel(occurrence.startsAt, occurrence.endsAt, false)}`} <span class="portal-event-tz">(hora de Costa Rica)</span></dd></div>
-      {event.locationLabel && <div><dt>Lugar</dt><dd>{event.locationLabel}</dd></div>}
-      {event.locationAddress && <div><dt>Dirección</dt><dd>{event.locationAddress}{maps && <> · <a class="portal-link" href={maps} target="_blank" rel="noopener noreferrer">Cómo llegar <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a></>}</dd></div>}
-    </dl>
-    {event.locationUrl && state !== "past" && <p class="portal-event-join"><a class="portal-button" href={event.locationUrl} target="_blank" rel="noopener noreferrer">{state === "live" ? (isZoom ? "Entrar ahora por Zoom" : "Entrar ahora") : (isZoom ? "Entrar por Zoom" : "Entrar al evento")} <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a></p>}
-    {event.locationUrl && state === "past" && <p class="portal-event-past-note">Este evento ya terminó, por eso el enlace ya no se muestra.{nextDates[0] && <> La próxima fecha es el <a class="portal-link" href={`/portal/eventos/${event.id}?occurrence=${encodeURIComponent(nextDates[0].startsAt)}`}>{crDateTimeLabel(nextDates[0].startsAt)} <span aria-hidden="true">→</span></a>.</>}</p>}
-    {state !== "past" && (
-      <div class="portal-event-actions" data-copy-scope>
-        <a class="portal-button portal-button-secondary" href={`/api/portal/events/${event.id}/ics?occurrence=${encodeURIComponent(occurrence.startsAt)}`}>Agregar a mi calendario (.ics) <span aria-hidden="true">↓</span></a>
-        {event.recurrenceFreq !== "none" && <a class="portal-button portal-button-secondary" href={`/api/portal/events/${event.id}/ics?serie=1`}>Toda la serie (.ics) <span aria-hidden="true">↓</span></a>}
-        <a class="portal-button portal-button-secondary" href={googleCalendarUrl(event, occurrence)} target="_blank" rel="noopener noreferrer">Google Calendar <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a>
-        <a class="portal-button portal-button-secondary" href={whatsAppShareUrl(event, occurrence, pageUrl)} target="_blank" rel="noopener noreferrer">Compartir por WhatsApp <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a>
-        <button class="portal-link portal-text-button" type="button" data-copy-value={event.locationUrl ?? pageUrl}>Copiar {event.locationUrl ? "enlace del evento" : "enlace de esta página"}</button>
-        <span class="portal-help" data-copy-feedback role="status"></span>
+  <div class="portal-event-detail-layout">
+    <aside class="portal-event-action-card" aria-label="Acciones" data-copy-scope>
+      <div class="portal-event-action-when">
+        <span class="portal-event-action-date" aria-hidden="true"><strong>{crWallParts(occurrence.startsAt).day}</strong>{shortMonths[crWallParts(occurrence.startsAt).month - 1]}</span>
+        <p><strong>{crWeekdayName(occurrence.startsAt)}</strong><span>{event.allDay ? "Todo el día" : crRangeLabel(occurrence.startsAt, occurrence.endsAt, false)}</span></p>
       </div>
-    )}
-    {event.description && <div class="portal-event-description"><h2>Detalles</h2><p>{event.description}</p></div>}
-    {nextDates.length > 0 && (
-      <div class="portal-event-next-dates"><h2>Próximas fechas</h2><div class="portal-event-list">{nextDates.map((o) => <EventCard occurrence={o} nowIso={nowIso} />)}</div></div>
-    )}
-    {actor.isAdmin && <p><a class="portal-link" href={`/admin/eventos/${event.id}`}>Editar este evento (administración) <span aria-hidden="true">→</span></a></p>}
-  </section>
+      {state === "live" && <p class="portal-event-live-note" role="status"><span class="portal-live-dot" aria-hidden="true"></span><strong>Ya empezó.</strong> {event.locationUrl ? "Todavía puedes entrar." : "Está en curso."}</p>}
+      {state === "today" && <p class="portal-event-live-note" role="status">Es <strong>hoy</strong>.{event.locationUrl ? ` El botón abre ${isZoom ? "Zoom" : "la reunión"} en una pestaña nueva.` : ""}</p>}
+      {state === "past" && <p class="portal-event-past-note">Este evento ya terminó{event.locationUrl ? ", por eso el enlace ya no se muestra" : ""}.{nextDates[0] && <> La próxima fecha es el <a class="portal-link" href={`/portal/eventos/${event.id}?occurrence=${encodeURIComponent(nextDates[0].startsAt)}`}>{crDateTimeLabel(nextDates[0].startsAt)} <span aria-hidden="true">→</span></a>.</>}</p>}
+      {state !== "past" && <div class="portal-event-action-buttons">
+        {event.locationUrl && <a class="portal-button" href={event.locationUrl} target="_blank" rel="noopener noreferrer">{state === "live" ? (isZoom ? "Entrar ahora por Zoom" : "Entrar ahora") : (isZoom ? "Entrar por Zoom" : "Entrar al evento")} <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a>}
+        {maps && <a class:list={["portal-button", { "portal-button-secondary": !!event.locationUrl }]} href={maps} target="_blank" rel="noopener noreferrer">Cómo llegar <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a>}
+        <a class="portal-button portal-button-secondary" href={`/api/portal/events/${event.id}/ics?occurrence=${encodeURIComponent(occurrence.startsAt)}`}>Agregar a mi calendario <span aria-hidden="true">↓</span></a>
+      </div>}
+      {state !== "past" && <p class="portal-event-action-more">
+        <a class="portal-link" href={googleCalendarUrl(event, occurrence)} target="_blank" rel="noopener noreferrer">Google Calendar <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a>
+        {event.recurrenceFreq !== "none" && <a class="portal-link" href={`/api/portal/events/${event.id}/ics?serie=1`}>Todas las fechas <span aria-hidden="true">↓</span></a>}
+      </p>}
+      <p class="portal-event-action-share">
+        <a class="portal-link" href={whatsAppShareUrl(event, occurrence, pageUrl)} target="_blank" rel="noopener noreferrer">Compartir por WhatsApp <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a>
+        <button class="portal-link portal-text-button" type="button" data-copy-value={event.locationUrl && state !== "past" ? event.locationUrl : pageUrl}>Copiar {event.locationUrl && state !== "past" ? "enlace para entrar" : "enlace"}</button>
+        <span class="portal-help" data-copy-feedback role="status"></span>
+      </p>
+    </aside>
+    <section class="portal-event-detail" aria-label="Detalles del evento">
+      {event.image && <div class="portal-event-hero-wrap"><img class="portal-event-hero" src={`/api/portal/events/${event.id}/image`} alt={event.imageAlt ?? ""} width="1200" height="525" /></div>}
+      <dl class="portal-event-facts">
+        <div><dt>Cuándo</dt><dd><time datetime={occurrence.startsAt}>{crDateLabel(occurrence.startsAt)}</time><br />{event.allDay ? "Todo el día" : crRangeLabel(occurrence.startsAt, occurrence.endsAt, false)} <span class="portal-event-tz">(hora de Costa Rica)</span></dd></div>
+        {recurrenceLabel(event) && <div><dt>Se repite</dt><dd>{recurrenceLabel(event)}</dd></div>}
+        <div><dt>Modalidad</dt><dd>{locBadge}{event.locationType !== "in_person" && isZoom ? " · por Zoom" : ""}</dd></div>
+        {event.locationLabel && <div><dt>Lugar</dt><dd>{event.locationLabel}</dd></div>}
+        {event.locationAddress && <div><dt>Dirección</dt><dd>{event.locationAddress}{maps && <> · <a class="portal-link" href={maps} target="_blank" rel="noopener noreferrer">Ver en el mapa <span aria-hidden="true">↗</span><span class="visually-hidden">(se abre en una pestaña nueva)</span></a></>}</dd></div>}
+      </dl>
+      {event.description && <div class="portal-event-description"><h2>Detalles</h2><p>{event.description}</p></div>}
+      {nextDates.length > 0 && <div class="portal-event-next-dates"><h2>Próximas fechas</h2><EventAgenda occurrences={nextDates} nowIso={nowIso} /></div>}
+      {actor.isAdmin && <p class="portal-event-admin-link"><a class="portal-link" href={`/admin/eventos/${event.id}`}>Editar este evento (administración) <span aria-hidden="true">→</span></a></p>}
+    </section>
+  </div>
   </>)}
 </PortalLayout>
 ) : tombstone ? (

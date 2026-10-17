@@ -1,0 +1,41 @@
+---
+import { crDateKey, crTimeLabel, occurrenceState, type EventOccurrence } from "../../lib/portal/events";
+interface Props { occurrences: EventOccurrence[]; nowIso: string; admin?: boolean; foldPast?: boolean; }
+const { occurrences, nowIso, admin = false, foldPast = false } = Astro.props;
+const todayKey = crDateKey(nowIso);
+const tomorrowKey = crDateKey(new Date(new Date(nowIso).getTime() + 86_400_000).toISOString());
+const dayName = (key: string) => new Intl.DateTimeFormat("es-CR", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" }).format(new Date(`${key}T12:00:00Z`));
+const groups: Array<{ key: string; items: EventOccurrence[] }> = [];
+for (const occ of occurrences) {
+  const key = crDateKey(occ.startsAt);
+  const last = groups.at(-1);
+  if (last?.key === key) last.items.push(occ); else groups.push({ key, items: [occ] });
+}
+const past = foldPast ? groups.filter((group) => group.key < todayKey) : [];
+const shown = foldPast ? groups.filter((group) => group.key >= todayKey) : groups;
+const href = (occ: EventOccurrence) => admin ? `/admin/eventos/${occ.event.id}` : `/portal/eventos/${occ.event.id}?occurrence=${encodeURIComponent(occ.startsAt)}`;
+const place = (occ: EventOccurrence) => occ.event.locationLabel ?? occ.event.locationAddress ?? (occ.event.locationType === "online" ? "En línea" : "");
+// In person is the default; only the exceptions get a tag.
+const kind = (occ: EventOccurrence) => occ.event.locationType === "online" ? "En línea" : occ.event.locationType === "hybrid" ? "Híbrido" : "";
+---
+{[{ list: past, folded: true }, { list: shown, folded: false }].map(({ list, folded }) => list.length > 0 && (
+  folded
+    ? <details class="portal-agenda-past"><summary>Días anteriores de este mes <span class="portal-agenda-count">{list.reduce((n, g) => n + g.items.length, 0)}</span></summary><div class="portal-agenda">{list.map((group) => (
+        <section class="portal-agenda-day is-past">
+          <h3 class="portal-agenda-date">{dayName(group.key)}</h3>
+          <ul>{group.items.map((occ) => <li><a class:list={["portal-agenda-item", { "is-cancelled": occ.cancelled }]} href={href(occ)}><span class="portal-agenda-time">{occ.event.allDay ? "Todo el día" : crTimeLabel(occ.startsAt)}</span><span class="portal-agenda-main"><strong>{occ.event.title}</strong>{place(occ) && <span>{place(occ)}</span>}</span><span class="portal-agenda-tag">Ya pasó</span></a></li>)}</ul>
+        </section>))}</div></details>
+    : <div class="portal-agenda">{list.map((group) => (
+        <section class:list={["portal-agenda-day", { "is-today": group.key === todayKey }]}>
+          <h3 class="portal-agenda-date">{group.key === todayKey ? <><em>Hoy</em> · </> : group.key === tomorrowKey ? <><em>Mañana</em> · </> : ""}{dayName(group.key)}</h3>
+          <ul>{group.items.map((occ) => {
+            const state = occurrenceState(occ, nowIso);
+            const tag = occ.cancelled ? "Cancelada" : state === "live" ? "En vivo" : state === "past" ? "Ya pasó" : kind(occ);
+            return <li><a class:list={["portal-agenda-item", { "is-live": state === "live" && !occ.cancelled, "is-past": state === "past", "is-cancelled": occ.cancelled }]} href={href(occ)}>
+              <span class="portal-agenda-time">{occ.event.allDay ? "Todo el día" : <>{crTimeLabel(occ.startsAt)}<small><span class="visually-hidden"> a </span>{crTimeLabel(occ.endsAt)}</small></>}</span>
+              <span class="portal-agenda-main"><strong>{occ.event.title}</strong>{place(occ) && <span>{place(occ)}</span>}</span>
+              {tag && <span class:list={["portal-agenda-tag", { "is-live": state === "live" && !occ.cancelled }]}>{tag}</span>}
+            </a></li>;
+          })}</ul>
+        </section>))}</div>
+))}

@@ -64,8 +64,8 @@ const entrarHref = `/auth/entrar${next ? `?next=${encodeURIComponent(next)}` : '
     </div>
   </>}
   <div class="portal-auth-links">
-    <a class="portal-link" href={recuperarHref}>Pedir un enlace nuevo <span aria-hidden="true">↗</span></a>
-    <a class="portal-link" href={entrarHref}>Volver a iniciar sesión <span aria-hidden="true">↗</span></a>
+    <a class="portal-link" href={recuperarHref}>Pedir un enlace nuevo <span aria-hidden="true">→</span></a>
+    <a class="portal-link" href={entrarHref}><span aria-hidden="true">←</span> Volver a iniciar sesión</a>
   </div>
 </AuthShell>
 <script>

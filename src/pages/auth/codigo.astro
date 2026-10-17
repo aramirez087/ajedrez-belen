@@ -86,9 +86,9 @@ const copy = {
   </form>
   <div class="portal-auth-links">
     {pending.kind === 'email_verification'
-      ? <form method="post"><input type="hidden" name="accion" value="reenviar" /><button class="portal-link portal-text-button" type="submit">Enviarme un código nuevo <span aria-hidden="true">↗</span></button></form>
+      ? <form method="post"><input type="hidden" name="accion" value="reenviar" /><button class="portal-link portal-text-button" type="submit">Enviarme un código nuevo <span aria-hidden="true">→</span></button></form>
       : <span></span>}
-    <form method="post"><input type="hidden" name="accion" value="cancelar" /><button class="portal-link portal-text-button" type="submit">Cancelar y volver <span aria-hidden="true">↗</span></button></form>
+    <form method="post"><input type="hidden" name="accion" value="cancelar" /><button class="portal-link portal-text-button" type="submit"><span aria-hidden="true">←</span> Cancelar y volver</button></form>
   </div>
 </AuthShell>
 <script>

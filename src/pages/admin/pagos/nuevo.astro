@@ -55,7 +55,7 @@ const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',ye
       <div class="portal-field"><label for="audit-reason">Motivo del registro por administración</label><textarea id="audit-reason" name="auditReason" maxlength="500" required></textarea></div>
       <button class="portal-button portal-button-wide" type="submit" disabled={charges.length === 0}>Registrar pago de la familia <span aria-hidden="true">→</span></button><p class="portal-help">El pago queda «en revisión» hasta comprobar el ingreso en el banco; después se emite el comprobante oficial.</p>{charges.length === 0 && <p class="portal-help">Esta familia no tiene mensualidades pendientes: por eso el botón está desactivado.</p>}
     </form></section>
-    <aside class="portal-panel"><div class="portal-guidance"><h3>¿Qué pasa después?</h3><p>1. El pago queda «en revisión» (todavía no baja el saldo).</p><p>2. La Asociación comprueba el ingreso en el banco desde la revisión de pagos.</p><p>3. El saldo se actualiza y el comprobante oficial aparece en la cuenta de la familia.</p></div><a class="portal-link" href="/admin">Volver al resumen <span aria-hidden="true">↗</span></a></aside>
+    <aside class="portal-panel"><div class="portal-guidance"><h3>¿Qué pasa después?</h3><p>1. El pago queda «en revisión» (todavía no baja el saldo).</p><p>2. La Asociación comprueba el ingreso en el banco desde la revisión de pagos.</p><p>3. El saldo se actualiza y el comprobante oficial aparece en la cuenta de la familia.</p></div><a class="portal-link" href="/admin"><span aria-hidden="true">←</span> Volver al resumen</a></aside>
   </div>
   </>}
   </>}
