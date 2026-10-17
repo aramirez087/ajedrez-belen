@@ -154,7 +154,8 @@ export async function extractPayslip(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await (options.fetcher ?? fetch)('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST', redirect: 'error', signal: controller.signal,
+      // Workers throw on redirect: 'error'. 'manual' never follows with the key; a 3xx fails below.
+      method: 'POST', redirect: 'manual', signal: controller.signal,
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({ model, temperature: 0, max_completion_tokens: 600, reasoning_effort: 'none',
         stream: false, response_format: { type: 'json_object' }, messages: [

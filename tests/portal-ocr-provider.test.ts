@@ -19,7 +19,8 @@ test('one private-image request uses JSON mode, no tools and bounded nonthinking
     calls++;
     assert.equal(url, 'https://api.groq.com/openai/v1/chat/completions');
     assert.equal(init?.method, 'POST');
-    assert.equal(init?.redirect, 'error');
+    // Workers reject redirect: 'error' before sending; 'manual' never follows with the key.
+    assert.equal(init?.redirect, 'manual');
     assert.ok(init?.signal);
     const body = JSON.parse(String(init?.body));
     assert.equal(body.model, DEFAULT_GROQ_VISION_MODEL);
@@ -39,6 +40,16 @@ test('one private-image request uses JSON mode, no tools and bounded nonthinking
   } });
   assert.equal(calls, 1);
   assert.deepEqual(result, { status: 'ready', suggestions: values, model: DEFAULT_GROQ_VISION_MODEL });
+});
+
+test('a provider redirect is refused without following it', async () => {
+  let calls = 0;
+  const result = await extractPayslip(env, image, { now, fetcher: async () => {
+    calls++;
+    return new Response(null, { status: 307, headers: { location: 'https://elsewhere.example/' } });
+  } });
+  assert.equal(calls, 1);
+  assert.deepEqual(result, { status: 'failed', code: 'provider_rejected', model: DEFAULT_GROQ_VISION_MODEL });
 });
 
 test('missing credentials, invalid configuration and invalid images fail before a provider request', async () => {
