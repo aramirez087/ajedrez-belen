@@ -1,8 +1,16 @@
 import PostalMime from "postal-mime";
-import { money } from "../../../src/components/portal/format";
+import { money, monthLabel } from "../../../src/components/portal/format";
+import {
+  detailNamesOwnAthlete,
+  findPaymentAwaitingCorrection,
+  findRegisteredPayment,
+  readAmountMinor,
+  registerEmailedSlip,
+  type EmailAllocation,
+} from "../../../src/lib/portal/email-payment";
 import { requestSlipExtraction, type OcrSuggestions } from "../../../src/lib/portal/ocr";
 import { detectSlipType } from "../../../src/lib/prototype-policy";
-import { PortalError } from "../../../src/lib/portal/types";
+import { PortalError, type Actor, type SlipMetadata } from "../../../src/lib/portal/types";
 
 export interface InboundEnv {
   DB: D1Database;
@@ -40,7 +48,7 @@ const DRAFT_TTL_MS = 7 * 24 * 3600000;
 const REJECT_ATTACHMENT = "Adjunta el comprobante como imagen JPG o PNG, o como PDF (máximo 3 MB). Si tu teléfono guarda fotos HEIC, envía una captura de pantalla del comprobante.";
 const REJECT_RETRY = "No pudimos guardar el archivo. Inténtalo de nuevo en unos minutos.";
 const REJECT_AUTH = "No pudimos confirmar que este correo salió de tu cuenta. Envíalo otra vez desde el correo con el que entras al portal.";
-const PORTAL_PAYMENT_URL = "https://ajedrezbelen.com/portal/pagos/nuevo";
+const PORTAL_URL = "https://ajedrezbelen.com";
 const WHATSAPP_URL = "https://wa.me/50687686102";
 
 function escapeHtml(value: string): string {
@@ -53,9 +61,8 @@ function expiryLabel(date: Date): string {
   }).format(date);
 }
 
+/** What was read from the slip, shown back to the family to check. */
 export interface SlipReceiptReading {
-  /** read: a transferred amount was transcribed. amount_missing: other facts only. pdf and unreadable: nothing transcribed. */
-  outcome: "read" | "amount_missing" | "pdf" | "unreadable";
   amount: string | null;
   transferDate: string | null;
   payerName: string | null;
@@ -63,15 +70,19 @@ export interface SlipReceiptReading {
   description: string | null;
 }
 
-const UNREAD: SlipReceiptReading = {
-  outcome: "unreadable", amount: null, transferDate: null, payerName: null, bankReference: null, description: null,
-};
+function readingFrom(suggestions: OcrSuggestions | null): SlipReceiptReading {
+  return {
+    amount: suggestions?.amount ?? null,
+    transferDate: suggestions?.transferDate ?? null,
+    payerName: suggestions?.payerName ?? null,
+    bankReference: suggestions?.bankReference ?? null,
+    description: suggestions?.description ?? null,
+  };
+}
 
 function amountLabel(amount: string | null): string | null {
-  if (!amount || !/^(?:0|[1-9]\d{0,7})\.\d{2}$/.test(amount)) return null;
-  const [whole, fraction] = amount.split(".");
-  const minor = Number(whole) * 100 + Number(fraction);
-  return Number.isSafeInteger(minor) && minor > 0 ? money(minor) : null;
+  const minor = readAmountMinor(amount);
+  return minor ? money(minor) : null;
 }
 
 function transferDateLabel(value: string | null): string | null {
@@ -81,22 +92,6 @@ function transferDateLabel(value: string | null): string | null {
   return new Intl.DateTimeFormat("es-CR", {
     timeZone: "UTC", day: "numeric", month: "long", year: "numeric",
   }).format(date);
-}
-
-function readingFrom(suggestions: OcrSuggestions): SlipReceiptReading {
-  const amount = amountLabel(suggestions.amount) ? suggestions.amount : null;
-  const reading: SlipReceiptReading = {
-    outcome: amount ? "read" : "amount_missing",
-    amount,
-    transferDate: suggestions.transferDate,
-    payerName: suggestions.payerName,
-    bankReference: suggestions.bankReference,
-    description: suggestions.description,
-  };
-  if (!amount && !transferDateLabel(reading.transferDate) && !reading.payerName && !reading.bankReference && !reading.description) {
-    return { ...UNREAD };
-  }
-  return reading;
 }
 
 function detailLines(reading: SlipReceiptReading): Array<[string, string]> {
@@ -111,48 +106,159 @@ function detailLines(reading: SlipReceiptReading): Array<[string, string]> {
   return lines;
 }
 
-function followUp(reading: SlipReceiptReading): string {
-  if (reading.outcome === "read") {
-    return "Entra al portal, actualiza la página, elige «Archivos que nos enviaste por correo», revisa estos datos, elige las mensualidades y envía el formulario.";
-  }
-  if (reading.outcome === "pdf") {
-    return "Guardamos el PDF. Entra al portal, actualiza la página, elige «Archivos que nos enviaste por correo» y completa el monto. Un PDF enviado por correo no se lee desde aquí.";
-  }
-  return "No pudimos leer el monto. Entra al portal, actualiza la página, elige «Archivos que nos enviaste por correo», escribe el monto y envía el formulario.";
+/** One reply per saved or recognized message. Only `registered` means the payment exists. */
+export type SlipReply =
+  | { kind: "registered"; reading: SlipReceiptReading; paymentId: string; allocations: EmailAllocation[]; creditMinor: number }
+  | { kind: "duplicate"; paymentId: string }
+  | { kind: "missing"; reading: SlipReceiptReading; missing: Array<"amount" | "date">; draftId: string; expiresAt: Date }
+  | { kind: "pdf" | "unsure" | "nothing_due" | "covered" | "staff"; reading: SlipReceiptReading; draftId: string; expiresAt: Date }
+  | { kind: "correction"; reading: SlipReceiptReading; paymentId: string; draftId: string; expiresAt: Date };
+
+interface ReplyCopy {
+  subject: string;
+  lead: string;
+  lists?: Array<{ title: string; items: string[] }>;
+  body?: string[];
+  links?: Array<{ label: string; url: string }>;
+  expiresAt?: Date;
 }
 
-/** What the family can check: the transferred amount and the other facts read from the slip. */
-export function slipReceiptCopy(expiresAt: Date, reading: SlipReceiptReading): { subject: string; text: string; html: string } {
-  const until = expiryLabel(expiresAt);
+const MISSING_LABEL = { amount: "el monto", date: "la fecha" } as const;
+const FINISH_LABEL = "Terminar el registro";
+
+function paymentUrl(paymentId: string, draftId?: string): string {
+  const query = draftId ? `?correo=${encodeURIComponent(draftId)}` : "";
+  return `${PORTAL_URL}/portal/pagos/${encodeURIComponent(paymentId)}${query}`;
+}
+
+/** Opens Registrar un pago with this emailed file already chosen. */
+function finishUrl(draftId: string, path = "/portal/pagos/nuevo"): string {
+  return `${PORTAL_URL}${path}?correo=${encodeURIComponent(draftId)}`;
+}
+
+function readList(reading: SlipReceiptReading): Array<{ title: string; items: string[] }> {
   const lines = detailLines(reading);
-  const next = followUp(reading);
-  const subject = "Recibimos tu comprobante";
+  return lines.length ? [{ title: "Esto es lo que leímos:", items: lines.map(([label, value]) => `${label}: ${value}`) }] : [];
+}
+
+function allocationItem(line: EmailAllocation): string {
+  const month = monthLabel(line.period);
+  return `${month.charAt(0).toUpperCase()}${month.slice(1)} · ${line.athleteName}: ${money(line.amountMinor)}`;
+}
+
+function replyCopy(reply: SlipReply): ReplyCopy {
+  switch (reply.kind) {
+    case "registered":
+      return {
+        subject: "Registramos tu pago",
+        lead: "Registramos tu pago. No tienes que hacer nada más.",
+        lists: [...readList(reply.reading), {
+          title: "Lo aplicamos a:",
+          items: [
+            ...reply.allocations.map(allocationItem),
+            ...(reply.creditMinor > 0 ? [`A tu favor para el próximo mes: ${money(reply.creditMinor)}`] : []),
+          ],
+        }],
+        body: ["Queda en revisión hasta que la Asociación confirme el ingreso en el banco. El comprobante oficial llegará a este correo."],
+        links: [{ label: "Ver el pago", url: paymentUrl(reply.paymentId) }],
+      };
+    case "duplicate":
+      return {
+        subject: "Ese comprobante ya está registrado",
+        lead: "Ese comprobante ya está registrado. No lo registramos otra vez.",
+        links: [{ label: "Ver el pago", url: paymentUrl(reply.paymentId) }],
+      };
+    case "missing":
+      return {
+        subject: "Falta un dato de tu comprobante",
+        lead: `No pudimos leer ${reply.missing.map((key) => MISSING_LABEL[key]).join(" ni ")}. Todavía no está registrado.`,
+        lists: readList(reply.reading),
+        body: ["Responde a este correo con una foto más clara y lo registramos solo, o termínalo en el portal en un minuto:"],
+        links: [{ label: FINISH_LABEL, url: finishUrl(reply.draftId) }],
+        expiresAt: reply.expiresAt,
+      };
+    case "pdf":
+      return {
+        subject: "Envíanos una captura de tu comprobante",
+        lead: "Recibimos tu PDF, pero por correo solo leemos fotos. Todavía no está registrado.",
+        body: ["Responde a este correo con una captura de pantalla (JPG o PNG) y lo registramos solo, o termínalo en el portal en un minuto:"],
+        links: [{ label: FINISH_LABEL, url: finishUrl(reply.draftId) }],
+        expiresAt: reply.expiresAt,
+      };
+    case "unsure":
+      return {
+        subject: "Termina el registro de tu comprobante",
+        lead: "Recibimos tu comprobante, pero no pudimos registrarlo solo. Todavía no está registrado.",
+        lists: readList(reply.reading),
+        body: ["Revisa los datos y termínalo en el portal en un minuto:"],
+        links: [{ label: FINISH_LABEL, url: finishUrl(reply.draftId) }],
+        expiresAt: reply.expiresAt,
+      };
+    case "nothing_due":
+      return {
+        subject: "Recibimos tu comprobante",
+        lead: "Recibimos tu comprobante, pero estás al día: no hay mensualidades pendientes donde registrarlo.",
+        lists: readList(reply.reading),
+        body: ["Si es un pago adelantado, escríbenos por WhatsApp y te ayudamos."],
+        expiresAt: reply.expiresAt,
+      };
+    case "covered":
+      return {
+        subject: "Recibimos tu comprobante",
+        lead: "Recibimos tu comprobante, pero tus mensualidades pendientes ya tienen un pago en revisión. No lo registramos para no cobrarlo dos veces.",
+        lists: readList(reply.reading),
+        body: ["Si es otra transferencia, regístrala en el portal:"],
+        links: [{ label: "Registrar el pago", url: finishUrl(reply.draftId) }],
+        expiresAt: reply.expiresAt,
+      };
+    case "correction":
+      return {
+        subject: "Recibimos tu comprobante",
+        lead: "Recibimos tu comprobante. No lo registramos como pago nuevo porque tienes un pago esperando una corrección.",
+        lists: readList(reply.reading),
+        body: ["Si es para ese pago, ábrelo y envía la corrección con este archivo. Si es otra transferencia, regístrala aparte."],
+        links: [
+          { label: "Corregir el pago", url: paymentUrl(reply.paymentId, reply.draftId) },
+          { label: "Registrar otra transferencia", url: finishUrl(reply.draftId) },
+        ],
+        expiresAt: reply.expiresAt,
+      };
+    case "staff":
+      return {
+        subject: "Recibimos tu comprobante",
+        lead: "Guardamos el comprobante en tu cuenta de administración.",
+        lists: readList(reply.reading),
+        body: ["Regístralo para la familia desde administración:"],
+        links: [{ label: "Registrar pago", url: finishUrl(reply.draftId, "/admin/pagos/nuevo") }],
+        expiresAt: reply.expiresAt,
+      };
+  }
+}
+
+export function slipReplyCopy(reply: SlipReply): { subject: string; text: string; html: string } {
+  const copy = replyCopy(reply);
+  const until = copy.expiresAt ? `Guardamos el archivo hasta el ${expiryLabel(copy.expiresAt)}.` : null;
+  const lists = copy.lists ?? [];
+  const body = copy.body ?? [];
+  const links = copy.links ?? [];
   const text = [
-    "Recibimos tu comprobante.",
-    "",
-    ...(lines.length ? ["Esto es lo que leímos:", ...lines.map(([label, value]) => `• ${label}: ${value}`), ""] : []),
-    `Este mensaje no registra el pago. ${next}`,
-    "",
-    `Disponible en tu cuenta hasta el ${until}`,
-    "",
-    PORTAL_PAYMENT_URL,
-    "",
-    "Las respuestas a este mensaje no se atienden. Para consultas, escríbenos por WhatsApp:",
+    copy.lead, "",
+    ...lists.flatMap((list) => [list.title, ...list.items.map((item) => `• ${item}`), ""]),
+    ...body.flatMap((paragraph) => [paragraph, ""]),
+    ...links.flatMap((link) => [`${link.label}: ${link.url}`, ""]),
+    ...(until ? [until, ""] : []),
+    "¿Algo no está bien? Escríbenos por WhatsApp:",
     WHATSAPP_URL,
   ].join("\n");
   const html = [
-    "<p>Recibimos tu comprobante.</p>",
-    ...(lines.length ? [
-      "<p>Esto es lo que leímos:</p><ul>",
-      ...lines.map(([label, value]) => `<li>${escapeHtml(label)}: ${escapeHtml(value)}</li>`),
-      "</ul>",
-    ] : []),
-    `<p><strong>Este mensaje no registra el pago.</strong> ${escapeHtml(next)}</p>`,
-    `<p>Disponible en tu cuenta hasta el ${escapeHtml(until)}</p>`,
-    `<p><a href="${PORTAL_PAYMENT_URL}">Registrar el pago</a></p>`,
-    `<p>Las respuestas a este mensaje no se atienden. Para consultas, escríbenos por <a href="${WHATSAPP_URL}">WhatsApp</a>.</p>`,
+    `<p><strong>${escapeHtml(copy.lead)}</strong></p>`,
+    ...lists.map((list) => `<p>${escapeHtml(list.title)}</p><ul>${list.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`),
+    ...body.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`),
+    ...links.map((link) => `<p><a href="${escapeHtml(link.url)}">${escapeHtml(link.label)}</a></p>`),
+    ...(until ? [`<p>${escapeHtml(until)}</p>`] : []),
+    `<p>¿Algo no está bien? Escríbenos por <a href="${WHATSAPP_URL}">WhatsApp</a>.</p>`,
   ].join("");
-  return { subject, text, html };
+  return { subject: copy.subject, text, html };
 }
 
 function canReply(message: InboundMessage): boolean {
@@ -163,9 +269,9 @@ function canReply(message: InboundMessage): boolean {
   return from.endsWith("@ajedrezbelen.com") || from.endsWith(".ajedrezbelen.com");
 }
 
-async function confirmReceipt(message: InboundMessage, expiresAt: Date, reading: SlipReceiptReading): Promise<void> {
+async function confirmReceipt(message: InboundMessage, reply: SlipReply): Promise<void> {
   if (!canReply(message) || !message.reply) return;
-  const copy = slipReceiptCopy(expiresAt, reading);
+  const copy = slipReplyCopy(reply);
   try {
     await message.reply({
       from: { name: "Ajedrez Belén", email: senderAddress(message.to) },
@@ -179,31 +285,66 @@ async function confirmReceipt(message: InboundMessage, expiresAt: Date, reading:
 /**
  * Read a stored JPG or PNG with the same Groq transcription the portal uses.
  * A PDF stays unread: the mail worker cannot render its first page. A failed
- * or skipped read still leaves the draft, and the reply says the amount has
- * to be typed in the portal.
+ * or skipped read still leaves the draft, and the reply names what is missing.
  */
 async function readEmailedSlip(
   env: InboundEnv,
-  ownerId: string,
-  sender: string,
-  isAdmin: boolean,
+  actor: Actor,
   draftId: string,
   fileType: string,
   options: { fetcher?: typeof fetch; now?: Date },
-): Promise<SlipReceiptReading> {
-  if (fileType === "application/pdf") return { ...UNREAD, outcome: "pdf" };
-  if (fileType !== "image/jpeg" && fileType !== "image/png") return { ...UNREAD };
-  if (env.OCR_MODE !== "groq" || !env.GROQ_API_KEY?.trim()) return { ...UNREAD };
+): Promise<OcrSuggestions | null> {
+  if (fileType !== "image/jpeg" && fileType !== "image/png") return null;
+  if (env.OCR_MODE !== "groq" || !env.GROQ_API_KEY?.trim()) return null;
   try {
-    const extraction = await requestSlipExtraction(env.DB, {
-      id: ownerId, email: sender, name: sender, isAdmin, mode: "workos",
-    }, draftId, env, { fetcher: options.fetcher, now: options.now });
-    if (extraction.status !== "ready" || !extraction.suggestions) return { ...UNREAD };
-    return readingFrom(extraction.suggestions);
+    const extraction = await requestSlipExtraction(env.DB, actor, draftId, env, { fetcher: options.fetcher, now: options.now });
+    return extraction.status === "ready" ? extraction.suggestions : null;
   } catch (cause) {
     const code = cause instanceof PortalError ? cause.code : "read_failed";
     console.log(JSON.stringify({ event: "slip_read_failed", code }));
-    return { ...UNREAD };
+    return null;
+  }
+}
+
+/**
+ * Staff files (unless the detail names the administrator's own athlete) and
+ * possible corrections wait for a person; a PDF cannot be read here. Everything
+ * else registers itself when the amount and date were read. Any failure after
+ * the draft is saved falls back to finishing by hand.
+ */
+async function replyForSavedSlip(
+  env: InboundEnv,
+  actor: Actor,
+  isStaff: boolean,
+  draft: { id: string; file: SlipMetadata },
+  suggestions: OcrSuggestions | null,
+  expiresAt: Date,
+  now: Date,
+): Promise<SlipReply> {
+  const reading = readingFrom(suggestions);
+  const saved = { reading, draftId: draft.id, expiresAt };
+  try {
+    if (isStaff && !(await detailNamesOwnAthlete(env.DB, actor.id, suggestions?.description ?? null))) {
+      return { kind: "staff", ...saved };
+    }
+    const correction = await findPaymentAwaitingCorrection(env.DB, actor.id);
+    if (correction) return { kind: "correction", paymentId: correction, ...saved };
+    if (draft.file.type === "application/pdf") return { kind: "pdf", ...saved };
+    const result = await registerEmailedSlip(env.DB, actor, draft, suggestions, now);
+    switch (result.kind) {
+      case "registered":
+        return { kind: "registered", reading, paymentId: result.paymentId, allocations: result.allocations, creditMinor: result.creditMinor };
+      case "duplicate":
+        return { kind: "duplicate", paymentId: result.paymentId };
+      case "incomplete":
+        return { kind: "missing", missing: result.missing, ...saved };
+      default:
+        return { kind: result.kind, ...saved };
+    }
+  } catch (cause) {
+    const code = cause instanceof PortalError ? cause.code : "register_failed";
+    console.log(JSON.stringify({ event: "slip_register_failed", code }));
+    return { kind: isStaff ? "staff" : "unsure", ...saved };
   }
 }
 
@@ -276,12 +417,17 @@ export function pickSlip(attachments: Array<{
   return candidates[0] ?? null;
 }
 
-async function recordRejected(env: InboundEnv, messageId: string, sender: string, ownerId: string): Promise<void> {
+/** False when the row could not be written, usually because a redelivery already recorded it. */
+async function recordInbound(
+  env: InboundEnv, messageId: string, sender: string, ownerId: string, status: "rejected" | "duplicate" = "rejected",
+): Promise<boolean> {
   try {
     await env.DB.prepare(
-      "INSERT INTO email_inbound(id,message_id,sender_email,owner_id,draft_id,status,created_at) VALUES(?,?,?,?,NULL,'rejected',?)",
-    ).bind(crypto.randomUUID(), messageId, sender, ownerId, new Date().toISOString()).run();
+      "INSERT INTO email_inbound(id,message_id,sender_email,owner_id,draft_id,status,created_at) VALUES(?,?,?,?,NULL,?,?)",
+    ).bind(crypto.randomUUID(), messageId, sender, ownerId, status, new Date().toISOString()).run();
+    return true;
   } catch { /* A duplicate record must never mask the bounce reason. */ }
+  return false;
 }
 
 /**
@@ -325,8 +471,8 @@ export async function handleEmail(
   const messageId = message.headers.get("message-id") || `sha256:${await sha256Hex(raw)}`;
 
   const owner = await env.DB.prepare(
-    "SELECT id FROM users WHERE lower(email)=? AND active=1",
-  ).bind(sender).first<{ id: string }>();
+    "SELECT id, name FROM users WHERE lower(email)=? AND active=1",
+  ).bind(sender).first<{ id: string; name: string | null }>();
   if (!owner) {
     message.setReject("Remitente no vinculado a una cuenta familiar. Escribe desde el correo registrado en el portal.");
     return;
@@ -343,7 +489,8 @@ export async function handleEmail(
       if (!/no such table/i.test(text)) throw error;
     }
   }
-  if (!admins.has(owner.id) && !staffGrant) {
+  const isStaff = admins.has(owner.id) || staffGrant;
+  if (!isStaff) {
     const link = await env.DB.prepare(
       "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND active=1 LIMIT 1",
     ).bind(owner.id).first();
@@ -359,22 +506,33 @@ export async function handleEmail(
   if (existing) return; // Duplicate delivery: keep the first draft, drop silently.
 
   if (mailAuthenticationFailed(message.headers)) {
-    await recordRejected(env, messageId, sender, owner.id);
+    await recordInbound(env, messageId, sender, owner.id);
     message.setReject(REJECT_AUTH);
     return;
   }
 
   const slip = pickSlip(parsed.attachments || []);
   if (!slip) {
-    await recordRejected(env, messageId, sender, owner.id);
+    await recordInbound(env, messageId, sender, owner.id);
     message.setReject(REJECT_ATTACHMENT);
     return;
+  }
+
+  const sha256 = await sha256Hex(slip.bytes);
+  // The same file already belongs to a live payment: say so instead of keeping a second copy.
+  if (!isStaff) {
+    const registered = await findRegisteredPayment(env.DB, owner.id, { sha256 });
+    if (registered) {
+      if (await recordInbound(env, messageId, sender, owner.id, "duplicate")) {
+        await confirmReceipt(message, { kind: "duplicate", paymentId: registered });
+      }
+      return;
+    }
   }
 
   const draftId = crypto.randomUUID();
   const key = `portal/drafts/${draftId}/original`;
   const now = new Date();
-  const sha256 = await sha256Hex(slip.bytes);
   try {
     await env.DB.prepare(
       "INSERT INTO slip_drafts(id,owner_id,object_key,file_type,file_size,file_sha256,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)",
@@ -384,7 +542,7 @@ export async function handleEmail(
     // The draft budget trigger (five live drafts per account) must bounce with
     // instructions, not vanish as an unhandled Worker error.
     if (/draft_limit/.test(errorText(cause))) {
-      await recordRejected(env, messageId, sender, owner.id);
+      await recordInbound(env, messageId, sender, owner.id);
       message.setReject("Ya tienes varios comprobantes guardados sin registrar. Entra a tu cuenta en el portal, regístralos y vuelve a enviar este archivo.");
     } else {
       message.setReject(REJECT_RETRY);
@@ -415,8 +573,10 @@ export async function handleEmail(
     return;
   }
   const expiresAt = new Date(now.getTime() + DRAFT_TTL_MS);
-  const reading = await readEmailedSlip(env, owner.id, sender, admins.has(owner.id), draftId, slip.type, options);
-  await confirmReceipt(message, expiresAt, reading);
+  const actor: Actor = { id: owner.id, email: sender, name: owner.name?.trim() || sender, isAdmin: admins.has(owner.id), mode: "workos" };
+  const suggestions = await readEmailedSlip(env, actor, draftId, slip.type, options);
+  const draft = { id: draftId, file: { key, type: slip.type, size: slip.bytes.length, sha256 } };
+  await confirmReceipt(message, await replyForSavedSlip(env, actor, isStaff, draft, suggestions, expiresAt, options.now ?? now));
 }
 
 export default {

@@ -59,7 +59,7 @@ class Control {
   appendChild() {} insertBefore() {} replaceChildren() {} focus() {} scrollIntoView() {} reportValidity() {}
 }
 const emit = (control: Control, type: string) => control.dispatchEvent(new UiEvent(type, { bubbles: true }));
-const windowDouble = () => ({ addEventListener() {}, setTimeout, clearTimeout });
+const windowDouble = (search = '') => ({ addEventListener() {}, setTimeout, clearTimeout, location: { search } });
 
 function allocator() {
   const form = new Control();
@@ -105,7 +105,7 @@ test('pay-all still fills an empty transfer amount and permits a later manual co
   assert.match(flow.status.textContent, /quedarán a tu favor/);
 });
 
-function uploader() {
+function uploader(search = '') {
   const form = new Control();
   const component = new Control(true); component.parent = form;
   component.dataset = { authorizedAthletes: '[]', eagerUpload: 'true', ocrMode: 'demo', ocrAvailable: 'true' };
@@ -120,12 +120,12 @@ function uploader() {
   });
   const saved = component.querySelector('[data-slip-saved]')!;
   const draft = component.querySelector('[data-slip-draft]')!;
-  const option = new Control(); option.dataset.type = 'image/png'; saved.selectedOptions = [option];
+  const option = new Control(); option.dataset.type = 'image/png'; option.value = 'draft-1'; saved.selectedOptions = [option]; saved.options = [option];
   let responseDate = '2026-09-30';
   const reference = () => fields.get('bankReference')!;
   runInNewContext(controller('SlipUploader'), {
     document: { querySelectorAll: () => [component], createElement: () => new Control(), documentElement: { style: { overflow: '' } } },
-    window: windowDouble(), Event: UiEvent, Intl, AbortController, FormData, URL,
+    window: windowDouble(search), Event: UiEvent, Intl, AbortController, FormData, URL, URLSearchParams,
     fetch: async () => ({}),
     readSlipResponse: async () => ({ extraction: { status: 'ready', mode: 'demo', suggestions: {
       amount: '24000', currency: 'CRC', transferDate: responseDate, bankReference: 'REF-123', payerName: 'Nombre del banco', description: null, warnings: [],
@@ -150,6 +150,15 @@ test('OCR fills the composite date controls and replaces an inferred amount', as
   assert.equal(flow.fields.get('amount')!.value, '24000');
   assert.equal(flow.fields.get('amount')!.dataset.autoAmount, undefined, 'OCR amount must not be snapped back to allocation total');
   assert.equal(flow.reference().value, 'REF-123');
+});
+
+test('a reply link with ?correo= opens the form with that emailed file chosen and read', async () => {
+  const flow = uploader('?correo=draft-1'); await setImmediate();
+  assert.equal(flow.draft.value, 'draft-1');
+  assert.equal(flow.fields.get('amount')!.value, '24000');
+  assert.equal(flow.reference().value, 'REF-123');
+  const unknown = uploader('?correo=otro'); await setImmediate();
+  assert.equal(unknown.draft.value, '');
 });
 
 test('OCR preserves a manually selected date and clears the reference when an emailed file is removed', async () => {

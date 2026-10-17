@@ -5,15 +5,15 @@ import { readFileSync } from "node:fs";
 import { money } from "../src/components/portal/format";
 import { requestSlipExtraction } from "../src/lib/portal/ocr";
 import { DEFAULT_GROQ_VISION_MODEL } from "../src/lib/portal/ocr-provider";
+import { EMAIL_PAYMENT_NOTE } from "../src/lib/portal/email-payment";
 import { handleEmail, mailAuthenticationFailed, type InboundMessage, type SlipReceiptReply } from "../workers/email-inbound/src/index";
 
 class SQLiteD1 {
   readonly sqlite = new DatabaseSync(":memory:");
   constructor() {
-    this.sqlite.exec(readFileSync(new URL("../migrations/0002_portal.sql", import.meta.url), "utf8"));
-    this.sqlite.exec(readFileSync(new URL("../migrations/0003_ocr.sql", import.meta.url), "utf8"));
-    this.sqlite.exec(readFileSync(new URL("../migrations/0005_email_inbound.sql", import.meta.url), "utf8"));
-    this.sqlite.exec(readFileSync(new URL("../migrations/0010_admin_invitations.sql", import.meta.url), "utf8"));
+    for (const migration of ["0002_portal", "0003_ocr", "0004_financial_operations", "0005_email_inbound", "0006_self_registration", "0010_admin_invitations"]) {
+      this.sqlite.exec(readFileSync(new URL(`../migrations/${migration}.sql`, import.meta.url), "utf8"));
+    }
     const now = new Date().toISOString();
     this.sqlite.prepare("INSERT INTO users(id,email,name,active,created_at,updated_at) VALUES(?,?,?,?,?,?)")
       .run("guardian-1", "familia@example.cr", "Familia Prueba", 1, now, now);
@@ -78,6 +78,19 @@ function fakeMessage(from: string, messageId: string, extraHeaders?: Record<stri
   };
   return { message, rejected: () => reason, replies };
 }
+
+function paymentCount(db: SQLiteD1): number {
+  return (db.sqlite.prepare("SELECT count(*) AS n FROM payments").get() as { n: number }).n;
+}
+
+function addCharge(db: SQLiteD1, id: string, period: string, athleteId = "ath-1"): void {
+  db.sqlite.prepare(
+    "INSERT INTO charges(id,athlete_id,period,due_date,base_minor,discount_minor,published_by,created_at) VALUES(?,?,?,?,1500000,0,'athlete-admin',?)",
+  ).run(id, athleteId, period, `${period}-08`, new Date().toISOString());
+}
+
+/** Same PNG signature, different bytes: another screenshot of a transfer. */
+const PNG_ALT_B64 = Buffer.concat([Buffer.from(PNG_B64, "base64"), Buffer.from("otra captura")]).toString("base64");
 
 function fakeEnv(db: SQLiteD1) {
   const objects = new Map<string, Uint8Array>();
@@ -159,12 +172,15 @@ test("an invited administrator can send a slip without a family link", async () 
     "INSERT INTO admin_grants(user_id,email,granted_by,active,created_at,updated_at) VALUES(?,?,?,1,?,?)",
   ).run("athlete-admin", "admin@example.cr", "athlete-admin", now, now);
   const { env } = fakeEnv(db);
-  const { message, rejected } = fakeMessage("admin@example.cr", "msg-admin-grant@test");
+  const { message, rejected, replies } = fakeMessage("admin@example.cr", "msg-admin-grant@test");
   await handleEmail(message, env);
   assert.equal(rejected(), null);
-  const mail = db.sqlite.prepare("SELECT owner_id, status FROM email_inbound").get() as { owner_id: string; status: string };
+  const mail = db.sqlite.prepare("SELECT owner_id, status, draft_id FROM email_inbound").get() as { owner_id: string; status: string; draft_id: string };
   assert.equal(mail.owner_id, "athlete-admin");
   assert.equal(mail.status, "draft_created");
+  assert.equal(paymentCount(db), 0);
+  assert.match(replies[0]?.text ?? "", /cuenta de administración/);
+  assert.ok((replies[0]?.text ?? "").includes(`https://ajedrezbelen.com/admin/pagos/nuevo?correo=${mail.draft_id}`));
 });
 
 test("unknown sender is rejected and duplicate delivery creates no second draft", async () => {
@@ -239,7 +255,7 @@ test("draft budget reached bounces with instructions instead of throwing", async
   assert.equal(count.n, 5);
 });
 
-test("a saved slip replies without a reading and does not claim the payment", async () => {
+test("a slip that cannot be read says what is missing and links the form with that file", async () => {
   const db = new SQLiteD1();
   const { env } = fakeEnv(db);
   const { message, rejected, replies } = fakeMessage("familia@example.cr", "msg-reply@test");
@@ -249,15 +265,15 @@ test("a saved slip replies without a reading and does not claim the payment", as
   const reply = replies[0];
   assert.equal(reply?.from.email, "pagos@recibir.ajedrezbelen.com");
   assert.equal(reply?.from.name, "Ajedrez Belén");
-  assert.equal(reply?.subject, "Recibimos tu comprobante");
-  assert.match(reply?.text ?? "", /No pudimos leer el monto/);
-  assert.match(reply?.text ?? "", /Disponible en tu cuenta hasta el /);
-  assert.match(reply?.text ?? "", /no registra el pago/);
-  assert.match(reply?.text ?? "", /https:\/\/ajedrezbelen.com\/portal\/pagos\/nuevo/);
+  assert.equal(reply?.subject, "Falta un dato de tu comprobante");
+  assert.match(reply?.text ?? "", /No pudimos leer el monto ni la fecha\. Todavía no está registrado\./);
+  assert.match(reply?.text ?? "", /Guardamos el archivo hasta el /);
+  const draft = db.sqlite.prepare("SELECT id FROM slip_drafts").get() as { id: string };
+  assert.ok((reply?.text ?? "").includes(`https://ajedrezbelen.com/portal/pagos/nuevo?correo=${draft.id}`));
   assert.doesNotMatch(reply?.text ?? "", /Archivo:|Tamaño:|foto PNG|referencia|₡/i);
   assert.match(reply?.html ?? "", /No pudimos leer el monto/);
-  assert.match(reply?.html ?? "", /no registra el pago/);
   assert.doesNotMatch(reply?.html ?? "", /foto PNG|Tamaño/);
+  assert.equal(paymentCount(db), 0);
 });
 
 test("a rejected slip and a duplicate delivery do not send a receipt reply", async () => {
@@ -353,8 +369,9 @@ test("a read photo replies with the transferred amount and keeps that reading fo
   assert.match(reply?.text ?? "", /Referencia: 000020261010283002453950810/);
   assert.match(reply?.text ?? "", /Quien transfirió: Ana <b>/);
   assert.match(reply?.text ?? "", /Detalle: Timothy Ramírez/);
-  assert.match(reply?.text ?? "", /no registra el pago/);
-  assert.match(reply?.text ?? "", /revisa estos datos/);
+  assert.equal(reply?.subject, "Recibimos tu comprobante");
+  assert.match(reply?.text ?? "", /estás al día/);
+  assert.equal(paymentCount(db), 0);
   assert.doesNotMatch(reply?.text ?? "", /Archivo:|Tamaño:|foto PNG/);
   assert.match(reply?.html ?? "", /Ana &lt;b&gt;/);
   assert.doesNotMatch(reply?.html ?? "", /Ana <b>/);
@@ -407,8 +424,9 @@ test("a failed read and a PDF leave the draft and do not invent an amount", asyn
   await handleEmail(mailed.message, { ...env, OCR_MODE: "groq", GROQ_API_KEY: "test-key" }, { fetcher });
   assert.equal(mailed.rejected(), null);
   assert.equal(calls, 1);
-  assert.match(mailed.replies[0]?.text ?? "", /Guardamos el PDF/);
-  assert.match(mailed.replies[0]?.text ?? "", /no se lee desde aquí/);
+  assert.equal(mailed.replies[0]?.subject, "Envíanos una captura de tu comprobante");
+  assert.match(mailed.replies[0]?.text ?? "", /por correo solo leemos fotos/);
+  assert.match(mailed.replies[0]?.text ?? "", /captura de pantalla \(JPG o PNG\)/);
   assert.doesNotMatch(mailed.replies[0]?.text ?? "", /Monto transferido|₡|Tamaño:/);
   assert.equal((db.sqlite.prepare("SELECT count(*) AS n FROM slip_drafts").get() as { n: number }).n, 2);
 });
@@ -422,4 +440,193 @@ test("reading stays off when the Groq key is missing, without spending a read", 
   assert.match(replies[0]?.text ?? "", /No pudimos leer el monto/);
   assert.equal((db.sqlite.prepare("SELECT count(*) AS n FROM slip_extractions").get() as { n: number }).n, 0);
   assert.equal((db.sqlite.prepare("SELECT count(*) AS n FROM slip_drafts").get() as { n: number }).n, 1);
+});
+
+const NOW = new Date("2026-10-17T18:00:00Z");
+const OCR = { OCR_MODE: "groq", GROQ_API_KEY: "test-key" };
+const FULL_READ = { amount: "20000.00", currency: "CRC", transferDate: "2026-10-08", payerName: "Ana Mora", bankReference: "123456" };
+
+function reads(content: Record<string, unknown>): typeof fetch {
+  return async () => groqReply({
+    amount: null, currency: null, transferDate: null, payerName: null, bankReference: null, description: null, warnings: [],
+    ...content,
+  });
+}
+
+function altMessage(messageId: string) {
+  return fakeMessageWithParts("familia@example.cr", messageId, [
+    { contentType: "image/png", disposition: "attachment", filename: "captura.png", b64: PNG_ALT_B64 },
+  ]);
+}
+
+test("a fully read slip registers itself as a pending payment and says nothing else is needed", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  addCharge(db, "charge-09", "2026-09");
+  addCharge(db, "charge-10", "2026-10");
+  const { message, rejected, replies } = fakeMessage("familia@example.cr", "msg-auto@test");
+  await handleEmail(message, { ...env, ...OCR }, { now: NOW, fetcher: reads(FULL_READ) });
+  assert.equal(rejected(), null);
+  const payment = db.sqlite.prepare(
+    "SELECT id, status, amount_minor AS amount, transfer_date AS date, bank_reference AS reference, payer_name AS payer, submitted_by AS submitter, designated_user_id AS designated FROM payments",
+  ).get() as Record<string, unknown>;
+  assert.deepEqual({ ...payment, id: undefined }, {
+    id: undefined, status: "pending", amount: 2_000_000, date: "2026-10-08", reference: "123456",
+    payer: "Ana Mora", submitter: "guardian-1", designated: "guardian-1",
+  });
+  const requested = db.sqlite.prepare(
+    "SELECT charge_id AS chargeId, amount_minor AS amount FROM payment_requested_allocations ORDER BY charge_id",
+  ).all().map((row) => ({ ...row }));
+  assert.deepEqual(requested, [{ chargeId: "charge-09", amount: 1_500_000 }, { chargeId: "charge-10", amount: 500_000 }]);
+  assert.equal((db.sqlite.prepare("SELECT note FROM payment_revisions").get() as { note: string }).note, EMAIL_PAYMENT_NOTE);
+  assert.equal((db.sqlite.prepare("SELECT state FROM slip_drafts").get() as { state: string }).state, "attached");
+  const text = replies[0]?.text ?? "";
+  assert.equal(replies[0]?.subject, "Registramos tu pago");
+  assert.match(text, /No tienes que hacer nada más/);
+  assert.match(text, /Septiembre de 2026 · Atleta Uno: /);
+  assert.match(text, /Octubre de 2026 · Atleta Uno: /);
+  assert.ok(text.includes(`https://ajedrezbelen.com/portal/pagos/${payment.id}`));
+  assert.doesNotMatch(text, /A tu favor|correo=|Guardamos el archivo/);
+});
+
+test("an amount above what is due is registered with the rest as credit", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  addCharge(db, "charge-10", "2026-10");
+  const { message, replies } = fakeMessage("familia@example.cr", "msg-credit@test");
+  await handleEmail(message, { ...env, ...OCR }, { now: NOW, fetcher: reads(FULL_READ) });
+  assert.equal(paymentCount(db), 1);
+  assert.match(replies[0]?.text ?? "", new RegExp(`A tu favor para el próximo mes: ${money(500_000).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+});
+
+test("a slip without a readable date stays unregistered and asks only for the date", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  addCharge(db, "charge-10", "2026-10");
+  const { message, replies } = fakeMessage("familia@example.cr", "msg-no-date@test");
+  await handleEmail(message, { ...env, ...OCR }, { now: NOW, fetcher: reads({ amount: "15000.00", currency: "CRC" }) });
+  assert.equal(paymentCount(db), 0);
+  const draft = db.sqlite.prepare("SELECT id, state FROM slip_drafts").get() as { id: string; state: string };
+  assert.equal(draft.state, "draft");
+  const text = replies[0]?.text ?? "";
+  assert.equal(replies[0]?.subject, "Falta un dato de tu comprobante");
+  assert.match(text, /No pudimos leer la fecha\. Todavía no está registrado\./);
+  assert.match(text, /Monto transferido: /);
+  assert.ok(text.includes(`https://ajedrezbelen.com/portal/pagos/nuevo?correo=${draft.id}`));
+});
+
+test("emailing a slip that is already registered says so and keeps no second copy", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  addCharge(db, "charge-10", "2026-10");
+  const first = fakeMessage("familia@example.cr", "msg-first@test");
+  await handleEmail(first.message, { ...env, ...OCR }, { now: NOW, fetcher: reads(FULL_READ) });
+  const again = fakeMessage("familia@example.cr", "msg-again@test");
+  await handleEmail(again.message, { ...env, ...OCR }, { now: NOW, fetcher: reads(FULL_READ) });
+  assert.equal(again.rejected(), null);
+  assert.equal(paymentCount(db), 1);
+  assert.equal((db.sqlite.prepare("SELECT count(*) AS n FROM slip_drafts").get() as { n: number }).n, 1);
+  const paymentId = (db.sqlite.prepare("SELECT id FROM payments").get() as { id: string }).id;
+  assert.equal(again.replies[0]?.subject, "Ese comprobante ya está registrado");
+  assert.ok((again.replies[0]?.text ?? "").includes(`https://ajedrezbelen.com/portal/pagos/${paymentId}`));
+  const status = db.sqlite.prepare("SELECT status FROM email_inbound WHERE message_id=?").get("<msg-again@test>") as { status: string };
+  assert.equal(status.status, "duplicate");
+});
+
+test("another screenshot with an already registered reference is not registered twice", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  addCharge(db, "charge-10", "2026-10");
+  const first = fakeMessage("familia@example.cr", "msg-ref-1@test");
+  await handleEmail(first.message, { ...env, ...OCR }, { now: NOW, fetcher: reads(FULL_READ) });
+  const second = altMessage("msg-ref-2@test");
+  await handleEmail(second.message, { ...env, ...OCR }, { now: NOW, fetcher: reads(FULL_READ) });
+  assert.equal(paymentCount(db), 1);
+  assert.equal(second.replies[0]?.subject, "Ese comprobante ya está registrado");
+});
+
+test("a doubtful reading is not registered and asks the family to finish it", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  addCharge(db, "charge-10", "2026-10");
+  const { message, replies } = fakeMessage("familia@example.cr", "msg-doubt@test");
+  await handleEmail(message, { ...env, ...OCR }, { now: NOW, fetcher: reads({ ...FULL_READ, warnings: ["not_transfer"] }) });
+  assert.equal(paymentCount(db), 0);
+  assert.equal(replies[0]?.subject, "Falta un dato de tu comprobante");
+  assert.match(replies[0]?.text ?? "", /portal\/pagos\/nuevo\?correo=/);
+});
+
+test("a payment the portal refuses falls back to finishing it by hand", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  addCharge(db, "charge-10", "2026-10");
+  db.sqlite.exec("CREATE TRIGGER refuse_payment BEFORE INSERT ON payments BEGIN SELECT RAISE(ABORT,'pending_payment_limit'); END;");
+  const { message, rejected, replies } = fakeMessage("familia@example.cr", "msg-refused@test");
+  await handleEmail(message, { ...env, ...OCR }, { now: NOW, fetcher: reads(FULL_READ) });
+  assert.equal(rejected(), null);
+  assert.equal(paymentCount(db), 0);
+  assert.equal((db.sqlite.prepare("SELECT state FROM slip_drafts").get() as { state: string }).state, "draft");
+  assert.equal(replies[0]?.subject, "Termina el registro de tu comprobante");
+  assert.match(replies[0]?.text ?? "", /Monto transferido: /);
+  assert.match(replies[0]?.text ?? "", /portal\/pagos\/nuevo\?correo=/);
+});
+
+test("months already covered by a payment in review are not charged twice", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  addCharge(db, "charge-10", "2026-10");
+  const first = fakeMessage("familia@example.cr", "msg-cover-1@test");
+  await handleEmail(first.message, { ...env, ...OCR }, { now: NOW, fetcher: reads({ ...FULL_READ, amount: "15000.00" }) });
+  const second = altMessage("msg-cover-2@test");
+  await handleEmail(second.message, { ...env, ...OCR }, { now: NOW, fetcher: reads({ ...FULL_READ, bankReference: "999999" }) });
+  assert.equal(paymentCount(db), 1);
+  assert.match(second.replies[0]?.text ?? "", /ya tienen un pago en revisión/);
+});
+
+test("a family with a payment awaiting correction is sent to that payment, not given a new one", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  addCharge(db, "charge-09", "2026-09");
+  addCharge(db, "charge-10", "2026-10");
+  const first = fakeMessage("familia@example.cr", "msg-fix-1@test");
+  await handleEmail(first.message, { ...env, ...OCR }, { now: NOW, fetcher: reads({ ...FULL_READ, amount: "15000.00" }) });
+  const paymentId = (db.sqlite.prepare("SELECT id FROM payments").get() as { id: string }).id;
+  db.sqlite.prepare("UPDATE payments SET status='needs_info', review_note='Falta la referencia' WHERE id=?").run(paymentId);
+  const second = altMessage("msg-fix-2@test");
+  await handleEmail(second.message, { ...env, ...OCR }, { now: NOW, fetcher: reads({ ...FULL_READ, bankReference: "777777" }) });
+  assert.equal(paymentCount(db), 1);
+  const draftId = (db.sqlite.prepare("SELECT draft_id FROM email_inbound WHERE message_id=?").get("<msg-fix-2@test>") as { draft_id: string }).draft_id;
+  assert.match(second.replies[0]?.text ?? "", /esperando una corrección/);
+  assert.ok((second.replies[0]?.text ?? "").includes(`https://ajedrezbelen.com/portal/pagos/${paymentId}?correo=${draftId}`));
+});
+
+test("an administrator's slip naming their own athlete registers for their own family", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  const now = new Date().toISOString();
+  db.sqlite.prepare("INSERT INTO guardian_links(user_id,athlete_id,linked_by,active,created_at,updated_at) VALUES(?,?,?,?,?,?)")
+    .run("athlete-admin", "ath-1", "athlete-admin", 1, now, now);
+  addCharge(db, "charge-10", "2026-10");
+  const { message, replies } = fakeMessage("admin@example.cr", "msg-admin-own@test");
+  await handleEmail(message, { ...env, ...OCR, ADMIN_USER_IDS: "athlete-admin" }, {
+    now: NOW, fetcher: reads({ ...FULL_READ, amount: "15000.00", description: "Mensualidad Atleta Uno" }),
+  });
+  const payment = db.sqlite.prepare("SELECT status, submitted_by AS submitter, designated_user_id AS designated FROM payments").get() as Record<string, unknown>;
+  assert.deepEqual({ ...payment }, { status: "pending", submitter: "athlete-admin", designated: "athlete-admin" });
+  assert.equal(replies[0]?.subject, "Registramos tu pago");
+});
+
+test("an administrator's slip for another family stays a staff file", async () => {
+  const db = new SQLiteD1();
+  const { env } = fakeEnv(db);
+  const now = new Date().toISOString();
+  db.sqlite.prepare("INSERT INTO guardian_links(user_id,athlete_id,linked_by,active,created_at,updated_at) VALUES(?,?,?,?,?,?)")
+    .run("athlete-admin", "ath-1", "athlete-admin", 1, now, now);
+  addCharge(db, "charge-10", "2026-10");
+  const { message, replies } = fakeMessage("admin@example.cr", "msg-admin-other@test");
+  await handleEmail(message, { ...env, ...OCR, ADMIN_USER_IDS: "athlete-admin" }, {
+    now: NOW, fetcher: reads({ ...FULL_READ, description: "Mensualidad Sofía Vargas" }),
+  });
+  assert.equal(paymentCount(db), 0);
+  assert.match(replies[0]?.text ?? "", /cuenta de administración/);
 });

@@ -456,5 +456,12 @@ const authorizedAthletes = athletes.map(({id,name}) => ({id,name}));
       // Native history values may be restored after pageshow itself.
       window.setTimeout(() => { void restoreHistoryFile(event.persisted); }, 0);
     });
+    // The reply to an emailed slip links here with ?correo=<draft>: open with that file chosen.
+    const emailed = new URLSearchParams(window.location.search).get('correo');
+    if (savedSelect && emailed && savedSelect.value !== emailed && Array.from(savedSelect.options).some(option => option.value === emailed)) {
+      savedSelect.value = emailed;
+      savedSelect.dispatchEvent(new Event('change'));
+      savedSelect.scrollIntoView({ block: 'center' });
+    }
   });
 </script>
