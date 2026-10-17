@@ -1,4 +1,5 @@
 ---
+import fontsCss from '../styles/fonts.css?inline';
 import landingCss from '../styles/landing.css?inline';
 import KnightScene from '../components/KnightScene.astro';
 import HeroBoard from '../components/HeroBoard.astro';
@@ -100,6 +101,7 @@ const structuredData = {
     <link rel="preload" href="/fonts/bodoni-moda-latin-italic.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href={knight.src} as="image" imagesrcset={knight.srcset} imagesizes={knight.sizes} fetchpriority="high" />
+    <style is:inline set:html={fontsCss}></style>
     <style is:inline set:html={landingCss}></style>
     <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
   </head>

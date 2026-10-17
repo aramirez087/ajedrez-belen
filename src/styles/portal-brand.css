@@ -1,0 +1,32 @@
+/* Portal in the "Portada" identity: the landing's fonts and colours applied to the portal's existing
+   tokens (global.css and portal.css), so layouts and flows stay exactly as they are. Load after both. */
+
+:root {
+  color-scheme: only light;
+  --paper: #f3eee3;
+  --paper-deep: #ebe4d4;
+  --surface: #ebe4d4;
+  --ink: #16130f;
+  --ink-soft: #3b352c;
+  --muted: #655d50;
+  --line: #d6ccb7;
+  --line-strong: #a89c84;
+  --grid-line: #d6ccb7;
+  --red: #b3222b;
+  --red-hover: #8e1a21;
+  --red-soft: #f6e1dc;
+  --rose: #f6e1dc;
+  --on-dark: #cdc4b2;
+  --font: 'DM Sans Variable', 'DM Sans', system-ui, sans-serif;
+  --display: 'Bodoni Moda', 'Bodoni 72', Didot, 'Times New Roman', serif;
+}
+
+/* Bodoni needs far less negative tracking than the Manrope the portal was tuned for. */
+body :is(h1, h2, h3, .portal-brand, .portal-stat dd, .portal-total output, .portal-event-date strong, .portal-athlete-balance strong, .portal-number, .portal-guidance-details > summary, .portal-athlete-description) { letter-spacing: -.01em; }
+.portal-page h1 { font-weight: 500; letter-spacing: -.02em; }
+
+/* Buttons take the landing's pill shape instead of the hard offset shadow. */
+.portal-button { border-radius: 999px; padding-inline: 22px; box-shadow: none; font-size: 14px; }
+.portal-button:hover { transform: translateY(-1px); box-shadow: 0 12px 26px -14px rgb(142 26 33 / .7); }
+.portal-button:active { transform: none; box-shadow: none; }
+.portal-button-secondary:hover, .portal-button-danger:hover { box-shadow: none; }

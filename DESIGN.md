@@ -47,7 +47,7 @@ Confirmed fees and contact data live in `src/data/association.ts`. End times, ot
 
 ## Scope
 
-`src/styles/landing.css` styles the landing page (inlined) and `LegalPage.astro` (Términos, Privacidad, Datos, Política, Familias, Aplicación). The portal and the prototype keep `global.css` and `portal.css`; `/app/` and `/privacy/` stay deliberately plain for Google's verification review.
+`src/styles/fonts.css` holds the brand `@font-face` rules for every styled page. `src/styles/landing.css` styles the landing page (both inlined) and `LegalPage.astro` (Términos, Privacidad, Datos, Política, Familias, Aplicación). The portal keeps its layouts in `global.css` and `portal.css`; `src/styles/portal-brand.css`, loaded after them by `PortalLayout.astro`, swaps in the same fonts, colours, light-only scheme and pill buttons by overriding their tokens, so no portal markup or flow changed. The internal prototype is untouched. `/app/` and `/privacy/` stay deliberately plain for Google's OAuth review: they keep the same crest, app name, URLs and content. Google's brand verification covers the consent screen (name, logo, home and privacy URLs, domains), not page styling, so this restyle needs no re-verification as long as those stay as they are.
 
 ## Restore points
 

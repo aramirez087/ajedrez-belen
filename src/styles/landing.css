@@ -1,43 +1,6 @@
 /* Ajedrez Belén — "Portada": the landing page set like a chess magazine.
    Bodoni Moda for display, DM Sans for reading, DM Mono for notation and labels.
-   Bodoni Moda and DM Sans are trimmed by scripts/build-fonts.py to the weights and Spanish characters in use. */
-
-@font-face {
-  font-family: 'Bodoni Moda';
-  src: url('/fonts/bodoni-moda-latin-normal.woff2') format('woff2');
-  font-style: normal;
-  font-weight: 500 800;
-  font-display: swap;
-  unicode-range: U+0020-007E, U+00A0-00FF, U+2013-2014, U+2018-2019, U+201C-201D, U+2022, U+2026, U+20AC, U+2122;
-}
-@font-face {
-  font-family: 'Bodoni Moda';
-  src: url('/fonts/bodoni-moda-latin-italic.woff2') format('woff2');
-  font-style: italic;
-  font-weight: 400 700;
-  font-display: swap;
-  unicode-range: U+0020-007E, U+00A0-00FF, U+2013-2014, U+2018-2019, U+201C-201D, U+2022, U+2026, U+20AC, U+2122;
-}
-@font-face {
-  font-family: 'DM Sans Variable';
-  src: url('/fonts/dm-sans-latin.woff2') format('woff2');
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  unicode-range: U+0020-007E, U+00A0-00FF, U+2013-2014, U+2018-2019, U+201C-201D, U+2022, U+2026, U+20AC, U+2122;
-}
-/* Neither family ships the colón sign; these single-glyph faces draw it from each family's own C. */
-@font-face { font-family: 'Bodoni Moda'; src: url('/fonts/bodoni-moda-colon.woff2') format('woff2'); font-style: normal; font-weight: 500 800; font-display: swap; unicode-range: U+20A1; }
-@font-face { font-family: 'Bodoni Moda'; src: url('/fonts/bodoni-moda-colon.woff2') format('woff2'); font-style: italic; font-weight: 400 700; font-display: swap; unicode-range: U+20A1; }
-@font-face { font-family: 'DM Sans Variable'; src: url('/fonts/dm-sans-colon.woff2') format('woff2'); font-style: normal; font-weight: 400 700; font-display: swap; unicode-range: U+20A1; }
-@font-face {
-  font-family: 'DM Mono';
-  src: url('/fonts/dm-mono-latin-500.woff2') format('woff2');
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
-}
+   The @font-face rules live in fonts.css. */
 
 :root {
   color-scheme: only light;
