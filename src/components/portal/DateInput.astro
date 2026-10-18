@@ -32,7 +32,7 @@ const groupAttrs = dataOriginal ? { 'data-date-group': name, 'data-original': da
       {years.map(year => <option value={year} selected={selectedYear === year}>{year}</option>)}
     </select>
   </div>
-  {quickToday && <button class="portal-quick-fill" type="button" data-set-today>Usar la fecha de hoy <span aria-hidden="true">↓</span></button>}
+  {quickToday && <button class="portal-quick-fill" type="button" data-set-today>Usar la fecha de hoy</button>}
   <p class="portal-help portal-field-error" id={`${id}-error`} data-date-error role="status" hidden></p>
 </div>
 <script>

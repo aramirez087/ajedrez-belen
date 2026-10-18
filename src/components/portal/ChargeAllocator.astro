@@ -2,8 +2,11 @@
 import type { Charge } from '../../lib/portal/types';
 import { money } from './format';
 import AllocationRow from './AllocationRow.astro';
-interface Props { charges: Charge[]; values?: Record<string, number>; legend?: string; prefix?: string; }
-const { charges, values = {}, legend = '¿Qué mensualidades pagas con esta transferencia?', prefix = 'allocation' } = Astro.props;
+// `voice` keeps family wording ("tu transferencia") out of administration; `intro={false}` is for
+// pages whose step heading already asks the question, so it is not asked twice.
+interface Props { charges: Charge[]; values?: Record<string, number>; legend?: string; prefix?: string; intro?: boolean; voice?: 'family' | 'admin'; }
+const { charges, values = {}, legend = '¿Qué mensualidades pagas con esta transferencia?', prefix = 'allocation', intro = true, voice = 'family' } = Astro.props;
+const staff = voice === 'admin';
 const todayCR = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Costa_Rica', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const currentPeriod = todayCR.slice(0, 7);
 const capOf = (charge: Charge) => Math.max(charge.balanceMinor, values[charge.id] ?? 0);
@@ -16,14 +19,14 @@ const payAllMinor = payAll.reduce((total, charge) => total + capOf(charge), 0);
 const futureMinor = future.reduce((total, charge) => total + capOf(charge), 0);
 const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo el saldo';
 ---
-<fieldset id={`${prefix}-group`} class="portal-fieldset" data-allocator data-prefix={prefix} tabindex="-1" aria-describedby={`${prefix}-amount-check`}>
-  <legend>{legend}</legend>
-  <p class="portal-help" style="margin:0 0 13px">{showFutureFold ? <>Toca <strong>«{payAllLabel}»</strong> y llenamos las mensualidades que ya se deben. El próximo mes queda aparte, por si quieres adelantarlo.</> : <>Escribe cuánto de tu transferencia va para cada mensualidad, o toca <strong>«{payAllLabel}»</strong> y lo llenamos por ti. Deja en blanco las que no pagas hoy.</>} Si ya indicaste el monto transferido, lo conservamos.</p>
+<fieldset id={`${prefix}-group`} class="portal-fieldset" data-allocator data-prefix={prefix} data-voice={voice} tabindex="-1" aria-describedby={`${prefix}-amount-check`}>
+  <legend class:list={{ 'visually-hidden': !intro }}>{legend}</legend>
+  {intro && <p class="portal-help" style="margin:0 0 13px">{staff ? <>Toca <strong>«{payAllLabel}»</strong> para llenar lo que ya se debe, o escribe el monto de cada mensualidad.</> : showFutureFold ? <>Toca <strong>«{payAllLabel}»</strong> y llenamos las mensualidades que ya se deben. El próximo mes queda aparte, por si quieres adelantarlo.</> : <>Escribe cuánto de tu transferencia va para cada mensualidad, o toca <strong>«{payAllLabel}»</strong> y lo llenamos por ti. Deja en blanco las que no pagas hoy.</>}{staff ? '' : ' Si ya indicaste el monto transferido, lo conservamos.'}</p>}
   {payAllMinor > 0 && <div class="portal-copy-row" style="margin:0 0 6px"><button class="portal-button portal-button-secondary" type="button" data-pay-all>{payAllLabel} · {money(payAllMinor)} <span aria-hidden="true">→</span></button></div>}
   {(showFutureFold ? dueNow : charges).map(charge => <AllocationRow charge={charge} prefix={prefix} cap={capOf(charge)} filled={values[charge.id] ?? 0} today={todayCR} inPayAll={payAllIds.has(charge.id)} />)}
   {showFutureFold && <details class="portal-future-charges" open={future.some(charge => (values[charge.id] ?? 0) > 0)}><summary>Adelantar próximos meses (opcional) · {money(futureMinor)}</summary>{future.map(charge => <AllocationRow charge={charge} prefix={prefix} cap={capOf(charge)} filled={values[charge.id] ?? 0} today={todayCR} inPayAll={false} />)}</details>}
   {charges.length === 0 && <p class="portal-help">No hay mensualidades pendientes para esta cuenta.</p>}
-  <div class="portal-total"><span>Total que pagas con esta transferencia</span><output data-allocation-total aria-live="polite">{money(Object.values(values).reduce((total, value) => total + value, 0))}</output></div>
+  <div class="portal-total"><span>{staff ? 'Total aplicado' : 'Total que pagas con esta transferencia'}</span><output data-allocation-total aria-live="polite">{money(Object.values(values).reduce((total, value) => total + value, 0))}</output></div>
   <p id={`${prefix}-amount-check`} class="portal-help" data-allocation-status role="status" aria-live="polite" hidden></p>
 </fieldset>
 <script>
@@ -38,6 +41,7 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
     const status = group.querySelector<HTMLElement>('[data-allocation-status]');
     const inputs = Array.from(group.querySelectorAll<HTMLInputElement>('[data-allocation]'));
     const transfer = form?.querySelector<HTMLInputElement>('input[name="amount"], input[name="verifiedAmount"]');
+    const staff = group.dataset.voice === 'admin';
     const submitters = Array.from(form?.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button[type="submit"], input[type="submit"]') ?? []);
     const initiallyDisabled = submitters.map(button => button.disabled);
     let interacted = inputs.some(input => input.value !== '');
@@ -132,14 +136,18 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
       if (!transfer) { if (status) status.textContent = 'Revisa las mensualidades y los montos antes de aplicar el saldo.'; return true; }
       const amount = minorAmount(transfer.value);
       if (transfer.value !== '' && amount === null) transfer.setCustomValidity(moneyHint);
-      if (amount === null || !transfer.validity.valid) { if (transfer.value !== '') transfer.setAttribute('aria-invalid', 'true'); if (status) status.textContent = `Escribe arriba el monto que transferiste para compararlo. ${moneyHint}`; return false; }
+      if (amount === null || !transfer.validity.valid) { if (transfer.value !== '') transfer.setAttribute('aria-invalid', 'true'); if (status) status.textContent = `${staff ? 'Escribe arriba el monto para compararlo.' : 'Escribe arriba el monto que transferiste para compararlo.'} ${moneyHint}`; return false; }
       if (total > amount) {
-        const message = `El total supera tu transferencia por ${formatMinor(total - amount)}. Baja algún monto o corrige el monto transferido.`;
+        const message = staff
+          ? `El total supera el monto por ${formatMinor(total - amount)}. Baja algún monto o corrige el monto de arriba.`
+          : `El total supera tu transferencia por ${formatMinor(total - amount)}. Baja algún monto o corrige el monto transferido.`;
         if (status) { status.textContent = message; status.style.color = 'var(--red)'; }
         if (amountError) { amountError.hidden = false; amountError.textContent = message; }
         transfer.setCustomValidity(message); transfer.setAttribute('aria-invalid', 'true'); return false;
       }
-      if (status) status.textContent = total === amount
+      if (status) status.textContent = staff
+        ? (total === amount ? 'El total coincide con el monto.' : `Aplicas ${formatMinor(total)} de ${formatMinor(amount)}. Los ${formatMinor(amount - total)} restantes quedan como saldo a favor de la familia.`)
+        : total === amount
         ? 'El total coincide con tu transferencia. El pago se aplica cuando la Asociación confirme el ingreso en el banco.'
         : `Distribuiste ${formatMinor(total)} de ${formatMinor(amount)}. Los ${formatMinor(amount - total)} restantes quedarán a tu favor para el próximo mes, después de la confirmación en el banco.`;
       return true;

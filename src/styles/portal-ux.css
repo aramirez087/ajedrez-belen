@@ -68,7 +68,7 @@
   .portal-tabbar ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 560px; margin: 0 auto; padding: 0; list-style: none; }
   .portal-tabbar a, .portal-tabbar-more { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 64px; padding: 9px 2px 8px; color: var(--muted); font-size: 12px; font-weight: 600; line-height: 1.15; text-align: center; text-wrap: balance; }
   .portal-tabbar a svg { flex: 0 0 auto; }
-  .portal-tabbar-more { width: 100%; border: 0; background: none; font: inherit; cursor: pointer; }
+  .portal-tabbar-more { width: 100%; border: 0; background: none; font-family: inherit; cursor: pointer; }
   .portal-tabbar-more:is(.is-current, [aria-expanded='true']) { color: var(--red); }
   .portal-tabbar-more.is-current::before { content: ''; position: absolute; top: -1px; left: 22%; right: 22%; height: 3px; border-radius: 0 0 3px 3px; background: var(--red); }
   .portal-tabbar-more:active { background: var(--surface); }
@@ -357,4 +357,102 @@
   .portal-month-form[role='search']:not(:has(select)) { flex-wrap: nowrap; }
   .portal-month-form[role='search']:not(:has(select)) > .portal-field { flex: 1 1 0; min-width: 0; }
   .portal-month-form[role='search']:not(:has(select)) > :is(.portal-button, .portal-link) { flex: 0 0 auto; }
+}
+
+/* ══ Fifth round: the audit of 17 October ════════════════════════════════
+   Tone follows the news: red only when something is owed or wrong. */
+
+/* ── Next-step panel: calm when someone else acts, settled when nothing is owed. ── */
+.portal-next-step.is-calm { border-color: var(--line-strong); border-top-color: var(--ink); background: var(--surface); }
+.portal-next-step.is-done { border-color: var(--line); border-top-color: var(--board-dark); background: var(--surface); }
+.portal-next-step.is-done h2 { display: flex; align-items: center; gap: 10px; }
+.portal-next-step.is-done h2::before { content: '✓'; display: grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; background: var(--board-dark); color: var(--paper); font-size: 15px; font-weight: 700; }
+.portal-next-step .portal-next-figure { display: block; margin-top: 4px; font-family: var(--font); font-size: clamp(30px, 7vw, 40px); font-weight: 650; line-height: 1.15; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.portal-next-step .portal-next-figure + p { margin-top: 4px; }
+.portal-next-step .portal-next-aside { margin-top: 12px; padding-left: 12px; border-left: 2px solid var(--line-strong); }
+
+/* ── "Más" is a button: the portal's button font reset must not undo the tab label size. ── */
+.portal-tabbar .portal-tabbar-more { font-size: 12px; font-weight: 600; line-height: 1.15; }
+
+/* ── Two links side by side in a table cell keep their own space. ── */
+@media (min-width: 651px) {
+  .portal-table td > :is(.portal-link, .portal-status):not(:last-child) { margin-right: 18px; }
+}
+
+/* ── Small text buttons: the arrow never touches the words. ── */
+.portal-quick-fill { gap: 8px; }
+
+/* ── A guest has no session line: no empty band under the brand. ── */
+.portal-session:empty { display: none; }
+
+/* ── Earlier file versions look openable. ── */
+.portal-evidence-history > summary { display: flex; align-items: center; gap: 10px; min-height: 44px; list-style: none; color: var(--red); font-size: 14px; font-weight: 600; }
+.portal-evidence-history > summary::-webkit-details-marker { display: none; }
+.portal-evidence-history > summary::before { content: '+'; font-size: 22px; font-weight: 400; line-height: 1; }
+.portal-evidence-history[open] > summary::before { content: '−'; }
+
+/* ── Phone lists: one row per item. Name and key figure share the first line; a badge
+   reads as a status and a link as an action, so their column captions only added height. ── */
+@media (max-width: 650px) {
+  .portal-table-list tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; align-items: start; padding-block: 6px 12px; border-top: 1px solid var(--line-strong); }
+  .portal-table-list tbody tr:first-child { border-top: 2px solid var(--ink); }
+  .portal-table-list tbody :is(th, td) { grid-column: 1 / -1; width: auto; }
+  .portal-table-list tbody th[scope='row'] { grid-column: 1; grid-row: 1; }
+  .portal-table-list tbody td.portal-key { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 12px; font-size: 16px; font-weight: 650; white-space: nowrap; }
+  .portal-table-list tbody td.portal-key::before { content: none; }
+  .portal-table-list tbody td.portal-key .portal-status-tag { margin: 0; }
+  .portal-table-list tbody td:not(.portal-number)::before { content: none; }
+  .portal-table-list tbody td:not(.portal-number) { justify-content: flex-start; align-items: center; text-align: left; padding-block: 4px; }
+  .portal-table-list tbody td:not(.portal-number) .portal-subtext { margin-top: 2px; }
+  .portal-table-list tbody td:not(.portal-number) .portal-link { min-height: 40px; }
+  /* Monthly charges: the balance leads; the fee and its discount follow in one quiet line. */
+  .portal-table-charges tbody td.portal-number:not(.portal-key) { justify-content: flex-start; gap: 0 8px; padding-block: 2px; color: var(--ink-soft); font-size: 13.5px; font-weight: 500; }
+  .portal-table-charges tbody td.portal-number:not(.portal-key)::before { padding-top: 0; }
+  .portal-table-charges tbody td.is-zero { display: none; }
+}
+
+/* ── Payment form: money already in review is a calm fact beside the form, not small print. ── */
+.portal-review-note { margin: 0 0 18px; padding: 12px 16px; border-left: 3px solid var(--ink); background: var(--surface); font-size: 14.5px; line-height: 1.55; }
+.portal-review-note .portal-link { min-height: 32px; margin-left: 4px; }
+/* The slip status stays in the accessibility tree while it has nothing to say. */
+.portal-slip-status:empty { margin: 0; padding: 0; border: 0; }
+
+/* ── A legend hidden for sighted readers must not keep the block legend's full width (it overflowed phones). ── */
+.portal-page .portal-fieldset > legend.visually-hidden { float: none; width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ── "Adelantar próximos meses" opens like every other fold. ── */
+.portal-future-charges > summary { justify-content: flex-start; gap: 10px; list-style: none; color: var(--ink); }
+.portal-future-charges > summary::-webkit-details-marker { display: none; }
+.portal-future-charges > summary::before { content: '+'; color: var(--red); font-size: 22px; font-weight: 400; line-height: 1; }
+.portal-future-charges[open] > summary::before { content: '−'; }
+
+/* ── Payment detail: no empty band between the facts and the file on phones. ── */
+.portal-panel > .portal-section:last-child { margin-bottom: 0; }
+.portal-panel > .portal-section:last-child > .portal-detail-list:last-child { margin-bottom: 0; }
+.portal-ocr-folded { margin-bottom: 28px; }
+.portal-ocr-folded > summary { display: flex; align-items: center; gap: 10px; min-height: 52px; cursor: pointer; list-style: none; font-weight: 600; }
+.portal-ocr-folded > summary::-webkit-details-marker { display: none; }
+.portal-ocr-folded > .portal-section-caption { margin-top: 0; }
+.portal-ocr-folded .portal-ocr-review { margin: 0 0 18px; }
+
+/* ── My athletes: one compact card each; leaving the club is available but quiet. ── */
+.portal-own-athlete { padding-block: 18px; }
+.portal-own-athlete > header { margin-bottom: 0; }
+.portal-own-athlete > form { display: flex; justify-content: flex-end; }
+.portal-quiet-action { min-height: 40px; padding: 4px 0; border: 0; background: none; color: var(--muted); font-size: 13.5px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.portal-quiet-action:hover { color: var(--red); }
+
+/* ── A finished task says so instead of showing a disabled button. ── */
+.portal-done-note { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 15px; font-weight: 600; color: var(--board-dark); }
+.portal-done-note::before { content: '✓'; display: grid; place-items: center; flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; background: var(--board-dark); color: var(--paper); font-size: 14px; }
+
+/* ── Links inside a sentence stay in the sentence (inline-flex with a 44 px floor broke the line). ── */
+:is(.portal-guidance, .portal-next-step, .portal-alert-text, .portal-review-note) p .portal-link { display: inline; min-height: 0; padding-block: 6px; font-size: inherit; }
+.portal-evidence-history > summary { justify-content: flex-start; }
+
+/* ── Phone: inside the next-step panel the destination is a ruled line, not a box in a box. ── */
+@media (max-width: 650px) {
+  .portal-next-step .portal-pay-to { padding: 2px 0 2px 14px; border: 0; border-left: 3px solid var(--ink); background: transparent; }
+  .portal-next-step .portal-pay-to-action, .portal-next-step .portal-pay-to-action .portal-button { width: auto; }
+  .portal-next-step .portal-copy-row .portal-button { width: 100%; }
 }
