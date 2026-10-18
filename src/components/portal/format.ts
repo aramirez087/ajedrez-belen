@@ -26,6 +26,19 @@ export function dateLabel(value: string | null): string {
   const parsed = new Date(value.length === 10 ? `${value}T12:00:00Z` : value);
   return Number.isNaN(parsed.valueOf()) ? 'Sin fecha' : new Intl.DateTimeFormat('es-CR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: value.length === 10 ? 'UTC' : 'America/Costa_Rica' }).format(parsed);
 }
+/** Date and time as a person says it: "17 oct, 3:45 p. m." (Costa Rica). */
+export function dateTimeLabel(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) return 'Sin fecha';
+  return new Intl.DateTimeFormat('es-CR', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/Costa_Rica' }).format(parsed);
+}
+/** "24 oct", for dates that are obviously this year. */
+export function dayLabel(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) return 'Sin fecha';
+  return new Intl.DateTimeFormat('es-CR', { day: 'numeric', month: 'short', timeZone: 'America/Costa_Rica' }).format(parsed);
+}
+export function fileKindLabel(type: string): string { return type === 'application/pdf' ? 'PDF' : type === 'image/png' ? 'Imagen PNG' : 'Imagen JPG'; }
 export const paymentLabels: Record<string, string> = { pending: 'En revisión', submitted: 'En revisión', needs_info: 'Te falta un dato', approved: 'Confirmado', verified: 'Confirmado', rejected: 'Rechazado', voided: 'Anulado', void: 'Anulado' };
 /** Due-date state for a charge. Dates are `YYYY-MM-DD` (CR calendar days). */
 export function dueState(dueDate: string, today: string): { kind: 'overdue' | 'today' | 'soon' | 'future'; days: number } {

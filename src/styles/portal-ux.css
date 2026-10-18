@@ -464,3 +464,14 @@
 .portal-date-row-date { grid-template-columns: 70px minmax(0, 1fr) 92px; gap: 8px; }
 .portal-page .portal-date-row-date select { padding-inline: 12px 30px; background-position: right 11px center; }
 @media (max-width: 360px) { .portal-date-row-date { grid-template-columns: 64px minmax(0, 1fr) 84px; } }
+
+/* ── Files the family emailed: one row each, so each can be finished (or just read) on its own. ── */
+.portal-draft-list { margin: 14px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line-strong); }
+.portal-draft-list li { display: flex; align-items: center; justify-content: space-between; gap: 6px 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.portal-draft-list li > div { min-width: 0; }
+.portal-draft-list strong { display: block; font-size: 15px; font-weight: 600; line-height: 1.4; }
+.portal-draft-list span { display: block; margin-top: 2px; color: var(--muted); font-size: 13.5px; }
+.portal-draft-list .portal-link { flex: 0 0 auto; }
+.portal-next-step > .portal-history { margin-top: 14px; border-block-color: var(--line-strong); }
+.portal-next-step > .portal-history .portal-draft-list { margin-top: 0; border-top: 0; padding-bottom: 6px; }
+.portal-next-step > .portal-history .portal-draft-list li:last-child { border-bottom: 0; }
