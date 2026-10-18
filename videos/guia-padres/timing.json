@@ -1,0 +1,23 @@
+{
+  "total": 22,
+  "scenes": [
+    {
+      "id": "simple-01",
+      "start": 0,
+      "duration": 6,
+      "midpoint": 3
+    },
+    {
+      "id": "simple-02",
+      "start": 6,
+      "duration": 9,
+      "midpoint": 10.5
+    },
+    {
+      "id": "simple-03",
+      "start": 15,
+      "duration": 7,
+      "midpoint": 18.5
+    }
+  ]
+}
