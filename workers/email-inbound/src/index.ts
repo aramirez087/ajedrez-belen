@@ -9,7 +9,7 @@ import {
   registerEmailedSlip,
   type EmailAllocation,
 } from "../../../src/lib/portal/email-payment";
-import { requestSlipExtraction, type OcrSuggestions } from "../../../src/lib/portal/ocr";
+import { cleanupOwnExpiredDrafts, requestSlipExtraction, type OcrSuggestions } from "../../../src/lib/portal/ocr";
 import { detectSlipType } from "../../../src/lib/prototype-policy";
 import { PortalError, type Actor, type SlipMetadata } from "../../../src/lib/portal/types";
 
@@ -531,6 +531,14 @@ export async function handleEmail(
     }
   }
 
+  // Expired drafts still count toward the five-draft budget until cleaned. A web upload cleans first,
+  // so the email path does too. A failure here must never stop the email.
+  await cleanupOwnExpiredDrafts(
+    env.DB,
+    { id: owner.id, email: sender, name: owner.name?.trim() || sender, isAdmin: isStaff, mode: "workos" },
+    env.SLIPS,
+  ).catch(() => undefined);
+
   const draftId = crypto.randomUUID();
   const key = `portal/drafts/${draftId}/original`;
   const now = new Date();
@@ -544,7 +552,7 @@ export async function handleEmail(
     // instructions, not vanish as an unhandled Worker error.
     if (/draft_limit/.test(errorText(cause))) {
       await recordInbound(env, messageId, sender, owner.id);
-      message.setReject("Ya tienes varios comprobantes guardados sin registrar. Entra a tu cuenta en el portal, regístralos y vuelve a enviar este archivo.");
+      message.setReject("Ya tienes varios comprobantes guardados sin registrar. Entra a tu cuenta en el portal, regístralos o descártalos, y vuelve a enviar este archivo.");
     } else {
       message.setReject(REJECT_RETRY);
     }

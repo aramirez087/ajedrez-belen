@@ -251,8 +251,27 @@ test("draft budget reached bounces with instructions instead of throwing", async
   const { message, rejected } = fakeMessage("familia@example.cr", "msg-limit@test");
   await handleEmail(message, env);
   assert.match(rejected() ?? "", /sin registrar/);
+  assert.match(rejected() ?? "", /descártalos/);
   const count = db.sqlite.prepare("SELECT count(*) AS n FROM slip_drafts").get() as { n: number };
   assert.equal(count.n, 5);
+});
+
+test("expired drafts no longer block a new email", async () => {
+  const db = new SQLiteD1();
+  const { env, objects } = fakeEnv(db);
+  const past = new Date(Date.now() - 3 * 3600000).toISOString(); // expired beyond the one-hour grace
+  for (let i = 0; i < 5; i++) {
+    const key = `portal/drafts/old-${i}/original`;
+    objects.set(key, new Uint8Array([1]));
+    db.sqlite.prepare("INSERT INTO slip_drafts(id,owner_id,object_key,file_type,file_size,file_sha256,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)")
+      .run(`old-${i}`, "guardian-1", key, "image/png", 100, "f".repeat(64), past, past);
+  }
+  const { message, rejected } = fakeMessage("familia@example.cr", "msg-expired@test");
+  await handleEmail(message, env);
+  assert.equal(rejected(), null);
+  const states = db.sqlite.prepare("SELECT state, count(*) AS n FROM slip_drafts GROUP BY state ORDER BY state").all() as Array<{ state: string; n: number }>;
+  assert.deepEqual(states.map((s) => [s.state, s.n]), [["deleted", 5], ["draft", 1]]);
+  assert.equal([...objects.keys()].some((key) => key.includes("old-")), false, "the old files are gone from storage");
 });
 
 test("a slip that cannot be read says what is missing and links the form with that file", async () => {
