@@ -101,14 +101,16 @@ const currentSection = nav.find(([, , key]) => key === active)?.[1] ?? (familyCo
     form.addEventListener('submit', event => {
       if (pending) { event.preventDefault(); return; }
       pending = true;
-      queueMicrotask(() => {
-        // Other page-specific validation may cancel submission later in this event.
+      // A task, not a microtask: a microtask runs between two listeners of a click-driven submit,
+      // before the confirmation dialog's listener cancels it, and the form would stay disabled after "Volver".
+      setTimeout(() => {
+        // Other page-specific validation or a confirmation may cancel submission in this same event.
         if (event.defaultPrevented) { restore(); return; }
         form.dataset.submitting = 'true';
         buttons.forEach(button => button.setAttribute('aria-disabled', 'true'));
         status.hidden = false;
         status.textContent = 'Enviando… Espera la respuesta antes de volver a enviar.';
-      });
+      }, 0);
     });
     window.addEventListener('pageshow', restore);
   });

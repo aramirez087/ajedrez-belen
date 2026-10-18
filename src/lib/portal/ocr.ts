@@ -566,3 +566,54 @@ export async function cleanupOwnExpiredDrafts(
   await assertCanUploadSlip(db, actor);
   return cleanupDraftRows(db, actor, bucket, Math.min(5, limit), now, true);
 }
+
+/**
+ * A family removes one of its own emailed files. It follows the expiry cleanup's safe sequence
+ * (claim the row, delete the object, finish) for one draft that has not expired. If storage
+ * fails the claim is undone, so no row is ever left half-deleted. A file a payment references
+ * can never be discarded: the claim excludes it and a database trigger backs that up.
+ */
+export async function discardEmailDraft(
+  db: D1Database,
+  actor: Actor,
+  bucket: R2Bucket,
+  draftId: string,
+  now = new Date(),
+): Promise<void> {
+  await assertCanUploadSlip(db, actor);
+  const draft = await sql(
+    db,
+    `SELECT ${draftColumns} FROM slip_drafts WHERE id=? AND owner_id=? AND state='draft' AND EXISTS(SELECT 1 FROM email_inbound WHERE draft_id=slip_drafts.id)`,
+    [draftId, actor.id],
+  ).first<SlipDraft>();
+  if (!draft) error(404, "draft_not_found");
+  const token = crypto.randomUUID();
+  const claim = await sql(
+    db,
+    "UPDATE slip_drafts SET state='deleting',cleanup_token=? WHERE id=? AND owner_id=? AND state='draft' AND NOT EXISTS(SELECT 1 FROM payment_files WHERE file_key=slip_drafts.object_key) AND NOT EXISTS(SELECT 1 FROM slip_extractions WHERE draft_id=slip_drafts.id AND status='sending' AND claim_expires_at>?)",
+    [token, draft.id, actor.id, now.toISOString()],
+  ).run();
+  if (!claim.meta.changes) {
+    // A file a payment already uses is no longer a loose draft; otherwise only a read in flight can block.
+    if (await sql(db, "SELECT 1 AS ok FROM payment_files WHERE file_key=?", [draft.key]).first()) error(404, "draft_not_found");
+    if (await sql(db, "SELECT 1 AS ok FROM slip_drafts WHERE id=? AND state='draft'", [draft.id]).first()) error(409, "draft_busy");
+    error(404, "draft_not_found");
+  }
+  try {
+    await bucket.delete(draft.key);
+    const finished = await sql(
+      db,
+      "UPDATE slip_drafts SET state='deleted' WHERE id=? AND cleanup_token=? AND state='deleting' AND NOT EXISTS(SELECT 1 FROM payment_files WHERE file_key=slip_drafts.object_key)",
+      [draft.id, token],
+    ).run();
+    if (!finished.meta.changes) throw new Error("discard_not_finished");
+  } catch {
+    // Put the row back so the file stays listed and can be tried again; nothing is left in 'deleting'.
+    await sql(
+      db,
+      "UPDATE slip_drafts SET state='draft',cleanup_token=NULL WHERE id=? AND cleanup_token=? AND state='deleting'",
+      [draft.id, token],
+    ).run().catch(() => undefined);
+    error(503, "draft_discard_failed");
+  }
+}

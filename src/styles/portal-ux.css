@@ -475,3 +475,8 @@
 .portal-next-step > .portal-history { margin-top: 14px; border-block-color: var(--line-strong); }
 .portal-next-step > .portal-history .portal-draft-list { margin-top: 0; border-top: 0; padding-bottom: 6px; }
 .portal-next-step > .portal-history .portal-draft-list li:last-child { border-bottom: 0; }
+
+/* ── Discard: a quiet, full-height target beside (or under) the file's main action. ── */
+.portal-discard { margin: 0; }
+.portal-draft-actions { display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-end; }
+.portal-copy-row > .portal-discard { margin-left: 4px; }

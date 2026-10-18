@@ -1,0 +1,5 @@
+---
+interface Props { id: string; label?: string; }
+const { id, label = 'Descartar' } = Astro.props;
+---
+<form class="portal-discard" action={`/api/portal/slips/${encodeURIComponent(id)}/discard`} method="post" data-confirm="¿Descartar este comprobante? Se borra el archivo. Si ya transferiste, tendrás que enviarlo otra vez para registrar el pago."><button class="portal-text-button portal-quiet-action" type="submit">{label}</button></form>
