@@ -295,7 +295,7 @@
 .portal-form > .portal-fieldset { display: grid; gap: 16px; padding: 22px 22px 24px; background: var(--surface); border-radius: 6px; }
 .portal-form > .portal-fieldset > legend { float: left; width: 100%; margin: 0 0 4px; padding: 0; font-family: var(--font); font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
 .portal-form > .portal-fieldset > legend + * { clear: both; }
-.portal-form > .portal-fieldset :is(input:not([type='checkbox']):not([type='radio']), select, textarea) { background: #fffdf7; }
+.portal-form > .portal-fieldset :is(input:not([type='checkbox']):not([type='radio']), select, textarea) { background-color: #fffdf7; }
 
 /* ── Admin event list: the actions belong to their card. ── */
 .portal-event-row-actions { display: grid; }
@@ -401,10 +401,10 @@
   .portal-table-list tbody td.portal-key { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; padding-top: 12px; font-size: 16px; font-weight: 650; white-space: nowrap; }
   .portal-table-list tbody td.portal-key::before { content: none; }
   .portal-table-list tbody td.portal-key .portal-status-tag { margin: 0; }
-  .portal-table-list tbody td:not(.portal-number)::before { content: none; }
-  .portal-table-list tbody td:not(.portal-number) { justify-content: flex-start; align-items: center; text-align: left; padding-block: 4px; }
-  .portal-table-list tbody td:not(.portal-number) .portal-subtext { margin-top: 2px; }
-  .portal-table-list tbody td:not(.portal-number) .portal-link { min-height: 40px; }
+  .portal-table-list tbody td:is(.portal-cell-status, .portal-cell-action)::before { content: none; }
+  .portal-table-list tbody td:is(.portal-cell-status, .portal-cell-action) { justify-content: flex-start; align-items: center; text-align: left; padding-block: 4px; }
+  .portal-table-list tbody td.portal-cell-status .portal-subtext { margin-top: 2px; }
+  .portal-table-list tbody td.portal-cell-action .portal-link { min-height: 40px; }
   /* Monthly charges: the balance leads; the fee and its discount follow in one quiet line. */
   .portal-table-charges tbody td.portal-number:not(.portal-key) { justify-content: flex-start; gap: 0 8px; padding-block: 2px; color: var(--ink-soft); font-size: 13.5px; font-weight: 500; }
   .portal-table-charges tbody td.portal-number:not(.portal-key)::before { padding-top: 0; }
@@ -456,3 +456,11 @@
   .portal-next-step .portal-pay-to-action, .portal-next-step .portal-pay-to-action .portal-button { width: auto; }
   .portal-next-step .portal-copy-row .portal-button { width: 100%; }
 }
+
+/* ── Menus: Safari draws a small rounded native box and ignores our height, so every
+   single-choice menu gets the field's own square shape and a drawn chevron. ── */
+.portal-page select:not([multiple]) { -webkit-appearance: none; appearance: none; padding-right: 36px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2316130f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 13px center; background-size: 12px 8px; text-overflow: ellipsis; }
+/* Day, month, year: the day and year need little room; the month keeps the rest, down to 320 px. */
+.portal-date-row-date { grid-template-columns: 70px minmax(0, 1fr) 92px; gap: 8px; }
+.portal-page .portal-date-row-date select { padding-inline: 12px 30px; background-position: right 11px center; }
+@media (max-width: 360px) { .portal-date-row-date { grid-template-columns: 64px minmax(0, 1fr) 84px; } }

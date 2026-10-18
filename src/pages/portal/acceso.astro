@@ -29,9 +29,9 @@ const whatsapp = 'https://wa.me/50687686102';
 ---
 <PortalLayout title="Acceso al portal" hideNav>
   <PageHeader title="Tu cuenta, al día." eyebrow="Portal de pagos" description="Mensualidades, pagos y comprobantes de tus atletas, en un solo lugar." />
-  <section class="portal-panel"><div class="portal-guidance portal-guidance-strong"><h2>Inicia sesión</h2><p>Entra con tu correo y listo. Si tu cuenta es de la Asociación, este mismo ingreso abre la administración. Si te enviaron un enlace de invitación, tócalo en este mismo teléfono y entras directo.</p>
+  <section class="portal-panel"><div class="portal-guidance portal-guidance-strong"><h2>Inicia sesión</h2><p>Entra con tu correo. Si te enviaron un enlace de invitación, tócalo en este teléfono y entras directo. La administración entra por aquí también.</p>
     <a class="portal-button" href={parentHref} style="margin-top:20px">Iniciar sesión <span aria-hidden="true">→</span></a>
-    <p><a class="portal-link" href={whatsapp}>¿No tienes enlace? Pídelo por WhatsApp <span aria-hidden="true">↗</span></a></p>
+    <div class="portal-copy-row"><a class="portal-link" href={whatsapp}>¿No tienes enlace? Pídelo por WhatsApp <span aria-hidden="true">↗</span></a></div>
     {demo && <><hr class="portal-divider" /><p class="portal-help">La demostración usa datos ficticios y está disponible en este equipo.</p><a class="portal-link" href="/demo">Abrir demostración <span aria-hidden="true">→</span></a></>}
   </div></section>
 </PortalLayout>
