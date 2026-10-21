@@ -35,6 +35,7 @@ export interface RenderedReceipt { subject: string; html: string; text: string }
 
 export const DEMO_RECEIPT_NOTICE = 'DEMOSTRACIÓN — Datos ficticios. Este documento no acredita un pago real.';
 export const STAGING_RECEIPT_NOTICE = 'PRUEBA — Datos ficticios. Este documento no acredita un pago real.';
+export const ADVANCE_RECEIPT_NOTE = 'Este saldo se aplica automáticamente a las próximas mensualidades.';
 
 function text(value: unknown, max: number): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= max &&
@@ -148,6 +149,7 @@ export function renderReceipt(input: ReceiptSnapshot, presentation: ReceiptPrese
     ? 'Comprobante ficticio emitido durante una verificación simulada. No se recibieron fondos reales.'
     : 'Comprobante numerado emitido por la Asociación después de verificar el ingreso en la cuenta bancaria.';
   const credit = data.unallocatedMinor > 0 ? `Saldo a favor sin aplicar: ${money.format(data.unallocatedMinor / 100)}.` : '';
+  const advanceNote = data.lines.length === 0 && data.unallocatedMinor > 0 ? ADVANCE_RECEIPT_NOTE : '';
   const replyNotice = 'Las respuestas a este correo no se atienden. Para consultas, escríbenos por';
   const whatsappUrl = 'https://wa.me/50687686102';
   return {
@@ -155,7 +157,7 @@ export function renderReceipt(input: ReceiptSnapshot, presentation: ReceiptPrese
     text: [...(stagingTest ? [STAGING_RECEIPT_NOTICE] : []), data.demo ? DEMO_RECEIPT_NOTICE : '', voidNotice, data.associationName, title, '',
       ...rows.map(([label, value]) => `${label}: ${value}`), '', 'Aplicación del pago:',
       ...(allocations.length ? allocations.map((line) => `${line.athlete} — ${line.period}: ${line.amount}`) : [noAllocations]),
-      appliedTotal, credit, '', note, '',
+      appliedTotal, credit, advanceNote, '', note, '',
       `Correo automático. ${replyNotice} WhatsApp.`, whatsappUrl]
       .filter((line, index, all) => line !== '' || (index > 0 && all[index - 1] !== '')).join('\n'),
     html: `<!doctype html>
@@ -170,7 +172,7 @@ ${voided ? `<p style="padding:12px;border:2px solid #b3222b;color:#b3222b;font-w
 ${logoSrc ? `<table role="presentation" style="border-collapse:collapse;width:100%"><tbody><tr><td style="width:88px;padding:0 20px 0 0;vertical-align:middle"><img src="${escapeHtml(logoSrc)}" alt="${escapeHtml(data.associationName)}" width="72" height="72" style="display:block;width:72px;height:72px"></td><td style="padding:0;vertical-align:middle"><p style="margin:0;font-size:14px;font-weight:bold;color:#b3222b;letter-spacing:.02em;text-transform:uppercase">${escapeHtml(data.associationName)}</p><h1 style="font-size:28px;margin:8px 0;font-family:Georgia,'Times New Roman',serif">${escapeHtml(title)}</h1><p style="margin:0;font-size:18px;color:#b3222b;font-weight:bold">${escapeHtml(data.receiptNumber)}</p></td></tr></tbody></table>` : `<p style="font-size:14px;font-weight:bold;color:#b3222b;letter-spacing:.02em;text-transform:uppercase">${escapeHtml(data.associationName)}</p><h1 style="font-size:28px;margin:8px 0;font-family:Georgia,'Times New Roman',serif">${escapeHtml(title)}</h1><p style="font-size:18px;color:#b3222b;font-weight:bold">${escapeHtml(data.receiptNumber)}</p>`}
 <table style="border-collapse:collapse;width:100%"><tbody>${rows.map(([label, value]) => `<tr><th scope="row" style="text-align:left;vertical-align:top;padding:9px 12px 9px 0;border-bottom:1px solid #d8cfba">${escapeHtml(label)}</th><td style="padding:9px 0;border-bottom:1px solid #d8cfba;overflow-wrap:anywhere">${escapeHtml(value)}</td></tr>`).join('')}</tbody></table>
 <h2 style="font-size:18px;margin-top:28px;font-family:Georgia,'Times New Roman',serif">Aplicación del pago</h2><table style="border-collapse:collapse;width:100%"><thead><tr><th scope="col" style="text-align:left;padding:8px 4px">Atleta</th><th scope="col" style="text-align:left;padding:8px 4px">Mensualidad</th><th scope="col" style="text-align:right;padding:8px 4px">Monto aplicado</th></tr></thead><tbody>${allocations.length ? allocations.map((line) => `<tr><td style="padding:9px 4px;border-top:1px solid #d8cfba;overflow-wrap:anywhere">${escapeHtml(line.athlete)}</td><td style="padding:9px 4px;border-top:1px solid #d8cfba">${escapeHtml(line.period)}</td><td style="padding:9px 4px;border-top:1px solid #d8cfba;text-align:right;font-variant-numeric:tabular-nums">${escapeHtml(line.amount)}</td></tr>`).join('') : `<tr><td colspan="3" style="padding:9px 4px;border-top:1px solid #d8cfba">${escapeHtml(noAllocations)}</td></tr>`}</tbody>${appliedTotal ? `<tfoot><tr><th scope="row" colspan="2" style="text-align:right;padding:9px 4px;border-top:2px solid #d8cfba">Total aplicado</th><td style="padding:9px 4px;border-top:2px solid #d8cfba;text-align:right;font-weight:bold;font-variant-numeric:tabular-nums">${escapeHtml(money.format((data.amountMinor - data.unallocatedMinor) / 100))}</td></tr></tfoot>` : ''}</table>
-${credit ? `<p style="font-weight:bold">${escapeHtml(credit)}</p>` : ''}<p style="margin-top:28px;font-size:13px;color:#655d50">${escapeHtml(note)}</p>
+${credit ? `<p style="font-weight:bold">${escapeHtml(credit)}</p>` : ''}${advanceNote ? `<p>${escapeHtml(advanceNote)}</p>` : ''}<p style="margin-top:28px;font-size:13px;color:#655d50">${escapeHtml(note)}</p>
 <p style="margin-top:20px;padding-top:16px;border-top:1px solid #d8cfba;font-size:13px;color:#655d50"><strong>Correo automático.</strong> ${escapeHtml(replyNotice)} <a href="${whatsappUrl}" style="color:#b3222b;text-decoration:underline">WhatsApp</a>.</p>
 ${presentation.portalBackLink ? `<p class="print-button" style="margin-top:24px"><button type="button" onclick="window.print()" style="min-height:44px;padding:10px 20px;border:0;background:#b3222b;color:#fffdf7;font:inherit;font-size:14px;font-weight:bold;cursor:pointer">Imprimir o guardar como PDF</button></p><p class="print-button" style="font-size:14px"><a href="https://wa.me/?text=${encodeURIComponent(`Comprobante ${data.receiptNumber} de Ajedrez Belén`)}" style="color:#b3222b;font-weight:bold">Compartir por WhatsApp</a> · <a href="${escapeHtml(backHref)}" style="color:#b3222b;font-weight:bold">${escapeHtml(backLabel)}</a></p><p class="print-button" style="font-size:13px;color:#655d50">Este comprobante queda siempre disponible en tu cuenta; no necesitas guardarlo ahora si no quieres.</p>` : ''}
 </main></body></html>`,

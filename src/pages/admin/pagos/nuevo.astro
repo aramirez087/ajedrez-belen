@@ -3,10 +3,14 @@ import { env } from 'cloudflare:workers';
 import PortalLayout from '../../../layouts/PortalLayout.astro';
 import PageHeader from '../../../components/portal/PageHeader.astro';
 import ChargeAllocator from '../../../components/portal/ChargeAllocator.astro';
+import AdvanceMonths from '../../../components/portal/AdvanceMonths.astro';
+import FamilyStanding from '../../../components/portal/FamilyStanding.astro';
 import SlipUploader from '../../../components/portal/SlipUploader.astro';
 import DateInput from '../../../components/portal/DateInput.astro';
 import { authorizePortal } from '../../../lib/portal/access';
-import { getChargesForAdult, listFamilies } from '../../../lib/portal/domain';
+import { advanceQuote, familyMonthlyRates, getChargesForAdult, listFamilies, listFamilyMoney } from '../../../lib/portal/domain';
+import { addMonths } from '../../../lib/portal/advance';
+import { familyMatches, normalizeSearch, paginate } from '../../../lib/portal/family-search';
 import { getOcrAvailability } from '../../../lib/portal/ocr-policy';
 import { allowPortalDemo } from '../../../lib/portal/demo-policy';
 import { resolveBusinessConfiguration } from '../../../lib/portal/business-config';
@@ -23,24 +27,40 @@ const ocr = business ? getOcrAvailability(actor,env,{demoAllowed:allowPortalDemo
 // Staff-assisted registration lives only here, never in the family portal:
 // an administrator records a payment on behalf of the selected household.
 const families = business ? await listFamilies(env.DB) : [];
+const activeFamilies = families.filter(family => family.active);
+const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const startPeriod = addMonths(today.slice(0, 7), 1);
 const selectedAdultId = Astro.url.searchParams.get('adult');
-const selectedAdult = families.find(family => family.active && family.adultId === selectedAdultId);
+const selectedAdult = activeFamilies.find(family => family.adultId === selectedAdultId);
+// Finding a family is a search, not a menu: the list stays short whatever the size of the association.
+const q = (Astro.url.searchParams.get('q') ?? '').trim();
+// Without a search, accounts with no athlete (staff, mostly) have nothing to pay and stay out of the way.
+const paging = paginate(activeFamilies.filter(family => (q || family.athletes.length > 0) && familyMatches(family, normalizeSearch(q))), Astro.url.searchParams.get('pagina'));
+const familyMoney = business ? await listFamilyMoney(env.DB) : new Map<string, { balanceMinor: number; creditMinor: number }>();
+const familyRates = business && !selectedAdult ? await familyMonthlyRates(env.DB, startPeriod).catch(() => new Map<string, number>()) : new Map<string, number>();
+const withQuery = (extra: Record<string, string>) => `/admin/pagos/nuevo?${new URLSearchParams({ ...(q ? { q } : {}), ...extra })}`;
 const allCharges = business && selectedAdult ? await getChargesForAdult(env.DB, actor, selectedAdult.adultId) : [];
 const athletes = selectedAdult?.athletes ?? [];
+const selectedCreditMinor = selectedAdult ? familyMoney.get(selectedAdult.adultId)?.creditMinor ?? 0 : 0;
+// A family with nothing owed can still pay months ahead, as long as someone is billable next month.
+const quote = business && selectedAdult ? await advanceQuote(env.DB, selectedAdult.adultId).catch(() => null) : null;
+const canAdvance = (quote?.monthlyRateMinor ?? 0) > 0;
 const charges = allCharges.filter(charge => charge.balanceMinor > 0);
 const selectedBalanceMinor = allCharges.reduce((total, charge) => total + charge.balanceMinor, 0);
 // Files the administrator sent to the inbound address belong to the administrator's
 // own account; a family's emailed files stay usable only from that family's session.
 const emailDrafts = business ? await listEmailDrafts(env, actor).catch(() => []) : [];
-const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 ---
 <PortalLayout title="Registrar pago para una familia" actor={actor} active="new-payment">
-  <PageHeader backHref="/admin" backLabel="Volver al resumen" title="Registra el pago de una familia." eyebrow="Registro asistido" description="Elige la cuenta familiar y registra su transferencia como lo haría desde su cuenta. El comprobante se prepara para el correo verificado de esa familia." />
+  <PageHeader backHref="/admin" backLabel="Volver al resumen" title="Registra el pago de una familia." eyebrow="Registro asistido" description="Busca a la familia y registra su transferencia como lo haría desde su cuenta. El comprobante se prepara para el correo verificado de esa familia." />
   {!business && <div class="portal-guidance" role="status"><h3>Registro de pagos no disponible</h3><p>La Asociación debe confirmar la configuración de cobro antes de registrar pagos.</p></div>}
   {business && <>
-  <form class="portal-month-form" action="/admin/pagos/nuevo" method="get"><div class="portal-field"><label for="adult">Registrar para una cuenta familiar</label><select id="adult" name="adult" required><option value="">Selecciona una persona</option>{families.filter(family => family.active).map(family => <option value={family.adultId} selected={selectedAdult?.adultId === family.adultId}>{family.adultName} · {family.email}</option>)}</select></div><button class="portal-button portal-button-secondary" type="submit">Elegir cuenta <span aria-hidden="true">→</span></button></form>
+  {!selectedAdult && <>
+  <form class="portal-month-form" action="/admin/pagos/nuevo" method="get" role="search" aria-label="Buscar familia"><div class="portal-field"><label for="q">Buscar familia o atleta</label><input id="q" name="q" type="search" value={q} placeholder="Nombre o correo…" autocomplete="off" autofocus /></div><button class="portal-button portal-button-secondary" type="submit">Buscar <span aria-hidden="true">→</span></button>{q && <a class="portal-link" href="/admin/pagos/nuevo">Limpiar <span aria-hidden="true">→</span></a>}</form>
+  {paging.items.length ? <section aria-labelledby="family-results-title"><h2 id="family-results-title" class="visually-hidden">Familias</h2><p class="portal-help">{q ? `${paging.items.length === 1 && paging.pages === 1 ? '1 familia' : 'Familias'} para «${q}»` : 'Todas las familias'}{paging.pages > 1 && <> · página {paging.page} de {paging.pages}</>}</p><ul class="portal-family-picks">{paging.items.map(family => <li><a class="portal-family-pick" href={withQuery({ adult: family.adultId })}><strong>{family.adultName}</strong><span class="portal-help">{family.email}</span><span class="portal-help">{family.athletes.length ? family.athletes.map(athlete => athlete.name).join(', ') : 'Sin atletas vinculados'}</span><FamilyStanding balanceMinor={familyMoney.get(family.adultId)?.balanceMinor ?? 0} creditMinor={familyMoney.get(family.adultId)?.creditMinor ?? 0} rateMinor={familyRates.get(family.adultId) ?? 0} startPeriod={startPeriod} /></a></li>)}</ul>{paging.pages > 1 && <nav class="portal-copy-row" aria-label="Páginas de familias">{paging.page > 1 && <a class="portal-link" href={withQuery({ pagina: String(paging.page - 1) })}>← Anteriores</a>}<span class="portal-help">Página {paging.page} de {paging.pages}</span>{paging.page < paging.pages && <a class="portal-link" href={withQuery({ pagina: String(paging.page + 1) })}>Siguientes →</a>}</nav>}</section> : <div class="portal-guidance" role="status"><h3>No encontramos esa familia</h3><p>Prueba con otro nombre o correo. Si aún no tiene cuenta, invítala desde <a class="portal-link" href="/admin/familias#invitar">Familias</a>.</p></div>}
+  </>}
   {selectedAdult && <>
-  <section class="portal-guidance" aria-labelledby="assisted-family-title"><h2 id="assisted-family-title">Familia seleccionada</h2><p><strong>{selectedAdult.adultName}</strong> · {selectedAdult.email} · {athletes.length} {athletes.length === 1 ? 'atleta' : 'atletas'} · Saldo pendiente <strong>{money(selectedBalanceMinor)}</strong>.</p></section>
+  <section class="portal-guidance" aria-labelledby="assisted-family-title"><h2 id="assisted-family-title">Familia seleccionada</h2><p><strong>{selectedAdult.adultName}</strong> · {selectedAdult.email} · {athletes.length} {athletes.length === 1 ? 'atleta' : 'atletas'}</p><p><FamilyStanding balanceMinor={selectedBalanceMinor} creditMinor={selectedCreditMinor} rateMinor={quote?.monthlyRateMinor ?? 0} startPeriod={startPeriod} /></p><p><a class="portal-link" href={q ? `/admin/pagos/nuevo?${new URLSearchParams({ q })}` : '/admin/pagos/nuevo'}>Cambiar familia</a></p></section>
   <div class="portal-two-columns">
     <section class="portal-panel"><form class="portal-form" action={`/api/portal/payments?context=admin&adult=${encodeURIComponent(selectedAdult.adultId)}`} method="post" enctype="multipart/form-data" data-unsaved-guard data-draft-key={`nuevo-pago-asistido-${selectedAdult.adultId}`} data-draft-success="submitted">
       <input type="hidden" name="submissionId" value={crypto.randomUUID()} />
@@ -50,13 +70,14 @@ const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Costa_Rica',ye
       <div class="portal-field"><label for="payer-name">Nombre de quien realizó la transferencia</label><input id="payer-name" name="payerName" type="text" maxlength="160" autocomplete="name" placeholder="Nombre y apellidos…" value={selectedAdult.adultName} required /></div>
       <div class="portal-form-row"><div class="portal-field"><label for="amount">Monto transferido (₡)</label><input id="amount" name="amount" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="27000…" required aria-describedby="amount-help" /><p id="amount-help" class="portal-help">Solo el número, como sale en el banco: 27000 o 27.000.</p></div><DateInput id="transfer-date" name="transferDate" label="Fecha de la transferencia" value={today} minYear={2020} quickToday /></div>
       <div class="portal-field"><label for="bank-reference">Referencia bancaria</label><input id="bank-reference" name="bankReference" type="text" maxlength="128" autocomplete="off" spellcheck="false" placeholder="Se completa al leer el comprobante" readonly aria-readonly="true" aria-describedby="reference-help" /><p id="reference-help" class="portal-help">La lectura del comprobante completa este dato. No hace falta escribirlo. Si no se lee, el pago se puede enviar igual.</p></div>
-      <div class="portal-form-step"><span aria-hidden="true">03</span><div><h2>Elige qué mensualidades pagas.</h2><p>Toca «Pagar todo lo que vence» si la transferencia cubre lo que ya se debe. Adelantar el próximo mes es opcional.</p></div></div>
-      <ChargeAllocator charges={charges} voice="admin" legend="¿Qué mensualidades paga esta transferencia?" />
+      <div class="portal-form-step"><span aria-hidden="true">03</span><div><h2>{charges.length === 0 ? 'Elige cuántos meses se adelantan.' : 'Elige qué mensualidades pagas.'}</h2><p>{charges.length === 0 ? 'Cada mes se aplica solo cuando se publique la mensualidad.' : 'Toca «Pagar todo lo que vence» si la transferencia cubre lo que ya se debe. Adelantar meses es opcional.'}</p></div></div>
+      <ChargeAllocator charges={charges} voice="admin" legend="¿Qué mensualidades paga esta transferencia?" emptyNote={charges.length === 0 ? false : undefined} />
+      <AdvanceMonths voice="admin" monthlyRateMinor={quote?.monthlyRateMinor ?? 0} />
       <p class="portal-help">Si se transfirió de más, la diferencia queda guardada a favor de la familia para el próximo mes. No se pierde.</p>
       <label class="portal-checkbox"><input type="checkbox" name="shareEvidence" value="on" /><span>Permitir que la persona responsable seleccionada consulte el archivo de esta transferencia.</span></label>
       <div class="portal-guidance"><h3>Correo para la familia seleccionada</h3><p>Después de verificar el ingreso en el banco, el comprobante se prepara para el correo verificado de <strong>{selectedAdult.adultName}</strong>: <strong>{selectedAdult.email}</strong>.</p><p>Se usa el correo registrado en esa cuenta familiar. Si no hay un correo válido y habilitado, la entrega queda retenida.</p></div>
       <div class="portal-field"><label for="audit-reason">Motivo del registro por administración</label><textarea id="audit-reason" name="auditReason" maxlength="500" required></textarea></div>
-      <button class="portal-button portal-button-wide" type="submit" disabled={charges.length === 0}>Registrar pago de la familia <span aria-hidden="true">→</span></button><p class="portal-help">El pago queda «en revisión» hasta comprobar el ingreso en el banco; después se emite el comprobante oficial.</p>{charges.length === 0 && <p class="portal-help">Esta familia no tiene mensualidades pendientes: por eso el botón está desactivado.</p>}
+      <button class="portal-button portal-button-wide" type="submit" disabled={charges.length === 0 && !canAdvance}>Registrar pago de la familia <span aria-hidden="true">→</span></button><p class="portal-help">El pago queda «en revisión» hasta comprobar el ingreso en el banco; después se emite el comprobante oficial.</p>{charges.length === 0 && (canAdvance ? <p class="portal-help">Esta familia está al día: puedes registrar un adelanto.</p> : <p class="portal-help">Esta familia no tiene mensualidades pendientes ni atletas por cobrar el próximo mes: por eso el botón está desactivado.</p>)}
     </form></section>
     <aside class="portal-panel"><div class="portal-guidance"><h3>¿Qué pasa después?</h3><p>1. El pago queda «en revisión» (todavía no baja el saldo).</p><p>2. La Asociación comprueba el ingreso en el banco desde la revisión de pagos.</p><p>3. El saldo se actualiza y el comprobante oficial aparece en la cuenta de la familia.</p></div><a class="portal-link" href="/admin"><span aria-hidden="true">←</span> Volver al resumen</a></aside>
   </div>

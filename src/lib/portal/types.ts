@@ -175,6 +175,8 @@ export interface SubmitPaymentInput {
   auditReason?: string;
   shareEvidence?: boolean;
   note?: string;
+  /** Set only by the "Adelantar meses" form: the payment may name no month and becomes credit. */
+  advance?: boolean;
 }
 export interface VerifyPaymentInput {
   action: "verify";

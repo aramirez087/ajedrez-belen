@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createReceiptSnapshot, DEMO_RECEIPT_NOTICE, STAGING_RECEIPT_NOTICE, renderReceipt, validEmail, RECEIPT_LOGO_PORTAL_SRC, RECEIPT_LOGO_EMAIL_SRC } from '../src/lib/portal/receipt.ts';
+import { ADVANCE_RECEIPT_NOTE, createReceiptSnapshot, DEMO_RECEIPT_NOTICE, STAGING_RECEIPT_NOTICE, renderReceipt, validEmail, RECEIPT_LOGO_PORTAL_SRC, RECEIPT_LOGO_EMAIL_SRC } from '../src/lib/portal/receipt.ts';
 import type { ReceiptSnapshot } from '../src/lib/portal/types.ts';
 
 export function receiptFixture(overrides: Partial<ReceiptSnapshot> = {}): ReceiptSnapshot {
@@ -235,4 +235,14 @@ test('issued, demo and void receipts direct questions to the official WhatsApp w
     assert.match(rendered.html, /<a href="https:\/\/wa\.me\/50687686102"[^>]*>WhatsApp<\/a>/);
     assert.ok(rendered.text.split('\n').includes('https://wa.me/50687686102'));
   }
+});
+
+test('a receipt with no lines and credit left explains that it applies to future months', () => {
+  const advance = receiptFixture({ lines: [], amountMinor: 4_500_000, unallocatedMinor: 4_500_000 });
+  const rendered = renderReceipt(advance);
+  assert.ok(rendered.text.includes(ADVANCE_RECEIPT_NOTE));
+  assert.ok(rendered.html.includes(ADVANCE_RECEIPT_NOTE));
+  const ordinary = renderReceipt(receiptFixture());
+  assert.ok(!ordinary.text.includes(ADVANCE_RECEIPT_NOTE));
+  assert.ok(!ordinary.html.includes(ADVANCE_RECEIPT_NOTE));
 });

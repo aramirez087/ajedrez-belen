@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
-import { formBankReference, formText, InputError, mutationError, parseAllocations, parseMoney, successRedirect } from '../src/lib/portal/http.ts';
+import { formBankReference, formText, InputError, mutationError, parseAdvanceMonths, parseAllocations, parseMoney, successRedirect } from '../src/lib/portal/http.ts';
 import { formDate } from '../src/lib/portal/forms.ts';
 
 // Execute the real route with its financial submission dependency replaced.
@@ -23,18 +23,19 @@ async function submit(path: string, overrides: Record<string, string> = {}) {
   const request = new Request(`https://portal.example${path}`, { method: 'POST' });
   const context = { request, url: new URL(request.url) };
   let submitted = 0;
+  let submittedInput: { advance?: boolean } | undefined;
   let adminRequired: boolean | undefined;
   const exports: { POST?: (context: unknown) => Promise<Response> } = {};
   runInNewContext(code, {
-    exports, env: {}, formBankReference, formText, InputError, parseAllocations, parseMoney, formDate, successRedirect,
-    submitPaymentForm: async () => { submitted++; return 'payment-created'; },
+    exports, env: {}, formBankReference, formText, InputError, parseAdvanceMonths, parseAllocations, parseMoney, formDate, successRedirect,
+    submitPaymentForm: async (_env: unknown, _actor: unknown, _form: unknown, input: { advance?: boolean }) => { submitted++; submittedInput = input; return 'payment-created'; },
     portalMutation: async (ctx: any, _env: unknown, options: { admin?: boolean; back: string }, action: (actor: unknown, form: FormData) => Promise<Response>) => {
       adminRequired = options.admin;
       try { return await action({ isAdmin: true }, form); }
       catch (error) { return mutationError(ctx, error, options.back); }
     },
   });
-  return { response: await exports.POST!(context), submitted, get adminRequired() { return adminRequired; } };
+  return { response: await exports.POST!(context), submitted, get adminRequired() { return adminRequired; }, get input() { return submittedInput; } };
 }
 
 test('assisted payment errors return to the selected family for draft recovery', async () => {
@@ -66,4 +67,14 @@ test('ordinary family registration keeps its existing return context', async () 
   assert.equal(success.response.headers.get('Location'), '/portal/pagos/payment-created?notice=submitted');
   const failure = await submit('/api/portal/payments', { amount: 'invalid', designatedAdultId: '', auditReason: '' });
   assert.equal(failure.response.headers.get('Location'), '/portal/pagos/nuevo?error=invalid_amount');
+});
+
+test('choosing months to pay ahead marks the submission as an advance, and nothing else does', async () => {
+  const ordinary = await submit('/api/portal/payments', { designatedAdultId: '', auditReason: '' });
+  assert.equal(ordinary.input?.advance, false);
+  const ahead = await submit('/api/portal/payments', { designatedAdultId: '', auditReason: '', advanceMonths: '3', 'allocationAmount[]': '' });
+  assert.equal(ahead.input?.advance, true);
+  const invalid = await submit('/api/portal/payments', { designatedAdultId: '', auditReason: '', advanceMonths: '13' });
+  assert.equal(invalid.submitted, 0);
+  assert.equal(invalid.response.headers.get('Location'), '/portal/pagos/nuevo?error=invalid_fields');
 });

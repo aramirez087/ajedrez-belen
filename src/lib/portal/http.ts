@@ -1,6 +1,7 @@
 import type { APIContext } from 'astro';
 import { readBoundedBody, MAX_SLIP_BYTES, detectSlipType } from '../prototype-policy';
 import { moneyMinor } from './money-input';
+import { MAX_ADVANCE_MONTHS } from './advance';
 
 export function portalResponse(body: BodyInit | null, status = 200, extra: HeadersInit = {}) {
   const headers = new Headers(extra);
@@ -87,6 +88,16 @@ export function parseAllocations(form: FormData): Array<{chargeId: string; amoun
     allocations.push({ chargeId, amountMinor });
   }
   return allocations;
+}
+
+/** Months the family chose to pay ahead: whole months from 0 to 12; absent or empty means none. */
+export function parseAdvanceMonths(form: FormData): number {
+  const value = form.get('advanceMonths');
+  if (value === null || value === '') return 0;
+  if (typeof value !== 'string' || !/^\d{1,2}$/.test(value)) throw new InputError('invalid_fields');
+  const months = Number(value);
+  if (months > MAX_ADVANCE_MONTHS) throw new InputError('invalid_fields');
+  return months;
 }
 
 export async function readSlip(form: FormData, optional = false) {

@@ -5,6 +5,7 @@ import { runInNewContext } from 'node:vm';
 import { setImmediate } from 'node:timers/promises';
 import ts from 'typescript';
 import { allocationSummary, minorAmount } from '../src/lib/portal/allocation-validation.ts';
+import { advanceMinor, advanceSelection } from '../src/lib/portal/advance.ts';
 
 // Run the shipping browser controllers with narrow DOM doubles. This catches
 // ordering bugs between allocation, OCR and native events without remote OCR,
@@ -77,7 +78,7 @@ function allocator() {
   group.many.set('[data-allocation]', [rowAmount]);
   runInNewContext(controller('ChargeAllocator'), {
     document: { querySelectorAll: () => [group] }, window: windowDouble(),
-    Event: UiEvent, HTMLInputElement: Control, allocationSummary, minorAmount,
+    Event: UiEvent, HTMLInputElement: Control, allocationSummary, minorAmount, advanceSelection, advanceMinor,
     Intl, queueMicrotask, CSS: { escape: (value: string) => value },
   });
   return { form, amount, rowAmount, button, status, error };
@@ -103,6 +104,86 @@ test('pay-all still fills an empty transfer amount and permits a later manual co
   emit(flow.button, 'click');
   assert.equal(flow.amount.value, '25000');
   assert.match(flow.status.textContent, /quedarán a tu favor/);
+});
+
+// The form with an "Adelantar meses" field: the same shipping controller, narrow DOM doubles.
+function advanceFlow(options: { rate?: number; allowEmpty?: boolean; rows?: number } = {}) {
+  const form = new Control();
+  const group = new Control(); group.parent = form;
+  if (options.allowEmpty) group.dataset.allowEmpty = '1';
+  const amount = new Control(); amount.parent = form;
+  const months = new Control(); months.parent = form;
+  const box = new Control(); box.dataset = { rateMinor: String(options.rate ?? 1_500_000) };
+  const submit = new Control();
+  const status = new Control();
+  const payAll = new Control();
+  const rows = Array.from({ length: options.rows ?? 0 }, () => {
+    const row = new Control(); row.parent = form; row.dataset = { maxMinor: '2400000', payAllTarget: '1' }; return row;
+  });
+  form.one.set('input[name="amount"], input[name="verifiedAmount"]', amount);
+  form.one.set('[data-amount-error]', new Control());
+  form.one.set('input[name="advanceMonths"]', months);
+  form.one.set('[data-advance]', box);
+  form.many.set('button[type="submit"], input[type="submit"]', [submit]);
+  group.one.set('[data-allocation-total]', new Control());
+  group.one.set('[data-allocation-status]', status);
+  group.one.set('[data-pay-all]', payAll);
+  group.many.set('[data-allocation]', rows);
+  runInNewContext(controller('ChargeAllocator'), {
+    document: { querySelectorAll: () => [group] }, window: windowDouble(),
+    Event: UiEvent, HTMLInputElement: Control, allocationSummary, minorAmount, advanceSelection, advanceMinor,
+    Intl, queueMicrotask, CSS: { escape: (value: string) => value },
+  });
+  return { amount, months, submit, status, payAll, rows, choose(value: string) { months.value = value; emit(months, 'input'); } };
+}
+
+test('a family that owes nothing can submit once it chooses months to pay ahead', () => {
+  const flow = advanceFlow();
+  assert.equal(flow.submit.disabled, true, 'nothing chosen yet');
+  flow.choose('3');
+  assert.equal(flow.submit.disabled, false);
+  assert.equal(flow.amount.value, '45000', 'three months at 15 000 each');
+  assert.match(flow.status.textContent, /Adelantas 3 meses/);
+  flow.choose('');
+  assert.equal(flow.submit.disabled, true, 'removing the months removes the only thing being paid');
+});
+
+test('months paid ahead add to what pay-all allocated, and keep following while the amount is automatic', () => {
+  const flow = advanceFlow({ rows: 1 });
+  emit(flow.payAll, 'click');
+  assert.equal(flow.amount.value, '24000');
+  flow.choose('2');
+  assert.equal(flow.amount.value, '54000');
+  flow.choose('1');
+  assert.equal(flow.amount.value, '39000');
+});
+
+test('a typed transfer amount too small for the months is refused, not silently reduced', () => {
+  const flow = advanceFlow();
+  flow.amount.value = '20000'; emit(flow.amount, 'input');
+  flow.choose('2');
+  assert.equal(flow.amount.value, '20000', 'the person typed it; it stays');
+  assert.equal(flow.amount.validity.valid, false);
+  assert.match(flow.status.textContent, /no alcanza/);
+});
+
+test('a months value outside 0 to 12 blocks the form with a plain message', () => {
+  const flow = advanceFlow();
+  flow.choose('13');
+  assert.equal(flow.months.validity.valid, false);
+  assert.match(flow.months.validationMessage, /0 a 12/);
+});
+
+test('a review or revision of an advance never demands a month', () => {
+  const flow = advanceFlow({ allowEmpty: true });
+  assert.equal(flow.submit.disabled, false);
+});
+
+test('the advance field and the allowEmpty hook exist in the shipping markup', () => {
+  const component = readFileSync(new URL('../src/components/portal/AdvanceMonths.astro', import.meta.url), 'utf8');
+  assert.match(component, /name="advanceMonths"/);
+  assert.match(component, /data-advance-chip/);
+  assert.match(readFileSync(new URL('../src/components/portal/ChargeAllocator.astro', import.meta.url), 'utf8'), /data-allow-empty/);
 });
 
 function uploader(search = '') {
@@ -270,4 +351,13 @@ test('clearing an emailed file during OCR prevents the late response from fillin
   assert.equal(flow.reference().value, '');
   assert.equal(flow.fields.get('amount')!.value, '');
   assert.deepEqual(flow.dates.map(field => field.value), ['2026', '10', '14']);
+});
+
+test('pricing the advance can never take a page down: every call site tolerates a failed lookup', () => {
+  for (const file of ['portal/index.astro', 'portal/pagos/nuevo.astro', 'admin/pagos/nuevo.astro', 'admin/familias.astro']) {
+    const source = readFileSync(new URL(`../src/pages/${file}`, import.meta.url), 'utf8');
+    const calls = [...source.matchAll(/(advanceQuote|familyMonthlyRates)\(env\.DB/g)];
+    assert.ok(calls.length > 0, file);
+    for (const call of calls) assert.match(source.slice(call.index, call.index + 160), /\.catch\(/, `${file}: ${call[1]}`);
+  }
 });

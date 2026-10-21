@@ -1,0 +1,10 @@
+---
+import { creditCoverage } from '../../lib/portal/advance';
+import { money, monthLabel } from './format';
+// One line for administration: what a family owes, and how far ahead its credit reaches.
+interface Props { balanceMinor: number; creditMinor: number; rateMinor: number; startPeriod: string; }
+const { balanceMinor, creditMinor, rateMinor, startPeriod } = Astro.props;
+// Credit pays what is already owed first; only the rest reaches future months.
+const coverage = creditCoverage(Math.max(0, creditMinor - balanceMinor), rateMinor, startPeriod);
+---
+<span class="portal-family-standing">{balanceMinor > 0 ? <>Saldo <strong>{money(balanceMinor)}</strong></> : 'Al día'}{creditMinor > 0 && <> · {coverage.months > 0 ? <>Adelanto <strong>{money(creditMinor)}</strong>, pagado hasta {monthLabel(coverage.throughPeriod!)}</> : <>Saldo a favor <strong>{money(creditMinor)}</strong></>}</>}</span>

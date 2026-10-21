@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
-import { formBankReference, formText, parseAllocations, parseMoney, successRedirect, InputError } from '../../../../lib/portal/http';
+import { formBankReference, formText, parseAdvanceMonths, parseAllocations, parseMoney, successRedirect, InputError } from '../../../../lib/portal/http';
 import { formDate } from '../../../../lib/portal/forms';
 import { portalMutation } from '../../../../lib/portal/routes';
 import { submitPaymentForm } from '../../../../lib/portal/payment-submission';
@@ -24,6 +24,7 @@ export const POST: APIRoute = context => {
         payerName: formText(form, 'payerName'), amountMinor: parseMoney(form.get('amount')),
         transferDate: formDate(form, 'transferDate'), bankReference: formBankReference(form),
         allocations: parseAllocations(form),
+        advance: parseAdvanceMonths(form) > 0,
         designatedAdultId,
         auditReason: formText(form, 'auditReason', 500, true) || undefined,
         shareEvidence: form.get('shareEvidence') === 'on', note: formText(form, 'note', 500, true) || undefined,

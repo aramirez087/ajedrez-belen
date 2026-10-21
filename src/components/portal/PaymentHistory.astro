@@ -3,7 +3,7 @@ import type { PaymentDetail } from '../../lib/portal/types';
 import { money, dateLabel, referenceLabel } from './format';
 interface Props { detail: PaymentDetail; admin?: boolean; }
 const { detail, admin = false } = Astro.props;
-const actionLabels: Record<string,string> = {submit:'Pago registrado',revise:'Información actualizada',verify:'Pago confirmado',needs_info:'Información adicional solicitada',reject:'Pago rechazado',void:'Pago anulado',apply_credit:'Saldo a favor aplicado'};
+const actionLabels: Record<string,string> = {submit:'Pago registrado',revise:'Información actualizada',verify:'Pago confirmado',needs_info:'Información adicional solicitada',reject:'Pago rechazado',void:'Pago anulado',apply_credit:'Saldo a favor aplicado',auto_apply_credit:'Adelanto aplicado a una mensualidad'};
 function eventReason(detail: string): string | null {
   try { const parsed = JSON.parse(detail); const reason = parsed.reason ?? parsed.note; return typeof reason === 'string' && reason.length <= 500 ? reason : null; } catch { return null; }
 }

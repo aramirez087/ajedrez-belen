@@ -1,3 +1,4 @@
+import { addMonths, creditCoverage, type CreditCoverage } from "./advance";
 import { validEmail } from "./receipt";
 import {
   PortalError,
@@ -431,6 +432,59 @@ export async function listFamilies(db: D1Database): Promise<Family[]> {
         receiptOptIn: !!l.receiptOptIn,
       })),
   }));
+}
+/**
+ * What each active adult would be charged per month for the athletes billed in `period`
+ * (sibling discount included, exactly as publishing computes it). Adults with nothing billable are absent.
+ */
+export async function familyMonthlyRates(db: D1Database, period: string): Promise<Map<string, number>> {
+  validatePeriod(period);
+  const billed = await rows<Athlete>(db, `${athleteSql} WHERE active=1 AND paused=0 AND start_period<=?`, [period]);
+  if (!billed.length) return new Map();
+  const discounts = await siblingDiscounts(db, billed);
+  const net = new Map(billed.map((a) => [a.id, a.feeMinor - Math.min(a.feeMinor, discounts.get(a.id)?.siblingMinor ?? 0)]));
+  const links = await rows<{ userId: string; athleteId: string }>(
+    db,
+    "SELECT l.user_id AS userId,l.athlete_id AS athleteId FROM guardian_links l JOIN users u ON u.id=l.user_id AND u.active=1 JOIN athletes a ON a.id=l.athlete_id WHERE l.active=1 AND a.active=1 AND a.paused=0 AND a.start_period<=?",
+    [period],
+  );
+  const rates = new Map<string, number>();
+  for (const link of links) rates.set(link.userId, (rates.get(link.userId) ?? 0) + (net.get(link.athleteId) ?? 0));
+  return rates;
+}
+/**
+ * The advance form's numbers for one family: the monthly rate from next month on, and how far the
+ * credit already held reaches. Next month is where coverage starts because settling only touches
+ * months up to the current one.
+ */
+export async function advanceQuote(
+  db: D1Database,
+  adultId: string,
+  creditMinor = 0,
+  instant: string = iso(),
+): Promise<{ monthlyRateMinor: number } & CreditCoverage> {
+  const startPeriod = addMonths(billingPeriod(instant), 1);
+  const monthlyRateMinor = (await familyMonthlyRates(db, startPeriod)).get(adultId) ?? 0;
+  return { monthlyRateMinor, ...creditCoverage(creditMinor, monthlyRateMinor, startPeriod) };
+}
+/** Balance owed and unapplied credit for every account that has either, in two grouped queries. */
+export async function listFamilyMoney(db: D1Database): Promise<Map<string, { balanceMinor: number; creditMinor: number }>> {
+  const [balances, credits] = await Promise.all([
+    rows<{ adultId: string; balanceMinor: number }>(
+      db,
+      `SELECT l.user_id AS adultId,COALESCE(sum(t.balance),0) AS balanceMinor FROM guardian_links l
+       JOIN (SELECT c.athlete_id,c.base_minor-c.discount_minor+COALESCE((SELECT sum(amount_minor) FROM charge_adjustments WHERE charge_id=c.id),0)-COALESCE((SELECT sum(a.amount_minor) FROM payment_allocations a JOIN payments p ON p.id=a.payment_id WHERE a.charge_id=c.id AND p.status='verified'),0) AS balance FROM charges c) t ON t.athlete_id=l.athlete_id
+       WHERE l.active=1 GROUP BY l.user_id`,
+    ),
+    rows<{ adultId: string; creditMinor: number }>(
+      db,
+      "SELECT p.designated_user_id AS adultId,COALESCE(sum(p.verified_amount_minor-COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0)),0) AS creditMinor FROM payments p WHERE p.status='verified' GROUP BY p.designated_user_id",
+    ),
+  ]);
+  const money = new Map<string, { balanceMinor: number; creditMinor: number }>();
+  for (const row of balances) money.set(row.adultId, { balanceMinor: row.balanceMinor, creditMinor: 0 });
+  for (const row of credits) money.set(row.adultId, { balanceMinor: money.get(row.adultId)?.balanceMinor ?? 0, creditMinor: row.creditMinor });
+  return money;
 }
 export async function getMonthlyPreview(
   db: D1Database,
@@ -1298,6 +1352,9 @@ export async function publishMonth(
   ]);
   if (!result[0].meta.changes)
     fail("Las cuotas o las inscripciones cambiaron. Actualiza la vista previa.", 409, "conflict");
+  // Credit paid ahead lands on the new charges now; a failure here never undoes the publish (the daily run retries).
+  try { await settleCredit(db, now); }
+  catch (error) { console.error(JSON.stringify({ event: "settle_credit_failed", message: error instanceof Error ? error.message : "unknown" })); }
   return result.slice(1).reduce((sum, r) => sum + (r.meta.changes || 0), 0);
 }
 
@@ -1311,6 +1368,92 @@ export const SYSTEM_MONTHLY_ACTOR: Actor = {
   mode: "workos",
 };
 
+async function ensureSystemActor(db: D1Database): Promise<void> {
+  const now = iso();
+  await bindings(
+    db,
+    "INSERT OR IGNORE INTO users(id,email,name,active,created_at,updated_at) VALUES(?,?,?,1,?,?)",
+    [SYSTEM_MONTHLY_ACTOR.id, SYSTEM_MONTHLY_ACTOR.email, SYSTEM_MONTHLY_ACTOR.name, now, now],
+  ).run();
+}
+
+// Workers Free allows 50 D1 queries per invocation. A settling payment costs two (open charges, then the
+// batch), so one run takes a bounded number; the daily run (or the next publish) continues with the rest.
+const SETTLE_PAYMENTS_PER_RUN = 12;
+
+/**
+ * Apply verified payments' unapplied credit to their family's open charges up to the current Costa Rica
+ * month, oldest month first. Only payments that can settle something are visited, at most `maxPayments`
+ * per call. Safe to repeat and to race: the allocation triggers reject any insert that would exceed a payment
+ * or a charge, and the loser re-plans once. Months a pending payment already asked for are left to it.
+ * Returns the number of allocations created.
+ */
+export async function settleCredit(db: D1Database, instant: string, maxPayments = SETTLE_PAYMENTS_PER_RUN): Promise<number> {
+  await ensureSystemActor(db);
+  const period = billingPeriod(instant);
+  const payments = await rows<{ id: string; adultId: string; creditMinor: number }>(
+    db,
+    `SELECT t.id,t.adultId,t.creditMinor FROM (
+       SELECT p.id,p.designated_user_id AS adultId,p.verified_at AS verifiedAt,
+         p.verified_amount_minor-COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0) AS creditMinor
+       FROM payments p JOIN users u ON u.id=p.designated_user_id AND u.active=1 WHERE p.status='verified') t
+     WHERE t.creditMinor>0 AND EXISTS(
+       SELECT 1 FROM guardian_links l JOIN charges c ON c.athlete_id=l.athlete_id
+       WHERE l.user_id=t.adultId AND l.active=1 AND c.period<=?
+         AND c.base_minor-c.discount_minor+COALESCE((SELECT sum(amount_minor) FROM charge_adjustments WHERE charge_id=c.id),0)
+           >COALESCE((SELECT sum(a.amount_minor) FROM payment_allocations a JOIN payments pv ON pv.id=a.payment_id WHERE a.charge_id=c.id AND pv.status='verified'),0))
+     ORDER BY t.verifiedAt,t.id LIMIT ?`,
+    [period, maxPayments],
+  );
+  let created = 0;
+  for (const payment of payments) {
+    let remaining = payment.creditMinor;
+    for (let attempt = 0; ; attempt++) {
+      if (attempt > 0) {
+        const fresh = await one<{ creditMinor: number }>(
+          db,
+          "SELECT p.verified_amount_minor-COALESCE((SELECT sum(amount_minor) FROM payment_allocations WHERE payment_id=p.id),0) AS creditMinor FROM payments p WHERE p.id=? AND p.status='verified'",
+          [payment.id],
+        );
+        remaining = fresh?.creditMinor ?? 0;
+      }
+      const open = await rows<{ id: string; balanceMinor: number }>(
+        db,
+        `SELECT q.id,q.totalMinor-q.paidMinor-COALESCE((SELECT sum(r.amount_minor) FROM payment_requested_allocations r JOIN payments pr ON pr.id=r.payment_id WHERE r.charge_id=q.id AND pr.status IN ('pending','needs_info')),0) AS balanceMinor
+         FROM (${chargeSql} WHERE c.period<=? AND EXISTS(SELECT 1 FROM guardian_links l WHERE l.user_id=? AND l.athlete_id=c.athlete_id AND l.active=1)) q
+         ORDER BY q.period,q.athleteName,q.id`,
+        [period, payment.adultId],
+      );
+      const plan: RequestedAllocation[] = [];
+      for (const charge of open) {
+        if (remaining <= 0) break;
+        if (charge.balanceMinor <= 0) continue;
+        const amountMinor = Math.min(remaining, charge.balanceMinor);
+        plan.push({ chargeId: charge.id, amountMinor });
+        remaining -= amountMinor;
+      }
+      if (!plan.length) break;
+      const now = iso();
+      try {
+        await batch(db, [
+          ...plan.map((line) => bindings(
+            db,
+            "INSERT INTO payment_allocations(id,payment_id,charge_id,amount_minor,created_at) VALUES(?,?,?,?,?)",
+            [id(), payment.id, line.chargeId, line.amountMinor, now],
+          )),
+          audit(db, SYSTEM_MONTHLY_ACTOR, "payment", payment.id, "auto_apply_credit", { allocations: plan }, now),
+        ]);
+        created += plan.length;
+        break;
+      } catch (error) {
+        if (attempt === 0 && error instanceof PortalError && error.status === 409) continue;
+        throw error;
+      }
+    }
+  }
+  return created;
+}
+
 /**
  * Publish the Costa Rica current month if it is not published yet. Safe to run
  * repeatedly (the cron runs daily): already-published athletes are skipped and
@@ -1321,12 +1464,7 @@ export async function publishCurrentMonth(
   instant: string,
 ): Promise<{ period: string; created: number }> {
   const period = billingPeriod(instant);
-  const now = iso();
-  await bindings(
-    db,
-    "INSERT OR IGNORE INTO users(id,email,name,active,created_at,updated_at) VALUES(?,?,?,1,?,?)",
-    [SYSTEM_MONTHLY_ACTOR.id, SYSTEM_MONTHLY_ACTOR.email, SYSTEM_MONTHLY_ACTOR.name, now, now],
-  ).run();
+  await ensureSystemActor(db);
   for (let attempt = 0; attempt < 2; attempt++) {
     const preview = await getMonthlyPreview(db, period);
     if (preview.newCount === 0) return { period, created: 0 };
@@ -1404,6 +1542,7 @@ async function validateAllocations(
   allocations: RequestedAllocation[],
   paid: number,
   checkBalance: boolean,
+  allowEmpty = false,
 ): Promise<
   Array<{
     chargeId: string;
@@ -1415,11 +1554,12 @@ async function validateAllocations(
 > {
   if (
     !Array.isArray(allocations) ||
-    !allocations.length ||
+    (!allocations.length && !allowEmpty) ||
     allocations.length > 36 ||
     new Set(allocations.map((a) => a.chargeId)).size !== allocations.length
   )
     fail("Seleccione las mensualidades.", 400);
+  if (!allocations.length) await requireLinkedAthlete(db, userId);
   if (allocations.reduce((sum, a) => sum + amount(a.amountMinor), 0) > paid)
     fail("La distribución supera el monto del pago.");
   const found = [];
@@ -1449,6 +1589,16 @@ async function validateAllocations(
     });
   }
   return found;
+}
+/** With no month to check, the only proof a family may pay is that the account has an athlete linked. */
+async function requireLinkedAthlete(db: D1Database, userId: string): Promise<void> {
+  const linked = await one<{ ok: number }>(db, "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND active=1 LIMIT 1", [userId]);
+  if (!linked) fail("Esta cuenta no tiene atletas vinculados.", 403, "forbidden");
+}
+/** A payment registered as an advance named no month. Derived from storage, so revising or verifying needs no client flag. */
+async function isAdvanceRequest(db: D1Database, paymentId: string): Promise<boolean> {
+  const requested = await one<{ n: number }>(db, "SELECT count(*) AS n FROM payment_requested_allocations WHERE payment_id=?", [paymentId]);
+  return (requested?.n ?? 0) === 0;
 }
 function validateSlip(file: SubmitPaymentInput["file"]) {
   text(file.key, 200);
@@ -1481,7 +1631,8 @@ function canonicalSubmission(actor: Actor, input: SubmissionRequest) {
     : input.auditReason ? text(input.auditReason, 500) : null;
   validateSlip({ ...input.file, key: "submission-original" });
   const amountMinor = amount(input.amountMinor);
-  if (!Array.isArray(input.allocations) || !input.allocations.length || input.allocations.length > 36)
+  // Only an explicit advance (the form's "Adelantar meses") may name no month; every other entry point still needs one.
+  if (!Array.isArray(input.allocations) || (!input.allocations.length && input.advance !== true) || input.allocations.length > 36)
     fail("Seleccione las mensualidades.", 400);
   const allocations = input.allocations.map(allocation => ({
     chargeId: text(allocation.chargeId, 80), amountMinor: amount(allocation.amountMinor),
@@ -1546,7 +1697,7 @@ export async function recoverPaymentSubmission(
   // A replay does not bypass a revoked account or family link.
   await activeUser(db, expected.designatedAdultId);
   await authorizedPayment(db, actor, input.submissionId);
-  await validateAllocations(db, expected.designatedAdultId, expected.allocations, expected.amountMinor, false);
+  await validateAllocations(db, expected.designatedAdultId, expected.allocations, expected.amountMinor, false, expected.allocations.length === 0);
   return input.submissionId;
 }
 /**
@@ -1563,6 +1714,7 @@ export async function assertSubmissionAccess(
   const designated = canonicalSubmission(actor, input).designatedAdultId;
   await activeUser(db, designated);
   const allocations = Array.isArray(input.allocations) ? input.allocations : [];
+  if (!allocations.length) await requireLinkedAthlete(db, designated);
   for (const allocation of allocations) {
     const linked = await one<{ id: string }>(
       db,
@@ -1591,6 +1743,7 @@ export async function submitPayment(
     input.allocations,
     input.amountMinor,
     false,
+    canonical.allocations.length === 0,
   );
   const paymentId = input.submissionId,
     now = iso();
@@ -1697,6 +1850,7 @@ export async function revisePayment(
     input.allocations,
     input.amountMinor,
     false,
+    await isAdvanceRequest(db, paymentId),
   );
   const revision = input.expectedRevision + 1,
     now = iso();
@@ -1881,6 +2035,7 @@ export async function reviewPayment(
     input.allocations,
     input.amountMinor,
     true,
+    await isAdvanceRequest(db, paymentId),
   );
   const year = billingYear(now),
     receiptId = id(),

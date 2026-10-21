@@ -1,0 +1,32 @@
+---
+import { MAX_ADVANCE_MONTHS } from '../../lib/portal/advance';
+import { money } from './format';
+// "Adelantar meses": pay several months at once. ChargeAllocator reads the field and the rate below to
+// keep the transfer amount in step. The number field works without JavaScript; the chips are a shortcut.
+interface Props { monthlyRateMinor: number; voice?: 'family' | 'admin'; value?: number; }
+const { monthlyRateMinor, voice = 'family', value = 0 } = Astro.props;
+const staff = voice === 'admin';
+const chips = [1, 2, 3, 6];
+---
+{monthlyRateMinor > 0 && <fieldset class="portal-fieldset portal-advance" data-advance data-rate-minor={monthlyRateMinor}>
+  <legend>{staff ? 'Adelantar meses (opcional)' : '¿Quieres adelantar meses?'}</legend>
+  <p class="portal-help">{staff ? 'Se aplican solos cuando se publique cada mensualidad. El monto usa la cuota actual de sus atletas.' : 'Se aplican solos cada mes, cuando se publique la mensualidad. No tienes que volver a registrar nada.'}</p>
+  <div class="portal-copy-row" role="group" aria-label="Meses por adelantar">{chips.map(months => <button class="portal-button portal-button-secondary" type="button" data-advance-chip={String(months)} aria-pressed={value === months ? 'true' : 'false'}>{months} {months === 1 ? 'mes' : 'meses'} · {money(months * monthlyRateMinor)}</button>)}</div>
+  <div class="portal-field"><label for="advance-months">Meses por adelantar</label><input id="advance-months" name="advanceMonths" type="number" min="0" max={MAX_ADVANCE_MONTHS} step="1" inputmode="numeric" autocomplete="off" placeholder="0" value={value > 0 ? String(value) : ''} /><p class="portal-help">Cada mes vale {money(monthlyRateMinor)}.</p></div>
+</fieldset>}
+<script>
+  document.querySelectorAll<HTMLElement>('[data-advance]').forEach(box => {
+    const field = box.querySelector<HTMLInputElement>('input[name="advanceMonths"]');
+    const chips = Array.from(box.querySelectorAll<HTMLButtonElement>('[data-advance-chip]'));
+    if (!field) return;
+    const sync = () => chips.forEach(chip => chip.setAttribute('aria-pressed', field.value === chip.dataset.advanceChip ? 'true' : 'false'));
+    // Tapping the chosen chip again clears it.
+    chips.forEach(chip => chip.addEventListener('click', () => {
+      field.value = field.value === chip.dataset.advanceChip ? '' : (chip.dataset.advanceChip ?? '');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      field.focus();
+    }));
+    field.addEventListener('input', sync);
+    sync();
+  });
+</script>

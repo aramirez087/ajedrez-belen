@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
-import { publishCurrentMonth } from '../../../lib/portal/domain';
+import { publishCurrentMonth, settleCredit } from '../../../lib/portal/domain';
 import { portalResponse } from '../../../lib/portal/http';
 
 export const prerender = false;
@@ -28,7 +28,18 @@ export const POST: APIRoute = async (context) => {
   const provided = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
   if (!provided || !(await secretMatches(provided, secret))) return portalResponse('Unauthorized', 401);
   try {
-    const result = await publishCurrentMonth(env.DB, new Date().toISOString());
+    const instant = new Date().toISOString();
+    const published = await publishCurrentMonth(env.DB, instant);
+    let settled: number;
+    try {
+      // Publishing a month already settles; later daily runs (nothing new to publish) retry any that failed.
+      settled = published.created > 0 ? 0 : await settleCredit(env.DB, instant);
+    } catch (error) {
+      // The month is already published; the next daily run settles again.
+      console.error(JSON.stringify({ event: 'settle_credit_failed', message: error instanceof Error ? error.message : 'unknown' }));
+      return portalResponse('Settle failed', 500);
+    }
+    const result = { ...published, settled };
     console.log(JSON.stringify({ event: 'monthly_publish', ...result }));
     return Response.json(result, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {

@@ -4,8 +4,9 @@ import { money } from './format';
 import AllocationRow from './AllocationRow.astro';
 // `voice` keeps family wording ("tu transferencia") out of administration; `intro={false}` is for
 // pages whose step heading already asks the question, so it is not asked twice.
-interface Props { charges: Charge[]; values?: Record<string, number>; legend?: string; prefix?: string; intro?: boolean; voice?: 'family' | 'admin'; }
-const { charges, values = {}, legend = '¿Qué mensualidades pagas con esta transferencia?', prefix = 'allocation', intro = true, voice = 'family' } = Astro.props;
+// `allowEmpty` is for forms that review or revise an advance, which names no month on purpose.
+interface Props { charges: Charge[]; values?: Record<string, number>; legend?: string; prefix?: string; intro?: boolean; voice?: 'family' | 'admin'; allowEmpty?: boolean; emptyNote?: string | false; }
+const { charges, values = {}, legend = '¿Qué mensualidades pagas con esta transferencia?', prefix = 'allocation', intro = true, voice = 'family', allowEmpty = false, emptyNote = 'No hay mensualidades pendientes para esta cuenta.' } = Astro.props;
 const staff = voice === 'admin';
 const todayCR = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Costa_Rica', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const currentPeriod = todayCR.slice(0, 7);
@@ -19,18 +20,19 @@ const payAllMinor = payAll.reduce((total, charge) => total + capOf(charge), 0);
 const futureMinor = future.reduce((total, charge) => total + capOf(charge), 0);
 const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo el saldo';
 ---
-<fieldset id={`${prefix}-group`} class="portal-fieldset" data-allocator data-prefix={prefix} data-voice={voice} tabindex="-1" aria-describedby={`${prefix}-amount-check`}>
+<fieldset id={`${prefix}-group`} class="portal-fieldset" data-allocator data-prefix={prefix} data-voice={voice} data-allow-empty={allowEmpty ? '1' : undefined} tabindex="-1" aria-describedby={`${prefix}-amount-check`}>
   <legend class:list={{ 'visually-hidden': !intro }}>{legend}</legend>
   {intro && <p class="portal-help" style="margin:0 0 13px">{staff ? <>Toca <strong>«{payAllLabel}»</strong> para llenar lo que ya se debe, o escribe el monto de cada mensualidad.</> : showFutureFold ? <>Toca <strong>«{payAllLabel}»</strong> y llenamos las mensualidades que ya se deben. El próximo mes queda aparte, por si quieres adelantarlo.</> : <>Escribe cuánto de tu transferencia va para cada mensualidad, o toca <strong>«{payAllLabel}»</strong> y lo llenamos por ti. Deja en blanco las que no pagas hoy.</>}{staff ? '' : ' Si ya indicaste el monto transferido, lo conservamos.'}</p>}
   {payAllMinor > 0 && <div class="portal-copy-row" style="margin:0 0 6px"><button class="portal-button portal-button-secondary" type="button" data-pay-all>{payAllLabel} · {money(payAllMinor)} <span aria-hidden="true">→</span></button></div>}
   {(showFutureFold ? dueNow : charges).map(charge => <AllocationRow charge={charge} prefix={prefix} cap={capOf(charge)} filled={values[charge.id] ?? 0} today={todayCR} inPayAll={payAllIds.has(charge.id)} />)}
   {showFutureFold && <details class="portal-future-charges" open={future.some(charge => (values[charge.id] ?? 0) > 0)}><summary>Adelantar próximos meses (opcional) · {money(futureMinor)}</summary>{future.map(charge => <AllocationRow charge={charge} prefix={prefix} cap={capOf(charge)} filled={values[charge.id] ?? 0} today={todayCR} inPayAll={false} />)}</details>}
-  {charges.length === 0 && <p class="portal-help">No hay mensualidades pendientes para esta cuenta.</p>}
+  {charges.length === 0 && emptyNote && <p class="portal-help">{emptyNote}</p>}
   <div class="portal-total"><span>{staff ? 'Total aplicado' : 'Total que pagas con esta transferencia'}</span><output data-allocation-total aria-live="polite">{money(Object.values(values).reduce((total, value) => total + value, 0))}</output></div>
   <p id={`${prefix}-amount-check`} class="portal-help" data-allocation-status role="status" aria-live="polite" hidden></p>
 </fieldset>
 <script>
   import { allocationSummary, minorAmount } from '../../lib/portal/allocation-validation';
+  import { advanceMinor, advanceSelection } from '../../lib/portal/advance';
   const formatter = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const wholeFormatter = new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 });
   const formatMinor = (minor: number) => minor % 100 === 0 ? wholeFormatter.format(minor / 100) : formatter.format(minor / 100);
@@ -42,6 +44,11 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
     const inputs = Array.from(group.querySelectorAll<HTMLInputElement>('[data-allocation]'));
     const transfer = form?.querySelector<HTMLInputElement>('input[name="amount"], input[name="verifiedAmount"]');
     const staff = group.dataset.voice === 'admin';
+    // Paying months ahead names no month: the "Adelantar meses" field (when the form has one) adds to the amount.
+    const advanceField = form?.querySelector<HTMLInputElement>('input[name="advanceMonths"]') ?? null;
+    const advanceRate = Number(form?.querySelector<HTMLElement>('[data-advance]')?.dataset.rateMinor ?? 0);
+    const allowEmpty = group.dataset.allowEmpty === '1';
+    const monthsAhead = () => advanceField ? (advanceSelection(advanceField.value) ?? 0) : 0;
     const submitters = Array.from(form?.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button[type="submit"], input[type="submit"]') ?? []);
     const initiallyDisabled = submitters.map(button => button.disabled);
     let interacted = inputs.some(input => input.value !== '');
@@ -88,8 +95,17 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
     const update = (force = false): boolean => {
       const showErrors = interacted || force;
       const eligible = inputs.filter(input => Number(input.dataset.maxMinor ?? 0) > 0);
-      submitters.forEach((button, index) => { button.disabled = initiallyDisabled[index] || eligible.length === 0; });
+      const months = monthsAhead();
+      const ahead = advanceMinor(months, advanceRate);
+      const advancing = months > 0 || allowEmpty;
+      submitters.forEach((button, index) => { button.disabled = initiallyDisabled[index] || (eligible.length === 0 && !advancing); });
       transfer?.setCustomValidity(''); transfer?.removeAttribute('aria-invalid');
+      let advanceValid = true;
+      if (advanceField) {
+        advanceValid = advanceSelection(advanceField.value) !== null;
+        advanceField.setCustomValidity(advanceValid ? '' : 'Escribe un número de 0 a 12.');
+        if (advanceValid) advanceField.removeAttribute('aria-invalid'); else advanceField.setAttribute('aria-invalid', 'true');
+      }
       if (status) { status.style.color = ''; status.hidden = !showErrors; }
       let valid = true;
       inputs.forEach(input => {
@@ -103,13 +119,14 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
         if (error) { error.hidden = !showErrors || input.validity.valid; error.textContent = error.hidden ? '' : input.validationMessage; }
       });
       const summary = allocationSummary(inputs.map(input => input.value));
-      valid = valid && summary.kind !== 'invalid';
+      valid = valid && summary.kind !== 'invalid' && advanceValid;
       const total = summary.totalMinor;
-      if (output) output.value = valid ? formatMinor(total) : 'Revisa los montos';
+      if (output) output.value = valid ? formatMinor(total + ahead) : 'Revisa los montos';
       // Mirror: until the person types the amount themselves, the transfer
       // amount follows the distributed total so it is never typed twice.
-      if (transfer && total > 0 && summary.kind === 'ready' && (transfer.dataset.autoAmount === '1' || transfer.value === '')) {
-        transfer.value = plain(total); transfer.dataset.autoAmount = '1';
+      const target = total + ahead;
+      if (transfer && target > 0 && summary.kind !== 'invalid' && (transfer.dataset.autoAmount === '1' || transfer.value === '')) {
+        transfer.value = plain(target); transfer.dataset.autoAmount = '1';
       }
       // The amount field reports its own error first; never let an
       // allocation message mask a malformed transfer amount (B-2).
@@ -121,12 +138,13 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
       if (!showErrors) {
         // Nothing typed yet: stay quiet instead of opening with a red error.
         inputs.forEach(input => input.setCustomValidity(''));
-        return summary.kind === 'ready';
+        return (summary.kind === 'ready' || advancing) && advanceValid;
       }
-      const allocationError = eligible.length === 0
+      const allocationError = eligible.length === 0 && !advancing
         ? 'No hay mensualidades disponibles para esta operación. Podrás continuar cuando haya una mensualidad pendiente.'
+        : !advanceValid ? 'Escribe un número de 0 a 12 en los meses por adelantar.'
         : !valid ? `Revisa los montos de las mensualidades. ${moneyHint}`
-        : summary.kind !== 'ready' ? 'Toca «Pagar todo» en al menos una mensualidad, o escribe cuánto pagas de cada una.' : '';
+        : summary.kind !== 'ready' && !advancing ? 'Toca «Pagar todo» en al menos una mensualidad, o escribe cuánto pagas de cada una.' : '';
       if (allocationError) {
         if (status) { status.textContent = allocationError; status.style.color = 'var(--red)'; }
         if (valid && eligible.length > 0) { eligible[0]!.setCustomValidity(allocationError); eligible[0]!.setAttribute('aria-invalid', 'true'); }
@@ -144,6 +162,17 @@ const payAllLabel = dueNow.length > 0 ? 'Pagar todo lo que vence' : 'Pagar todo 
         if (status) { status.textContent = message; status.style.color = 'var(--red)'; }
         if (amountError) { amountError.hidden = false; amountError.textContent = message; }
         transfer.setCustomValidity(message); transfer.setAttribute('aria-invalid', 'true'); return false;
+      }
+      const monthsLabel = `${months} ${months === 1 ? 'mes' : 'meses'}`;
+      if (ahead > 0 && total + ahead > amount) {
+        const message = `Con ${formatMinor(amount)} no alcanza para ${monthsLabel} por adelantar (${formatMinor(ahead)}). Baja los meses o corrige el monto${staff ? '' : ' transferido'}.`;
+        if (status) { status.textContent = message; status.style.color = 'var(--red)'; }
+        if (amountError) { amountError.hidden = false; amountError.textContent = message; }
+        transfer.setCustomValidity(message); transfer.setAttribute('aria-invalid', 'true'); return false;
+      }
+      if (ahead > 0) {
+        if (status) status.textContent = `Adelantas ${monthsLabel} (${formatMinor(ahead)}). Se aplican solos cuando se publique cada mensualidad.`;
+        return true;
       }
       if (status) status.textContent = staff
         ? (total === amount ? 'El total coincide con el monto.' : `Aplicas ${formatMinor(total)} de ${formatMinor(amount)}. Los ${formatMinor(amount - total)} restantes quedan como saldo a favor de la familia.`)

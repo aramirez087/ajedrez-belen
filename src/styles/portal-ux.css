@@ -480,3 +480,17 @@
 .portal-discard { margin: 0; }
 .portal-draft-actions { display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-end; }
 .portal-copy-row > .portal-discard { margin-left: 4px; }
+
+/* ── Adelantar meses: chips are a shortcut to the number field; the pressed one reads as chosen. ── */
+.portal-advance .portal-copy-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 4px; }
+.portal-advance [data-advance-chip][aria-pressed='true'] { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.portal-advance [data-advance-chip][aria-pressed='true']:hover { background: var(--ink); color: var(--paper); }
+.portal-advance input[name='advanceMonths'] { max-width: 120px; }
+
+/* ── Administration: choose a family by search; each row shows what it owes and how far ahead it is paid. ── */
+.portal-family-standing { display: block; font-size: 14px; color: var(--ink-soft); }
+.portal-family-standing strong { color: var(--ink); font-weight: 600; }
+.portal-family-picks { display: grid; gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+.portal-family-pick { display: grid; gap: 3px; min-height: 48px; padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); text-decoration: none; }
+.portal-family-pick strong { font-size: 17px; font-weight: 600; }
+.portal-family-pick:hover { border-color: var(--red); background: var(--red-soft); }
