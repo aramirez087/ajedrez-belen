@@ -11,7 +11,7 @@ import { handleEmail, mailAuthenticationFailed, type InboundMessage, type SlipRe
 class SQLiteD1 {
   readonly sqlite = new DatabaseSync(":memory:");
   constructor() {
-    for (const migration of ["0002_portal", "0003_ocr", "0004_financial_operations", "0005_email_inbound", "0006_self_registration", "0010_admin_invitations"]) {
+    for (const migration of ["0002_portal", "0003_ocr", "0004_financial_operations", "0005_email_inbound", "0006_self_registration", "0010_admin_invitations", "0011_athlete_approval"]) {
       this.sqlite.exec(readFileSync(new URL(`../migrations/${migration}.sql`, import.meta.url), "utf8"));
     }
     const now = new Date().toISOString();
@@ -195,6 +195,23 @@ test("unknown sender is rejected and duplicate delivery creates no second draft"
   await handleEmail(again.message, env);
   const count = db.sqlite.prepare("SELECT count(*) AS n FROM slip_drafts").get() as { n: number };
   assert.equal(count.n, 1);
+});
+
+test("a sender whose only athletes are a pending or rejected request is not linked yet", async () => {
+  const db = new SQLiteD1();
+  const now = new Date().toISOString();
+  db.sqlite.prepare("INSERT INTO users(id,email,name,active,created_at,updated_at) VALUES(?,?,?,?,?,?)").run("guardian-2", "espera@example.cr", "Familia En Espera", 1, now, now);
+  db.sqlite.prepare("INSERT INTO athletes(id,name,category,fee_minor,discount_minor,active,start_period,created_at,updated_at,approval_status) VALUES(?,?,?,?,0,0,?,?,?,?)")
+    .run("ath-waiting", "Atleta En Espera", "Cadetes", 1500000, "2027-01", now, now, "pending");
+  db.sqlite.prepare("INSERT INTO guardian_links(user_id,athlete_id,linked_by,active,created_at,updated_at) VALUES(?,?,?,?,?,?)").run("guardian-2", "ath-waiting", "guardian-2", 1, now, now);
+  const { env } = fakeEnv(db);
+  for (const status of ["pending", "rejected"]) {
+    if (status === "rejected") db.sqlite.prepare("UPDATE athletes SET approval_status='rejected' WHERE id='ath-waiting'").run();
+    const { message, rejected } = fakeMessage("espera@example.cr", `msg-waiting-${status}@test`);
+    await handleEmail(message, env);
+    assert.match(rejected() ?? "", /aún no está vinculada/, status);
+  }
+  assert.equal((db.sqlite.prepare("SELECT count(*) AS n FROM slip_drafts").get() as { n: number }).n, 0);
 });
 
 test("declared image type with non-image bytes is rejected by magic bytes, never stored", async () => {

@@ -1,5 +1,6 @@
 import { addMonths, creditCoverage, type CreditCoverage } from "./advance";
 import { validEmail } from "./receipt";
+import { hasApprovedAthlete } from "./membership";
 import {
   PortalError,
   type Actor,
@@ -9,6 +10,9 @@ import {
   type Family,
   type MonthlyPreview,
   type ParentDashboard,
+  type Registration,
+  type PendingRegistration,
+  type AthleteApproval,
   type AdminDashboard,
   type Payment,
   type PaymentDetail,
@@ -159,7 +163,7 @@ async function batch(db: D1Database, statements: D1PreparedStatement[]) {
         "duplicate_transfer",
       );
     if (
-      /UNIQUE|allocation_exceeds|allocation_guardian_revoked|adjustment_below_paid|payment_not_verified|constraint|pending_payment_limit|daily_payment_limit|storage_limit|athlete_limit/i.test(
+      /UNIQUE|allocation_exceeds|allocation_guardian_revoked|adjustment_below_paid|payment_not_verified|constraint|pending_payment_limit|daily_payment_limit|storage_limit|athlete_limit|athlete_unapproved|athlete_approval_final/i.test(
         message,
       )
     )
@@ -331,10 +335,18 @@ export async function getParentDashboard(
   actor: Actor,
 ): Promise<ParentDashboard> {
   await requireActor(db, actor);
-  const [athletes, charges, payments, receipts, totals] = await Promise.all([
+  const [athletes, registrations, charges, payments, receipts, totals] = await Promise.all([
     rows<Athlete>(
       db,
-      `${athleteSql} WHERE id IN(SELECT athlete_id FROM guardian_links WHERE user_id=? AND active=1) ORDER BY name`,
+      `${athleteSql} WHERE id IN(SELECT athlete_id FROM guardian_links WHERE user_id=? AND active=1) AND approval_status='approved' ORDER BY name`,
+      [actor.id],
+    ),
+    // Requests still waiting for the Association, and rejected ones until the family dismisses them.
+    rows<Registration>(
+      db,
+      `SELECT a.id,a.name,a.category,a.fee_minor AS feeMinor,a.approval_status AS status,a.review_note AS reviewNote,a.created_at AS registeredAt
+       FROM athletes a JOIN guardian_links l ON l.athlete_id=a.id
+       WHERE l.user_id=? AND l.active=1 AND a.approval_status IN ('pending','rejected') ORDER BY a.created_at DESC,a.id`,
       [actor.id],
     ),
     listParentCharges(db, actor),
@@ -352,6 +364,7 @@ export async function getParentDashboard(
   ]);
   return {
     athletes: athleteMap(athletes),
+    registrations,
     charges,
     payments: payments.map(payment => ({ ...payment, canOpenDetail: payment.canOpenDetail === 1 })),
     receipts,
@@ -380,7 +393,7 @@ export async function getAdminDashboard(
       db,
       `${chargeSql} ORDER BY c.period DESC,s.name LIMIT 2000`,
     ),
-    rows<Athlete>(db, `${athleteSql} ORDER BY name`),
+    rows<Athlete>(db, `${athleteSql} WHERE approval_status='approved' ORDER BY name`),
     receiptRows(db),
     one<{ n: number }>(
       db,
@@ -417,7 +430,7 @@ export async function listFamilies(db: D1Database): Promise<Family[]> {
   }>(db, "SELECT id,name,email,active FROM users ORDER BY name");
   const links = await rows<Athlete & { userId: string; receiptOptIn: number }>(
     db,
-    "SELECT s.id,s.name,s.category,s.fee_minor AS feeMinor,s.discount_minor AS discountMinor,s.discount_reason AS discountReason,s.active,s.start_period AS startPeriod,l.user_id AS userId,l.receipt_opt_in AS receiptOptIn FROM guardian_links l JOIN athletes s ON s.id=l.athlete_id WHERE l.active=1 ORDER BY s.name",
+    "SELECT s.id,s.name,s.category,s.fee_minor AS feeMinor,s.discount_minor AS discountMinor,s.discount_reason AS discountReason,s.active,s.start_period AS startPeriod,l.user_id AS userId,l.receipt_opt_in AS receiptOptIn FROM guardian_links l JOIN athletes s ON s.id=l.athlete_id WHERE l.active=1 AND s.approval_status='approved' ORDER BY s.name",
   );
   return adults.map((u) => ({
     adultId: u.id,
@@ -710,7 +723,7 @@ export async function enrollAthlete(
   admin(actor);
   await requireActor(db, actor);
   input = athleteInput(input, await getFeeSchedule(db));
-  const count = await one<{ n: number }>(db, "SELECT count(*) n FROM athletes");
+  const count = await one<{ n: number }>(db, "SELECT count(*) n FROM athletes WHERE approval_status IN ('pending','approved')");
   if ((count?.n || 0) >= 300)
     fail("Se alcanzó el límite de atletas.", 409, "limit");
   const athleteId = id(),
@@ -782,8 +795,9 @@ export async function linkGuardian(
   admin(actor);
   await requireActor(db, actor);
   await activeUser(db, input.userId);
-  if (!(await one(db, "SELECT id FROM athletes WHERE id=?", [input.athleteId])))
-    fail("Atleta no disponible.", 404, "not_found");
+  const target = await one<{ status: string }>(db, "SELECT approval_status AS status FROM athletes WHERE id=?", [input.athleteId]);
+  if (!target) fail("Atleta no disponible.", 404, "not_found");
+  if (target.status !== "approved") fail("Esa inscripción aún no está aprobada.", 409, "conflict");
   const now = iso();
   await batch(db, [
     bindings(
@@ -1045,7 +1059,7 @@ export async function redeemInvitation(
     statements.push(
       bindings(
         db,
-        "INSERT INTO guardian_links(user_id,athlete_id,active,receipt_opt_in,linked_by,created_at,updated_at) SELECT ?,?,1,0,?,?,? WHERE EXISTS(SELECT 1 FROM invitations WHERE id=? AND redeemed_by=? AND redemption_token=?) ON CONFLICT(user_id,athlete_id) DO UPDATE SET active=1,receipt_opt_in=0,linked_by=excluded.linked_by,updated_at=excluded.updated_at",
+        "INSERT INTO guardian_links(user_id,athlete_id,active,receipt_opt_in,linked_by,created_at,updated_at) SELECT ?,?,1,0,?,?,? WHERE EXISTS(SELECT 1 FROM invitations WHERE id=? AND redeemed_by=? AND redemption_token=?) AND EXISTS(SELECT 1 FROM athletes WHERE id=? AND approval_status IN ('pending','approved')) ON CONFLICT(user_id,athlete_id) DO UPDATE SET active=1,receipt_opt_in=0,linked_by=excluded.linked_by,updated_at=excluded.updated_at",
         [
           actor.id,
           athleteId,
@@ -1055,6 +1069,7 @@ export async function redeemInvitation(
           invite.id,
           actor.id,
           token,
+          athleteId,
         ],
       ),
     );
@@ -1072,8 +1087,8 @@ export async function redeemInvitation(
 }
 
 // Self-service stays open in two cases: a claimed (redeemed) 'register'
-// invitation that has not expired yet (seven days), or an already-linked
-// family adding another athlete at any time. New families need an invitation.
+// invitation that has not expired yet (seven days), or a family that already
+// has an approved athlete adding another at any time. New families need an invitation.
 export async function getRegistrationWindow(
   db: D1Database,
   actor: Actor,
@@ -1084,12 +1099,8 @@ export async function getRegistrationWindow(
     [actor.id, iso()],
   );
   if (invite) return { invitationId: invite.id, expiresAt: invite.expiresAt, via: "invitation" };
-  const linked = await one(
-    db,
-    "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND active=1 LIMIT 1",
-    [actor.id],
-  );
-  return linked ? { invitationId: null, expiresAt: null, via: "family" } : null;
+  // A link to a request that is still waiting is not membership: it must not open permanent self-registration.
+  return (await hasApprovedAthlete(db, actor.id)) ? { invitationId: null, expiresAt: null, via: "family" } : null;
 }
 
 /**
@@ -1165,11 +1176,15 @@ function selfAthlete(input: SelfAthleteInput, today: string, schedule?: Record<s
   return { name, birthDate, nationalId, school, category: mapped.category, feeMinor: schedule?.[mapped.category] ?? mapped.feeMinor };
 }
 
+// One account may have this many requests waiting, and send this many in a day however many it withdraws.
+const MAX_PENDING_REGISTRATIONS = 6;
+const MAX_REGISTRATIONS_PER_DAY = 12;
+
 /**
- * Self-service enrollment inside a claimed registration window. Every athlete
- * is created active and linked to the guardian. The first billed month is
- * billingStartPeriod: the current month on or before the 8th, otherwise the
- * following month, charged by the normal (automatic) publication.
+ * Self-service registration inside a claimed registration window. Every athlete
+ * is created as a pending request: inactive, so nothing bills or discounts it,
+ * and linked to the guardian so the family can follow it. An administrator's
+ * approval makes it a member (see approveRegistration); until then it is not billed.
  */
 export async function registerAthletes(
   db: D1Database,
@@ -1184,14 +1199,29 @@ export async function registerAthletes(
   const now = iso(), today = costaRicaToday(now), period = billingStartPeriod(now);
   const schedule = await getFeeSchedule(db);
   const athletes = inputs.map((input) => selfAthlete(input, today, schedule));
-  const total = await one<{ n: number }>(db, "SELECT count(*) n FROM athletes");
+  const total = await one<{ n: number }>(db, "SELECT count(*) n FROM athletes WHERE approval_status IN ('pending','approved')");
   if ((total?.n || 0) + athletes.length > 300)
     fail("Se alcanzó el límite de atletas.", 409, "limit");
+  const waiting = await one<{ n: number }>(
+    db,
+    `SELECT count(*) n FROM athletes a JOIN guardian_links l ON l.athlete_id=a.id
+     WHERE l.user_id=? AND l.active=1 AND a.approval_status='pending'`,
+    [actor.id],
+  );
+  if ((waiting?.n || 0) + athletes.length > MAX_PENDING_REGISTRATIONS)
+    fail(`Ya tienes ${waiting?.n || 0} ${waiting?.n === 1 ? "inscripción esperando" : "inscripciones esperando"} revisión. Espera la respuesta de la Asociación antes de enviar más.`, 409, "registration_limit");
+  const sentToday = await one<{ n: number }>(
+    db,
+    "SELECT count(*) n FROM audit_events WHERE actor_id=? AND entity_type='athlete' AND action='self_register' AND created_at>?",
+    [actor.id, new Date(Date.parse(now) - 86400000).toISOString()],
+  );
+  if ((sentToday?.n || 0) + athletes.length > MAX_REGISTRATIONS_PER_DAY)
+    fail("Enviaste muchas inscripciones hoy. Inténtalo de nuevo mañana o escríbenos por WhatsApp.", 409, "registration_limit");
   for (const athlete of athletes) {
     const dupe = await one(
       db,
       `SELECT a.id FROM athletes a JOIN guardian_links l ON l.athlete_id=a.id
-       WHERE l.user_id=? AND lower(trim(a.name))=lower(trim(?)) AND a.birth_date=? LIMIT 1`,
+       WHERE l.user_id=? AND a.approval_status IN ('pending','approved') AND lower(trim(a.name))=lower(trim(?)) AND a.birth_date=? LIMIT 1`,
       [actor.id, athlete.name, athlete.birthDate],
     );
     if (dupe) fail(`"${athlete.name}" ya está inscrito en tu cuenta.`, 409, "conflict");
@@ -1201,7 +1231,7 @@ export async function registerAthletes(
   athletes.forEach((athlete, index) => {
     statements.push(bindings(
       db,
-      "INSERT INTO athletes(id,name,category,fee_minor,discount_minor,discount_reason,active,start_period,created_at,updated_at,birth_date,national_id,school) VALUES(?,?,?,?,0,NULL,1,?,?,?,?,?,?)",
+      "INSERT INTO athletes(id,name,category,fee_minor,discount_minor,discount_reason,active,start_period,created_at,updated_at,birth_date,national_id,school,approval_status) VALUES(?,?,?,?,0,NULL,0,?,?,?,?,?,?,'pending')",
       [ids[index], athlete.name, athlete.category, athlete.feeMinor, period, now, now, athlete.birthDate, athlete.nationalId, athlete.school],
     ));
     statements.push(bindings(
@@ -1209,7 +1239,7 @@ export async function registerAthletes(
       "INSERT INTO guardian_links(user_id,athlete_id,active,receipt_opt_in,linked_by,created_at,updated_at) VALUES(?,?,1,0,?,?,?)",
       [actor.id, ids[index], actor.id, now, now],
     ));
-    statements.push(audit(db, actor, "athlete", ids[index], "self_register", { invitationId: window.invitationId, category: athlete.category }, now));
+    statements.push(audit(db, actor, "athlete", ids[index], "self_register", { invitationId: window.invitationId, category: athlete.category, status: "pending" }, now));
   });
   await batch(db, statements);
   return ids;
@@ -1240,6 +1270,187 @@ export async function registerAthletesWithOptionalGuardian(
     });
   }
   return athleteIds;
+}
+
+const REVIEW_CONFLICT = "Esta inscripción ya fue revisada.";
+
+/**
+ * An administrator turns a pending request into a member. Billing starts from the first
+ * eligible month counted from today (months published while it waited are not charged
+ * back), and the group may be corrected: the fee then follows the fee schedule.
+ * Audit insert and update are one batch guarded by "still pending", so two
+ * administrators cannot both decide it.
+ */
+export async function approveRegistration(
+  db: D1Database,
+  actor: Actor,
+  athleteId: string,
+  input: { category?: string } = {},
+): Promise<void> {
+  admin(actor);
+  await requireActor(db, actor);
+  const current = await one<{ status: string; category: string; feeMinor: number }>(
+    db,
+    "SELECT approval_status AS status,category,fee_minor AS feeMinor FROM athletes WHERE id=?",
+    [athleteId],
+  );
+  if (!current) fail("Atleta no disponible.", 404, "not_found");
+  if (current.status !== "pending") fail(REVIEW_CONFLICT, 409, "conflict");
+  let { category, feeMinor } = current;
+  const requested = input.category?.trim();
+  if (requested && requested !== current.category) {
+    if (!(ATHLETE_CATEGORIES as readonly string[]).includes(requested)) fail("Elige un grupo válido.");
+    category = requested;
+    feeMinor = (await getFeeSchedule(db))[requested] ?? feeForCategory(requested)!;
+  }
+  const now = iso(), startPeriod = billingStartPeriod(now);
+  const result = await batch(db, [
+    bindings(
+      db,
+      "INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) SELECT ?,?,'athlete',id,'approve_registration',?,? FROM athletes WHERE id=? AND approval_status='pending'",
+      [id(), actor.id, JSON.stringify({ requestedCategory: current.category, category, feeMinor, startPeriod }), now, athleteId],
+    ),
+    bindings(
+      db,
+      "UPDATE athletes SET approval_status='approved',active=1,category=?,fee_minor=?,start_period=?,reviewed_by=?,reviewed_at=?,updated_at=? WHERE id=? AND approval_status='pending'",
+      [category, feeMinor, startPeriod, actor.id, now, now, athleteId],
+    ),
+  ]);
+  if (!result[1].meta.changes) fail(REVIEW_CONFLICT, 409, "conflict");
+}
+
+/** Turns a pending request down. The reason is what the family reads, so it is required. */
+export async function rejectRegistration(
+  db: D1Database,
+  actor: Actor,
+  athleteId: string,
+  reason: string,
+): Promise<void> {
+  admin(actor);
+  await requireActor(db, actor);
+  const note = typeof reason === "string" ? reason.trim() : "";
+  if (note.length < 3 || note.length > 300 || /[\u0000-\u001f\u007f]/.test(note))
+    fail("Escribe el motivo, de 3 a 300 caracteres.", 400, "invalid_fields");
+  const current = await one<{ status: string }>(db, "SELECT approval_status AS status FROM athletes WHERE id=?", [athleteId]);
+  if (!current) fail("Atleta no disponible.", 404, "not_found");
+  if (current.status !== "pending") fail(REVIEW_CONFLICT, 409, "conflict");
+  const now = iso();
+  const result = await batch(db, [
+    bindings(
+      db,
+      "INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) SELECT ?,?,'athlete',id,'reject_registration',?,? FROM athletes WHERE id=? AND approval_status='pending'",
+      [id(), actor.id, JSON.stringify({ reason: note }), now, athleteId],
+    ),
+    bindings(
+      db,
+      "UPDATE athletes SET approval_status='rejected',review_note=?,reviewed_by=?,reviewed_at=?,updated_at=? WHERE id=? AND approval_status='pending'",
+      [note, actor.id, now, now, athleteId],
+    ),
+  ]);
+  if (!result[1].meta.changes) fail(REVIEW_CONFLICT, 409, "conflict");
+}
+
+/** The family takes back a request that nobody has decided yet. Every link to it is closed. */
+export async function withdrawRegistration(db: D1Database, actor: Actor, athleteId: string): Promise<void> {
+  await requireActor(db, actor);
+  const own = await one<{ status: string }>(
+    db,
+    "SELECT a.approval_status AS status FROM athletes a JOIN guardian_links l ON l.athlete_id=a.id WHERE a.id=? AND l.user_id=? AND l.active=1",
+    [athleteId, actor.id],
+  );
+  if (!own) fail("Atleta no disponible.", 404, "not_found");
+  if (own.status !== "pending") fail("Solo se puede retirar una solicitud que sigue en revisión.", 409, "conflict");
+  const now = iso();
+  const result = await batch(db, [
+    bindings(
+      db,
+      "INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) SELECT ?,?,'athlete',id,'withdraw_registration',?,? FROM athletes WHERE id=? AND approval_status='pending'",
+      [id(), actor.id, "{}", now, athleteId],
+    ),
+    bindings(db, "UPDATE athletes SET approval_status='withdrawn',updated_at=? WHERE id=? AND approval_status='pending'", [now, athleteId]),
+    bindings(
+      db,
+      "UPDATE guardian_links SET active=0,updated_at=? WHERE athlete_id=? AND EXISTS(SELECT 1 FROM athletes WHERE id=? AND approval_status='withdrawn')",
+      [now, athleteId, athleteId],
+    ),
+  ]);
+  if (!result[1].meta.changes) fail(REVIEW_CONFLICT, 409, "conflict");
+}
+
+/** A guardian clears a rejection they have read. Only their own link closes; another guardian still sees it. */
+export async function dismissRejection(db: D1Database, actor: Actor, athleteId: string): Promise<void> {
+  await requireActor(db, actor);
+  const own = await one<{ status: string }>(
+    db,
+    "SELECT a.approval_status AS status FROM athletes a JOIN guardian_links l ON l.athlete_id=a.id WHERE a.id=? AND l.user_id=? AND l.active=1",
+    [athleteId, actor.id],
+  );
+  if (!own) fail("Atleta no disponible.", 404, "not_found");
+  if (own.status !== "rejected") fail("Solo se puede cerrar una inscripción rechazada.", 409, "conflict");
+  const now = iso();
+  const result = await batch(db, [
+    bindings(
+      db,
+      "INSERT INTO audit_events(id,actor_id,entity_type,entity_id,action,detail_json,created_at) SELECT ?,?,'athlete',athlete_id,'dismiss_rejection',?,? FROM guardian_links WHERE user_id=? AND athlete_id=? AND active=1",
+      [id(), actor.id, "{}", now, actor.id, athleteId],
+    ),
+    bindings(db, "UPDATE guardian_links SET active=0,updated_at=? WHERE user_id=? AND athlete_id=? AND active=1", [now, actor.id, athleteId]),
+  ]);
+  if (!result[1].meta.changes) fail("Atleta no disponible.", 404, "not_found");
+}
+
+export async function countPendingRegistrations(db: D1Database): Promise<number> {
+  return (await one<{ n: number }>(db, "SELECT count(*) AS n FROM athletes WHERE approval_status='pending'"))?.n ?? 0;
+}
+
+/**
+ * Every pending request, oldest first, with who registered it, how many members that
+ * account already has (the sibling discount that would apply) and any other athlete that
+ * shares its cédula or its name and birth date. Four bounded queries; duplicates are
+ * shown to the administrator and never block.
+ */
+export async function listPendingRegistrations(db: D1Database): Promise<PendingRegistration[]> {
+  const [pending, guardians, counts, duplicates] = await Promise.all([
+    rows<{ id: string; name: string; category: string; feeMinor: number; birthDate: string | null; school: string | null; nationalId: string | null; registeredAt: string }>(
+      db,
+      "SELECT id,name,category,fee_minor AS feeMinor,birth_date AS birthDate,school,national_id AS nationalId,created_at AS registeredAt FROM athletes WHERE approval_status='pending' ORDER BY created_at,id",
+    ),
+    rows<{ athleteId: string; id: string; name: string; email: string }>(
+      db,
+      `SELECT l.athlete_id AS athleteId,u.id,u.name,u.email FROM guardian_links l JOIN users u ON u.id=l.user_id
+       WHERE l.active=1 AND l.athlete_id IN(SELECT id FROM athletes WHERE approval_status='pending')
+       ORDER BY l.athlete_id,(l.user_id=l.linked_by) DESC,l.created_at`,
+    ),
+    rows<{ userId: string; n: number }>(
+      db,
+      `SELECT l.user_id AS userId,count(*) AS n FROM guardian_links l JOIN athletes a ON a.id=l.athlete_id
+       WHERE l.active=1 AND a.approval_status='approved' AND a.active=1
+         AND l.user_id IN(SELECT l2.user_id FROM guardian_links l2 JOIN athletes p ON p.id=l2.athlete_id WHERE p.approval_status='pending')
+       GROUP BY l.user_id`,
+    ),
+    rows<{ pendingId: string; id: string; name: string; status: AthleteApproval; reason: "cedula" | "name_birth" }>(
+      db,
+      `SELECT p.id AS pendingId,o.id,o.name,o.approval_status AS status,
+         CASE WHEN p.national_id IS NOT NULL AND o.national_id=p.national_id THEN 'cedula' ELSE 'name_birth' END AS reason
+       FROM athletes p JOIN athletes o ON o.id<>p.id AND o.approval_status IN('pending','approved')
+         AND ((p.national_id IS NOT NULL AND o.national_id=p.national_id)
+           OR (p.birth_date IS NOT NULL AND o.birth_date=p.birth_date AND lower(trim(o.name))=lower(trim(p.name))))
+       WHERE p.approval_status='pending' ORDER BY p.id,o.name`,
+    ),
+  ]);
+  const today = costaRicaToday(iso());
+  const firstGuardian = new Map<string, { id: string; name: string; email: string }>();
+  for (const guardian of guardians) if (!firstGuardian.has(guardian.athleteId)) firstGuardian.set(guardian.athleteId, guardian);
+  const approved = new Map(counts.map((count) => [count.userId, count.n]));
+  return pending.map((athlete) => {
+    const guardian = firstGuardian.get(athlete.id) ?? { id: "", name: "Sin encargado", email: "" };
+    return {
+      ...athlete,
+      age: athlete.birthDate ? ageOn(athlete.birthDate, today) : null,
+      guardian: { ...guardian, approvedAthletes: approved.get(guardian.id) ?? 0 },
+      duplicates: duplicates.filter((row) => row.pendingId === athlete.id).map(({ pendingId: _unused, ...other }) => other),
+    };
+  });
 }
 
 export interface AthleteProfile { birthDate: string | null; nationalId: string | null; school: string | null; paused: boolean }
@@ -1308,8 +1519,9 @@ export async function setOwnAthleteActive(
     [actor.id, athleteId],
   );
   if (!link) fail("Atleta no disponible.", 404, "not_found");
-  const athlete = await one<{ id: string; active: number }>(db, "SELECT id,active FROM athletes WHERE id=?", [athleteId]);
+  const athlete = await one<{ id: string; active: number; status: string }>(db, "SELECT id,active,approval_status AS status FROM athletes WHERE id=?", [athleteId]);
   if (!athlete) fail("Atleta no disponible.", 404, "not_found");
+  if (athlete.status !== "approved") fail("Esta inscripción aún no está aprobada.", 409, "conflict");
   if (!!athlete.active === active) return;
   const now = iso();
   await batch(db, [
@@ -1592,8 +1804,7 @@ async function validateAllocations(
 }
 /** With no month to check, the only proof a family may pay is that the account has an athlete linked. */
 async function requireLinkedAthlete(db: D1Database, userId: string): Promise<void> {
-  const linked = await one<{ ok: number }>(db, "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND active=1 LIMIT 1", [userId]);
-  if (!linked) fail("Esta cuenta no tiene atletas vinculados.", 403, "forbidden");
+  if (!(await hasApprovedAthlete(db, userId))) fail("Esta cuenta no tiene atletas vinculados.", 403, "forbidden");
 }
 /** A payment registered as an advance named no month. Derived from storage, so revising or verifying needs no client flag. */
 async function isAdvanceRequest(db: D1Database, paymentId: string): Promise<boolean> {

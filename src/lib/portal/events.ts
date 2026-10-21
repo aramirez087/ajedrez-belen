@@ -1,3 +1,4 @@
+import { hasApprovedAthlete } from "./membership";
 import { PortalError, type Actor } from "./types";
 
 export const EVENT_TIME_ZONE = "America/Costa_Rica";
@@ -461,10 +462,7 @@ export async function deleteEvent(db: D1Database, actor: Actor, eventId: string)
 /** Published meeting links and addresses are for staff and enrolled families. */
 export async function canViewFamilyEvents(db: D1Database, actor: Actor): Promise<boolean> {
   if (actor.isAdmin) return true;
-  const link = await db.prepare(
-    "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND active=1 LIMIT 1",
-  ).bind(actor.id).first();
-  return !!link;
+  return hasApprovedAthlete(db, actor.id);
 }
 export async function getEvent(db: D1Database, eventId: string, actor?: Actor): Promise<PortalEvent | null> {
   const row = await db.prepare(`SELECT ${COLS} FROM events WHERE id=?`).bind(eventId).first<EventRow>();

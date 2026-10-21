@@ -9,7 +9,7 @@ import type { Actor } from "../src/lib/portal/types";
 class SQLiteD1 {
   readonly sqlite = new DatabaseSync(":memory:");
   constructor() {
-    for (const migration of ["0002_portal.sql", "0003_ocr.sql", "0005_email_inbound.sql", "0006_self_registration.sql"])
+    for (const migration of ["0002_portal.sql", "0003_ocr.sql", "0005_email_inbound.sql", "0006_self_registration.sql", "0011_athlete_approval.sql"])
       this.sqlite.exec(readFileSync(new URL(`../migrations/${migration}`, import.meta.url), "utf8"));
   }
   prepare(query: string) {

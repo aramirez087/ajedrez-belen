@@ -23,7 +23,7 @@ class SQLiteD1 {
   private barrier?: { remaining: number; ready: Promise<void>; release: () => void };
 
   constructor() {
-    for (const migration of ["0002_portal.sql", "0003_ocr.sql", "0004_financial_operations.sql", "0006_self_registration.sql"]) {
+    for (const migration of ["0002_portal.sql", "0003_ocr.sql", "0004_financial_operations.sql", "0006_self_registration.sql", "0011_athlete_approval.sql"]) {
       this.sqlite.exec(readFileSync(new URL(`../migrations/${migration}`, import.meta.url), "utf8"));
     }
   }

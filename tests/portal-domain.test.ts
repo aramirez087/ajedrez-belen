@@ -52,6 +52,7 @@ class SQLiteD1 {
     );
     this.sqlite.exec(readFileSync(new URL("../migrations/0004_financial_operations.sql", import.meta.url), "utf8"));
     this.sqlite.exec(readFileSync(new URL("../migrations/0006_self_registration.sql", import.meta.url), "utf8"));
+    this.sqlite.exec(readFileSync(new URL("../migrations/0011_athlete_approval.sql", import.meta.url), "utf8"));
   }
   prepare(sql: string) {
     const database = this;

@@ -1,0 +1,18 @@
+---
+import type { Registration } from '../../lib/portal/types';
+import { dateLabel } from './format';
+// A family's athletes that are not members yet: requests the Association is still reviewing,
+// and rejected ones with the reason until the family dismisses them.
+// canRegister: the family can still submit a new registration (an open window). Without one, never promise it.
+interface Props { registrations: Registration[]; manage?: boolean; registerHref?: string; canRegister?: boolean; }
+const { registrations, manage = false, registerHref, canRegister = false } = Astro.props;
+const nudge = (name: string) => `https://wa.me/50687686102?text=${encodeURIComponent(`Hola, inscribí a ${name} en el portal de Ajedrez Belén y espera aprobación.`)}`;
+---
+<div class="portal-registrations">{registrations.map(registration => <article class="portal-family-card portal-own-athlete portal-registration-card">
+  <header><div><h3>{registration.name}</h3><p class="portal-help">{registration.category} · enviada el {dateLabel(registration.registeredAt)}</p></div><span class:list={['portal-status', registration.status === 'pending' ? 'portal-status-pending' : 'portal-status-cancelled']}>{registration.status === 'pending' ? 'En revisión' : 'No aprobada'}</span></header>
+  {registration.status === 'pending'
+    ? <><p class="portal-help">La Asociación aprueba cada atleta nuevo antes de cobrar mensualidades. Aquí verás la respuesta.</p>{manage && <div class="portal-copy-row"><a class="portal-link" href={nudge(registration.name)} target="_blank" rel="noopener">Avisar por WhatsApp <span aria-hidden="true">↗</span></a><form action={`/api/portal/athletes/${registration.id}`} method="post" data-confirm={canRegister ? '¿Retirar esta solicitud? Podrás inscribir al atleta de nuevo.' : '¿Retirar esta solicitud? Para inscribirlo otra vez necesitarás un enlace nuevo de la Asociación.'}><input type="hidden" name="action" value="withdraw" /><button class="portal-text-button portal-quiet-action" type="submit">Retirar solicitud</button></form></div>}</>
+    : <><p><strong>Motivo:</strong> {registration.reviewNote}</p>{manage
+      ? <div class="portal-copy-row"><form action={`/api/portal/athletes/${registration.id}`} method="post"><input type="hidden" name="action" value="dismiss" /><button class="portal-button portal-button-secondary" type="submit">Entendido</button></form>{registerHref && <a class="portal-link" href={registerHref}>Inscribir de nuevo <span aria-hidden="true">↓</span></a>}</div>
+      : <p class="portal-help"><a class="portal-link" href="/portal/inscribir">{canRegister ? 'Ver el motivo y volver a inscribir' : 'Ver el motivo'} <span aria-hidden="true">→</span></a></p>}</>}
+</article>)}</div>

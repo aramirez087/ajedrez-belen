@@ -1,0 +1,42 @@
+---
+import { env } from 'cloudflare:workers';
+import PortalLayout from '../../layouts/PortalLayout.astro';
+import PageHeader from '../../components/portal/PageHeader.astro';
+import { money, dateLabel } from '../../components/portal/format';
+import { authorizePortal } from '../../lib/portal/access';
+import { ATHLETE_CATEGORIES, feeForCategory, getFeeSchedule, listPendingRegistrations } from '../../lib/portal/domain';
+export const prerender = false;
+const access = await authorizePortal(Astro, env, { admin: true });
+if (!access.ok) return access.response;
+const { actor } = access;
+const [queue, fees] = await Promise.all([listPendingRegistrations(env.DB).catch(() => null), getFeeSchedule(env.DB).catch(() => null)]);
+const feeOf = (category: string) => fees?.[category] ?? feeForCategory(category) ?? 0;
+---
+<PortalLayout title="Inscripciones por aprobar" actor={actor} active="registrations">
+  <PageHeader title="Inscripciones por aprobar." eyebrow="Inscripciones" description="Un atleta nuevo no paga mensualidades hasta que lo apruebes. Si lo rechazas, la familia lee tu motivo en su cuenta." />
+  {queue === null
+    ? <div class="portal-guidance" role="status"><h2>No pudimos cargar las inscripciones</h2><p>Actualiza la página en un momento.</p></div>
+    : queue.length === 0
+      ? <section class="portal-guidance" aria-labelledby="registrations-empty"><h2 id="registrations-empty">No hay inscripciones por revisar.</h2><p>Cuando una familia inscriba a un atleta, aparece aquí para que lo apruebes.</p></section>
+      : <section aria-labelledby="registrations-list"><h2 id="registrations-list" class="visually-hidden">Inscripciones por revisar</h2>{queue.map(item => <article class="portal-family-card portal-registration">
+        <header><div><h3>{item.name}</h3><p class="portal-help">{item.age !== null ? `${item.age} años · ` : ''}{item.category} · {money(feeOf(item.category))} al mes</p></div><span class="portal-status portal-status-pending">Por revisar</span></header>
+        <dl class="portal-registration-facts">
+          <div><dt>Encargado</dt><dd>{item.guardian.name}<br /><span class="portal-help">{item.guardian.email}</span></dd></div>
+          <div><dt>Centro educativo</dt><dd>{item.school ?? '—'}</dd></div>
+          {item.nationalId && <div><dt>Cédula</dt><dd>{item.nationalId}</dd></div>}
+          <div><dt>Enviada</dt><dd>{dateLabel(item.registeredAt)}</dd></div>
+        </dl>
+        <p class="portal-help">{item.guardian.approvedAthletes > 0 ? `Esta familia ya tiene ${item.guardian.approvedAthletes} ${item.guardian.approvedAthletes === 1 ? 'atleta inscrito' : 'atletas inscritos'}: al aprobar, cada hermano tiene 25 % de descuento.` : 'Es el primer atleta de esta familia.'}</p>
+        {item.duplicates.length > 0 && <div class="portal-guidance portal-guidance-strong" role="note"><h4>Revisa si ya está inscrito</h4><ul>{item.duplicates.map(duplicate => <li>{duplicate.name} · {duplicate.reason === 'cedula' ? 'misma cédula' : 'mismo nombre y fecha de nacimiento'} · {duplicate.status === 'approved' ? 'ya es miembro' : 'también espera aprobación'}</li>)}</ul></div>}
+        <form class="portal-form portal-registration-approve" action={`/api/admin/athletes/${item.id}/review`} method="post">
+          <input type="hidden" name="action" value="approve" />
+          <div class="portal-field"><label for={`category-${item.id}`}>Grupo</label><select id={`category-${item.id}`} name="category">{ATHLETE_CATEGORIES.map(category => <option value={category} selected={category === item.category}>{category} · {money(feeOf(category))}</option>)}</select><p class="portal-help">Si cambias el grupo, la cuota cambia con él.</p></div>
+          <button class="portal-button" type="submit">Aprobar inscripción <span aria-hidden="true">→</span></button>
+        </form>
+        <form class="portal-form portal-registration-reject" action={`/api/admin/athletes/${item.id}/review`} method="post">
+          <input type="hidden" name="action" value="reject" />
+          <div class="portal-field"><label for={`reason-${item.id}`}>Motivo del rechazo</label><textarea id={`reason-${item.id}`} name="reason" maxlength="300" minlength="3" rows="2" required placeholder="Lo que la familia debe corregir…"></textarea><p class="portal-help">La familia lo lee en su cuenta.</p></div>
+          <button class="portal-button portal-button-secondary" type="submit">Rechazar</button>
+        </form>
+      </article>)}</section>}
+</PortalLayout>

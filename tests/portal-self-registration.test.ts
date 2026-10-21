@@ -34,7 +34,7 @@ import { authorizePortal } from "../src/lib/portal/access";
 class SQLiteD1 {
   readonly sqlite = new DatabaseSync(":memory:");
   constructor() {
-    for (const migration of ["0002_portal.sql", "0004_financial_operations.sql", "0006_self_registration.sql"]) {
+    for (const migration of ["0002_portal.sql", "0004_financial_operations.sql", "0006_self_registration.sql", "0011_athlete_approval.sql"]) {
       this.sqlite.exec(readFileSync(new URL(`../migrations/${migration}`, import.meta.url), "utf8"));
     }
   }
@@ -81,6 +81,11 @@ const birthForAge = (age: number) => {
   const now = new Date();
   return `${now.getFullYear() - age}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 };
+
+/** Self-registered athletes start pending; these tests are about billing and access, so they stand in for the administrator's approval. */
+function approve(adapter: SQLiteD1, ...ids: string[]) {
+  for (const id of ids) adapter.sqlite.prepare("UPDATE athletes SET approval_status='approved', active=1 WHERE id=?").run(id);
+}
 
 async function setup() {
   const adapter = new SQLiteD1();
@@ -139,6 +144,7 @@ test("siblings self-register with derived fees, then publish with the family dis
     { name: "Hermano Menor", birthDate: birthForAge(8), school: "Escuela", category: "Principiantes" },
   ]);
   assert.equal(ids.length, 2);
+  approve(adapter, ...ids);
   assert.equal(await needsAthleteRegistration(db, parent), false);
   const athletes = adapter.sqlite.prepare(
     "SELECT name,category,fee_minor AS fee,national_id AS nationalId,active,start_period AS startPeriod FROM athletes ORDER BY name",
@@ -163,15 +169,17 @@ test("siblings self-register with derived fees, then publish with the family dis
 });
 
 test("a linked family can add athletes at any time, and the guardian controls baja/alta of their own", async () => {
-  const { db } = await setup();
+  const { adapter, db } = await setup();
   const [first] = await registerAthletes(db, parent, [
     { name: "Primero", birthDate: birthForAge(10), school: "Escuela", category: "Cadetes" },
   ]);
+  approve(adapter, first);
   // Even without any fresh invitation, the existing link keeps self-service open.
   const [second] = await registerAthletes(db, parent, [
     { name: "Segundo", birthDate: birthForAge(9), school: "Escuela", category: "Cadetes" },
   ]);
   assert.ok(second);
+  approve(adapter, second);
   await assert.rejects(setOwnAthleteActive(db, stranger, first, false),
     (error: unknown) => (error as { status: number }).status === 404);
   await setOwnAthleteActive(db, parent, first, false);
@@ -187,11 +195,12 @@ test("a linked family can add athletes at any time, and the guardian controls ba
 });
 
 test("a guardian invites the other guardian to exactly their own athletes, during or after registration", async () => {
-  const { db } = await setup();
+  const { adapter, db } = await setup();
   const ids = await registerAthletes(db, parent, [
     { name: "Compartido Uno", birthDate: birthForAge(10), school: "Escuela", category: "Cadetes" },
     { name: "Compartido Dos", birthDate: birthForAge(8), school: "Escuela", category: "Iniciación" },
   ]);
+  approve(adapter, ...ids);
   const spouse: Actor = { id: "parent-spouse", email: "esposa@example.test", name: "Esposa", isAdmin: false, mode: "workos" };
   await ensureUser(db, spouse);
   // Own email and other families' athletes are rejected.
@@ -252,6 +261,7 @@ test("admin pause stops new charges without touching history, and only admins ca
     { name: "En Pausa", birthDate: birthForAge(11), school: "Escuela", category: "Cadetes" },
     { name: "Activo", birthDate: birthForAge(10), school: "Escuela", category: "Cadetes" },
   ]);
+  approve(adapter, pausedId, siblingId);
   await publishCurrentMonth(db, "2027-01-01T06:00:00.000Z");
   await assert.rejects(setAthletePaused(db, parent, pausedId, true),
     (error: unknown) => (error as { status: number }).status === 403);

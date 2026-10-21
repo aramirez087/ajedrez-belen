@@ -492,8 +492,9 @@ export async function handleEmail(
   }
   const isStaff = admins.has(owner.id) || staffGrant;
   if (!isStaff) {
+    // Membership means an approved athlete: a pending or rejected request keeps its link open but is not a member.
     const link = await env.DB.prepare(
-      "SELECT 1 AS ok FROM guardian_links WHERE user_id=? AND active=1 LIMIT 1",
+      "SELECT 1 AS ok FROM guardian_links l JOIN athletes a ON a.id=l.athlete_id WHERE l.user_id=? AND l.active=1 AND a.approval_status='approved' LIMIT 1",
     ).bind(owner.id).first();
     if (!link) {
       message.setReject("Tu cuenta aún no está vinculada a un atleta. Solicita una invitación a la Asociación.");

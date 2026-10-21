@@ -99,8 +99,33 @@ export interface Receipt {
   emailStatus: string | null;
   canPrepareEmail: boolean;
 }
+/** A self-registered athlete the family is waiting on, or one the Association turned down (with its reason). */
+export interface Registration {
+  id: string;
+  name: string;
+  category: string;
+  feeMinor: number;
+  status: "pending" | "rejected";
+  reviewNote: string | null;
+  registeredAt: string;
+}
+/** One request in the administrators' queue, with what is needed to decide it. */
+export interface PendingRegistration {
+  id: string;
+  name: string;
+  category: string;
+  feeMinor: number;
+  birthDate: string | null;
+  age: number | null;
+  school: string | null;
+  nationalId: string | null;
+  registeredAt: string;
+  guardian: { id: string; name: string; email: string; approvedAthletes: number };
+  duplicates: Array<{ id: string; name: string; status: AthleteApproval; reason: "cedula" | "name_birth" }>;
+}
 export interface ParentDashboard {
   athletes: Athlete[];
+  registrations: Registration[];
   charges: Charge[];
   payments: Array<Payment & { canOpenDetail: boolean }>;
   receipts: Receipt[];
@@ -108,6 +133,8 @@ export interface ParentDashboard {
   pendingMinor: number;
   creditMinor: number;
 }
+/** A self-registered athlete waits as pending until an administrator decides; only approved ones are members. */
+export type AthleteApproval = "pending" | "approved" | "rejected" | "withdrawn";
 export interface Family {
   adultId: string;
   adultName: string;

@@ -28,6 +28,7 @@ function fixture(t: TestContext) {
   const sqlite = new DatabaseSync(':memory:');
   t.after(() => sqlite.close());
   sqlite.exec(readFileSync(new URL('../migrations/0002_portal.sql', import.meta.url), 'utf8'));
+  sqlite.exec(readFileSync(new URL('../migrations/0011_athlete_approval.sql', import.meta.url), 'utf8'));
   const at = '2026-10-01T00:00:00.000Z';
   for (const id of ['user_parent_a', 'user_parent_b', 'user_synthetic_staff']) {
     sqlite.prepare('INSERT INTO users(id,email,name,created_at,updated_at) VALUES(?,?,?,?,?)').run(id, `${id}@example.invalid`, id, at, at);

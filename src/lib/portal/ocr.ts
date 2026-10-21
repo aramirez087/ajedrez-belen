@@ -1,4 +1,5 @@
 import { getPaymentDetail, billingPeriod } from "./domain";
+import { hasApprovedAthlete } from "./membership";
 import { PortalError, type Actor, type SlipMetadata } from "./types";
 import { detectSlipType } from "../prototype-policy";
 import { extractPayslip, type OcrSuggestions } from "./ocr-provider";
@@ -91,14 +92,7 @@ export async function assertCanUploadSlip(
     actor.id,
   ]).first<{ active: number }>();
   if (account?.active !== 1) error(403, "forbidden");
-  if (
-    !actor.isAdmin &&
-    !(await sql(
-      db,
-      "SELECT 1 FROM guardian_links l WHERE l.user_id=? AND l.active=1 LIMIT 1",
-      [actor.id],
-    ).first())
-  )
+  if (!actor.isAdmin && !(await hasApprovedAthlete(db, actor.id)))
     error(403, "forbidden");
 }
 /** Reserve before R2 put so interrupted uploads remain tracked for safe cleanup. */

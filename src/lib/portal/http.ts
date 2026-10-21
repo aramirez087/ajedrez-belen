@@ -121,7 +121,7 @@ const errorCodes = new Set([
   'draft_not_found','draft_expired','draft_limit','draft_busy','draft_discard_failed',
   'ocr_disabled','ocr_busy','ocr_limit',
   'ocr_pdf_preview_required','invalid_image','original_missing','draft_mismatch',
-  'invalid_event','invalid_recurrence','invalid_location','invalid_event_image',
+  'invalid_event','invalid_recurrence','invalid_location','invalid_event_image','registration_limit',
 ]);
 
 export function mutationError(context: APIContext, error: unknown, back: string): Response {
@@ -137,4 +137,15 @@ export function mutationError(context: APIContext, error: unknown, back: string)
 
 export function successRedirect(path: string, notice: string): Response {
   return portalResponse(null, 303, { Location: `${path}${path.includes('?') ? '&' : '?'}notice=${encodeURIComponent(notice)}` });
+}
+
+/** The administrator's decision on a pending registration: approve (optionally correcting the group) or reject with a reason. */
+export function parseRegistrationReview(form: FormData): { action: 'approve'; category?: string } | { action: 'reject'; reason: string } {
+  const action = formText(form, 'action', 20);
+  if (action === 'approve') {
+    const category = formText(form, 'category', 40, true);
+    return category ? { action, category } : { action };
+  }
+  if (action === 'reject') return { action, reason: formText(form, 'reason', 300) };
+  throw new InputError('invalid_fields');
 }
